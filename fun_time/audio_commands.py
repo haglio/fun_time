@@ -56,8 +56,8 @@ def _dispatch_audio(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     publish_audio_level(
-        main_funestra_cmd_file=config.main_funestra_cmd_file,
-        genau_cmd_file=config.genau_cmd_file,
+        main_funestra_cmd_file=config.main_funestra.cmd_file,
+        genau_cmd_file=config.genau.cmd_file,
         audio_volume_file=config.audio_volume_file,
         volume=state.volume,
         muted=state.muted,

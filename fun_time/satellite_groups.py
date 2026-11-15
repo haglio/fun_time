@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 def send_satellite(config: BridgeConfig, funestra: FunTimeFunestra, verb: str) -> None:
-    append_command(config.satellite(funestra).cmd_file, verb)
+    append_command(config.satellites[funestra].cmd_file, verb)
 
 
 def lock_on_what_was_meant(funestra: FunTimeFunestra, config: BridgeConfig,
                            aimed_at: str = "") -> str:
-    on_screen = read_satellite_status(config.satellite(funestra).status_file).video
+    on_screen = read_satellite_status(config.satellites[funestra].status_file).video
     item = aimed_at or on_screen
     if not same_file_to_windows(item, on_screen):
         send_satellite(config, funestra, play_file(scripted_item(item, config.regen_metadata_root)))

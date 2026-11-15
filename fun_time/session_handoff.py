@@ -399,7 +399,7 @@ def _uncover_what_was_waiting(state_dir: Path, origenerator_cmd_file) -> None:
 
 
 def _take_everything_down_leaving_only_a_dialog(reason: str, log_file: Path, config) -> int:
-    _uncover_what_was_waiting(config.paths.state_dir, config.origenerator_cmd_file)
+    _uncover_what_was_waiting(config.paths.state_dir, config.origenerator.cmd_file)
     report_a_failed_crossing(reason, log_file)
     return 1
 
@@ -420,7 +420,7 @@ def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
         flag.unlink(missing_ok=True)
     if asked == QUIT_WORD:
         logger.info("The quit chord called the crossing off")
-        _uncover_what_was_waiting(state_dir, config.origenerator_cmd_file)
+        _uncover_what_was_waiting(state_dir, config.origenerator.cmd_file)
         return 0
     if asked == CANCEL_WORD:
         target, cancelable = (DESKTOP if target is VR else VR), False

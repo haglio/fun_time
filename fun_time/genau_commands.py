@@ -64,16 +64,16 @@ _NUMERIC_COMMANDS = {
 
 def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    append_command(config.genau_cmd_file, verb)
+    append_command(config.genau.cmd_file, verb)
     return state, []
 
 
 def _send_genaus_flick_to_trash(state: BridgeState, config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if unfavorited(read_genau_status(config.genau_status_file).flick, config):
-        append_command(config.genau_cmd_file, NEXT)
+    if unfavorited(read_genau_status(config.genau.status_file).flick, config):
+        append_command(config.genau.cmd_file, NEXT)
         return state, [WindowOp(op="message", key=UNFAVORITED, source=SOURCE_MAIN)]
-    append_command(config.genau_cmd_file, "TRASH")
+    append_command(config.genau.cmd_file, "TRASH")
     return state, [WindowOp(op="message", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
 

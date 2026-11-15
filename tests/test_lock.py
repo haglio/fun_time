@@ -45,7 +45,7 @@ def _hosting(tmp_path):
 
 
 def _asked_of_the_hosted_app(config) -> list[str]:
-    asked = config.origenerator_cmd_file
+    asked = config.origenerator.cmd_file
     return asked.read_text(encoding="utf-8").splitlines() if asked.exists() else []
 
 

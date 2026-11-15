@@ -590,7 +590,7 @@ class TestTheRelayEndToEnd:
 
         assert crossing_progress_path(state_dir).read_text(encoding="utf-8").strip() == "DONE"
         assert headset_hold_asked(state_dir) is False
-        closed.assert_called_once_with(Path(state_dir), config.origenerator_cmd_file)
+        closed.assert_called_once_with(Path(state_dir), config.origenerator.cmd_file)
 
     def test_a_way_back_is_never_turned_around_by_a_second_esc(self, config):
         state_dir = config.paths.state_dir

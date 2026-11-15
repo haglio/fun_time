@@ -22,23 +22,23 @@ from tests.made_up_genau import with_made_up_genau
 
 def _channels_of_verbs(config: BridgeConfig) -> dict[str, Path | None]:
     return {
-        "main_funestra_cmd_file": config.main_funestra_cmd_file,
-        "genau_cmd_file": config.genau_cmd_file,
+        "main_funestra_cmd_file": config.main_funestra.cmd_file,
+        "genau_cmd_file": config.genau.cmd_file,
         "portrait_cmd_file": config.portrait.cmd_file,
         "landscape_cmd_file": config.landscape.cmd_file,
-        "origenerator_cmd_file": config.origenerator_cmd_file,
+        "origenerator_cmd_file": config.origenerator.cmd_file,
     }
 
 
 def _channels_with_no_vocabulary_of_their_own(config: BridgeConfig) -> dict[str, Path | None]:
     return {
         "broker_cmd_file": config.broker_cmd_file,
-        "main_funestra_paused_file": config.main_funestra_paused_file,
-        "genau_paused_file": config.genau_paused_file,
+        "main_funestra_paused_file": config.main_funestra.paused_file,
+        "genau_paused_file": config.genau.paused_file,
         "audio_paused_file": config.audio_paused_file,
         "portrait_paused_file": config.portrait.paused_file,
         "landscape_paused_file": config.landscape.paused_file,
-        "origenerator_paused_file": config.origenerator_paused_file,
+        "origenerator_paused_file": config.origenerator.paused_file,
     }
 
 
@@ -134,7 +134,7 @@ def sweep(config: BridgeConfig) -> dict[str, dict[str, list[str]]]:
 
 
 def _hold_every_funestra_halfway_through_an_hour(config: BridgeConfig) -> None:
-    for status_file in (config.main_funestra_status_file,
+    for status_file in (config.main_funestra.status_file,
                         *(config.satellite(funestra).status_file for funestra in FunTimeFunestra.SATELLITES)):
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text(

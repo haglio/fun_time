@@ -63,6 +63,6 @@ def tell_a_hosted_satellite_whose_the_osr2_is(config, told: dict[FunTimeFunestra
                                          funestra: FunTimeFunestra, has_it: bool) -> None:
     if told.get(funestra) == has_it:
         return
-    append_command(config.origenerator_cmd_file, osr2_said_to(funestra, has_it))
+    append_command(config.origenerator.cmd_file, osr2_said_to(funestra, has_it))
     told[funestra] = has_it
 

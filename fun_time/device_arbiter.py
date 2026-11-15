@@ -4,29 +4,23 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from types import MappingProxyType
 
 from app_support import osr2_hold
 from funestra.file_channel import append_command
 from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 from funestra.main_hud import HOLD_VERB, OSR2_DRIVING
 
+from .config import FunestraChannel
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_status import ScriptedStatus, read_main_funestra_status
+from .funestra_status import ScriptedStatus
 from .mode_plan import kino_shows
 from .osr2_section import funestra_with_the_osr2
-from .satellite_control import read_satellite_status
+from .satellite_control import read_scripted_status
 
 TCODE_OFF = "SET_TCODE_ENABLED 0"
 TCODE_ON = "SET_TCODE_ENABLED 1"
 
 _FLOWED_MS = 1_500
-
-
-@dataclass(frozen=True)
-class FunestraFiles:
-    status_file: Path
-    cmd_file: Path
 
 
 @dataclass(frozen=True)
@@ -41,17 +35,14 @@ class DeviceArbiter:
     def __init__(
         self,
         *,
-        main_funestra: FunestraFiles,
-        genau_cmd_file: Path,
+        funestras: Mapping[FunTimeFunestra, FunestraChannel],
+        genau: FunestraChannel,
         device_on: Callable[[], bool],
-        satellites: Mapping[FunTimeFunestra, FunestraFiles] = MappingProxyType({}),
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.main_funestra_status_file = main_funestra.status_file
-        self.main_funestra_cmd_file = main_funestra.cmd_file
-        self.genau_cmd_file = genau_cmd_file
+        self._funestras = dict(funestras)
+        self._genau_cmd_file = genau.cmd_file
         self._device_on = device_on
-        self._satellites = dict(satellites)
         self._clock = clock
         self._may_be_sending = {FunTimeFunestra.MAIN}
         self._statuses: dict[FunTimeFunestra, ScriptedStatus] = {}
@@ -93,7 +84,7 @@ class DeviceArbiter:
 
     def _script_takes_it(self, holder: FunTimeFunestra) -> bool:
         previous = self._statuses.get(holder)
-        status = self._read_status(holder, previous)
+        status = read_scripted_status(holder, self._funestras[holder], fallback=previous)
         self._statuses[holder] = status
         flowed_into_the_scripts_turn = (
             status.funscript_driving and self._hand_has_the_stretch_of is holder
@@ -116,8 +107,8 @@ class DeviceArbiter:
         return all(started)
 
     def _stops_and_starts(self, turn: Osr2Turn) -> tuple[list[tuple[Path, str]], ...]:
-        genau = self.genau_cmd_file
-        stops = [(self._cmd_file(funestra), TCODE_OFF) for funestra in FunTimeFunestra
+        genau = self._genau_cmd_file
+        stops = [(self._funestras[funestra].cmd_file, TCODE_OFF) for funestra in FunTimeFunestra
                  if funestra in self._may_be_sending and funestra is not turn.script]
         starts: list[tuple[Path, str]] = []
         if turn.hand_heard:
@@ -131,18 +122,8 @@ class DeviceArbiter:
         if turn.held_at is not None:
             starts.append((genau, turn.held_at))
         if turn.script is not None:
-            starts.append((self._cmd_file(turn.script), TCODE_ON))
+            starts.append((self._funestras[turn.script].cmd_file, TCODE_ON))
         return stops, starts
-
-    def _cmd_file(self, funestra: FunTimeFunestra) -> Path:
-        if funestra is FunTimeFunestra.MAIN:
-            return self.main_funestra_cmd_file
-        return self._satellites[funestra].cmd_file
-
-    def _read_status(self, funestra: FunTimeFunestra, previous) -> ScriptedStatus:
-        if funestra is FunTimeFunestra.MAIN:
-            return read_main_funestra_status(self.main_funestra_status_file, fallback=previous)
-        return read_satellite_status(self._satellites[funestra].status_file, fallback=previous)
 
     def _the_blue_ending_the_trace_drew_lies_ahead(self, status: ScriptedStatus) -> bool:
         touch = status.handoff_touch_ms

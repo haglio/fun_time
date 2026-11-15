@@ -915,7 +915,7 @@ def _take_the_session_down(
     show_overlays: bool,
 ) -> None:
     state_dir = launch.state_dir
-    origenerator_cmd_file = launch.bridge_config.origenerator_cmd_file
+    origenerator_cmd_file = launch.bridge_config.origenerator.cmd_file
     sibling_checkouts = launch.manifest.runtime.sibling_checkouts
     voice_controller, voice_thread = running.voice
     dispatch_runner, _loop = running.dispatch
@@ -1019,7 +1019,7 @@ def run_session(
                                   pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
     prepared_voice = prepare_voice_control(
         manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
-        hosted_cmd_file=bridge_config.origenerator_cmd_file,
+        hosted_cmd_file=bridge_config.origenerator.cmd_file,
         hosted_said_at_suffix=bridge_config.origenerator_said_at_suffix,
         ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest), state_dir=state_dir)
 

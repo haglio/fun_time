@@ -55,7 +55,7 @@ def _dispatch_main_reorder(
         _rebuild_the_main_list(state, config, start_at_top=True)
     else:
         state = replace(state, genau_latest=recent)
-        append_command(config.genau_cmd_file, _GENAU_ORDER_CMD[recent])
+        append_command(config.genau.cmd_file, _GENAU_ORDER_CMD[recent])
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: the Main Funestra (%s)", label, "kino" if kino else "genau")
     return state, [WindowOp(op="message", key=label, source=SOURCE_MAIN)]
@@ -65,12 +65,12 @@ def _rebuild_the_main_list(state: BridgeState, config: BridgeConfig, *,
                            start_at_top: bool = False, says: str = "") -> None:
     config.main_list_builds.build(MainListBuild(
         main_list=config.main_list, settings=MainListSettings.of(state),
-        main_funestra_cmd_file=config.main_funestra_cmd_file,
+        main_funestra_cmd_file=config.main_funestra.cmd_file,
         on_screen=on_the_main_funestra(config), start_at_top=start_at_top, says=says))
 
 
 def on_the_main_funestra(config: BridgeConfig) -> str:
-    return read_main_funestra_status(config.main_funestra_status_file).video
+    return read_main_funestra_status(config.main_funestra.status_file).video
 
 
 def main_video_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
@@ -103,11 +103,11 @@ def _shapes_offered_in_genau(state: BridgeState, config: BridgeConfig) -> bool:
 
 def _tell_genau_its_shapes(config: BridgeConfig, wanted: Included) -> None:
     plays_flat, plays_vr = wanted
-    append_command(config.genau_cmd_file, shapes_verb(plays_vr=plays_vr, plays_flat=plays_flat))
+    append_command(config.genau.cmd_file, shapes_verb(plays_vr=plays_vr, plays_flat=plays_flat))
 
 
 def _tell_genau_its_orientations(config: BridgeConfig, wanted: Included) -> None:
-    append_command(config.main_funestra_cmd_file, genau_orientations(wanted))
+    append_command(config.main_funestra.cmd_file, genau_orientations(wanted))
 
 
 _INCLUSIONS_ON_THE_MAIN_FUNESTRA: dict[InclusionPair, _Inclusions] = {
@@ -161,7 +161,7 @@ def _dispatch_inclusion(
         return state, []
     if inclusions.read(state) == wanted and not (
             inclusions.a_compilation_is_left_by_asking_again
-            and read_main_funestra_status(config.main_funestra_status_file).compilation):
+            and read_main_funestra_status(config.main_funestra.status_file).compilation):
         return state, []
     state = inclusions.write(state, wanted)
     logger.info("%s %s: %s", "Main Funestra" if on_the_main_funestra else "Genau",
@@ -170,7 +170,7 @@ def _dispatch_inclusion(
         _rebuild_the_main_list(state, config, says=pair.flash(wanted))
         return state, [WindowOp(op=Op.NARROWING_ANSWERS)]
     if not any(wanted):
-        append_command(config.genau_cmd_file, LOCK_ON)
+        append_command(config.genau.cmd_file, LOCK_ON)
         return state, [WindowOp(op="message", key=no_other_flicks(), source=SOURCE_MAIN,
                                 level=logging.WARNING)]
     inclusions.tell_genau(config, wanted)
@@ -224,7 +224,7 @@ _MAIN_FUNESTRA_RESET_VERBS = (
 def _dispatch_main_reset(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    status = read_main_funestra_status(config.main_funestra_status_file)
+    status = read_main_funestra_status(config.main_funestra.status_file)
     if main_funestra_at_defaults(state, config, status):
         logger.info("Reset Main Funestra: already at its defaults")
         return state, []
@@ -233,7 +233,7 @@ def _dispatch_main_reset(
         _rebuild_the_main_list(state, config, start_at_top=True)
     if kino_shows(state.main_mode):
         for verb in _MAIN_FUNESTRA_RESET_VERBS:
-            append_command(config.main_funestra_cmd_file, verb)
+            append_command(config.main_funestra.cmd_file, verb)
     logger.info("Reset Main Funestra")
     return state, [WindowOp(op="message", key="Reset", source=SOURCE_MAIN)]
 
@@ -256,13 +256,13 @@ _GENAUS_SETTINGS = (
     _GenausSetting(("genau_plays_flat", "genau_plays_vr"), _tell_genau_its_shapes),
     _GenausSetting(("genau_plays_portrait", "genau_plays_landscape"), _tell_genau_its_orientations),
     _GenausSetting(("genau_favorites_filter",), lambda config, held: append_command(
-        config.main_funestra_cmd_file, genau_f_mode(*held))),
+        config.main_funestra.cmd_file, genau_f_mode(*held))),
     _GenausSetting(("genau_latest",), lambda config, held: append_command(
-        config.genau_cmd_file, _GENAU_ORDER_CMD[held[0]])),
+        config.genau.cmd_file, _GENAU_ORDER_CMD[held[0]])),
     _GenausSetting(("genau_flick_seconds",), lambda config, held: append_command(
-        config.genau_cmd_file, f"{FLICK_SECONDS} {held[0]}")),
+        config.genau.cmd_file, f"{FLICK_SECONDS} {held[0]}")),
     _GenausSetting(("genau_locked",), lambda config, held: append_command(
-        config.genau_cmd_file, LOCK_ON if held[0] else LOCK_OFF)),
+        config.genau.cmd_file, LOCK_ON if held[0] else LOCK_OFF)),
 )
 
 

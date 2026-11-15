@@ -52,9 +52,9 @@ def reports_published_in(state_dir: Path, *, main_status_file: Path,
 
 def read_funestra_reports(config) -> FunestraReports:
     return reports_published_in(
-        config.state_dir, main_status_file=config.main_funestra_status_file,
-        satellite_status_files={funestra: config.satellite(funestra).status_file
-                                for funestra in FunTimeFunestra.SATELLITES})
+        config.state_dir, main_status_file=config.main_funestra.status_file,
+        satellite_status_files={funestra: satellite.status_file
+                                for funestra, satellite in config.satellites.items()})
 
 
 def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports) -> BridgeState:

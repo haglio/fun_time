@@ -101,7 +101,7 @@ def test_primary_prev_in_kino_mode_writes_main_funestra_cmd(tmp_path: Path):
 
     dispatch_command("main_prev", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PREV\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
 def test_primary_next_in_kino_mode_writes_main_funestra_cmd(tmp_path: Path):
@@ -110,7 +110,7 @@ def test_primary_next_in_kino_mode_writes_main_funestra_cmd(tmp_path: Path):
 
     dispatch_command("main_next", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
 def test_primary_next_in_main_funestra_mode_writes_main_funestra_cmd(tmp_path: Path):
@@ -119,7 +119,7 @@ def test_primary_next_in_main_funestra_mode_writes_main_funestra_cmd(tmp_path: P
 
     dispatch_command("main_next", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
 def test_primary_prev_and_next_step_genaus_flick_in_genau_mode(tmp_path: Path):
@@ -129,8 +129,8 @@ def test_primary_prev_and_next_step_genaus_flick_in_genau_mode(tmp_path: Path):
     dispatch_command("main_prev", state, config)
     dispatch_command("main_next", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "PREV\nNEXT\n"
-    assert not config.main_funestra_cmd_file.exists()
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "PREV\nNEXT\n"
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_primary_lock_toggles_the_main_funestras_hold_on_the_video(tmp_path: Path):
@@ -139,7 +139,7 @@ def test_primary_lock_toggles_the_main_funestras_hold_on_the_video(tmp_path: Pat
 
     dispatch_command("main_lock", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
 
 
 def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
@@ -147,19 +147,19 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_lock_on", state, config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
     dispatch_command("main_lock_off", state, config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\nLOCK_OFF\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "LOCK_ON\nLOCK_OFF\n"
 
 
 def test_a_main_lock_queues_behind_the_osr2_handoff_verb_in_the_same_file(tmp_path: Path):
     config = _make_config(tmp_path)
-    append_command(config.main_funestra_cmd_file, TCODE_OFF)
+    append_command(config.main_funestra.cmd_file, TCODE_OFF)
 
     dispatch_command("main_lock_on", _make_state(main_mode=MainMode.KINO), config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == f"{TCODE_OFF}\nLOCK_ON\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == f"{TCODE_OFF}\nLOCK_ON\n"
 
 
 def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
@@ -168,22 +168,22 @@ def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
 
     dispatch_command("main_lock", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
-    assert not config.main_funestra_cmd_file.exists()
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     config = _make_config(tmp_path)
 
     dispatch_command("main_lock_off", _make_state(main_mode=MainMode.GENAU), config)
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "LOCK_OFF\n"
 
     dispatch_command("main_lock_on", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
 
 def _show_on_genau(config: BridgeConfig, flick: Path, *, locked: bool) -> None:
-    config.genau_status_file.write_text(
+    config.genau.status_file.write_text(
         f"flick={flick}\nlocked={'1' if locked else '0'}\n", encoding="utf-8")
 
 
@@ -266,7 +266,7 @@ def test_a_vr_only_verb_reaches_the_vr_main_funestra(command, verb, tmp_path: Pa
 
     dispatch_command(command, state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
 
 
 @pytest.mark.parametrize(
@@ -281,7 +281,7 @@ def test_a_vr_only_verb_is_ignored_in_a_desktop_session(command, main_mode, tmp_
 
     _state, ops = dispatch_command(command, state, config)
 
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
     assert ops == [WindowOp(op=Op.IGNORED, key="outside VR")]
 
 
@@ -291,7 +291,7 @@ def test_main_funestra_cycle_version_writes_main_funestra_cmd(tmp_path: Path):
 
     dispatch_command("main_funestra_cycle_version", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION\n"
 
 
 def test_main_funestra_cycle_version_back_writes_the_other_way(tmp_path: Path):
@@ -300,12 +300,12 @@ def test_main_funestra_cycle_version_back_writes_the_other_way(tmp_path: Path):
 
     dispatch_command("main_funestra_cycle_version_back", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION_BACK\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION_BACK\n"
 
 
 def _on_screen(config: BridgeConfig, video: str, **status: str) -> None:
-    config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.parent.mkdir(parents=True, exist_ok=True)
+    config.main_funestra.status_file.write_text(
         "".join(f"{key}={value}\n" for key, value in {"video": video, **status}.items()),
         encoding="utf-8")
 
@@ -327,7 +327,7 @@ def test_a_length_button_narrows_the_one_main_list_from_the_video_on_screen(
     assert state.main_length_mode is length
     assert [(build.settings.length, build.on_screen) for build in builds.asked] == [
         (length, "C:/v/scene one.mp4")]
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_naming_the_length_already_running_asks_for_nothing(tmp_path: Path):
@@ -353,7 +353,7 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
 
     dispatch_command("main_funestra_end_compilation", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
 
 
 def test_a_length_button_is_ignored_while_the_main_funestra_is_off_screen(tmp_path: Path):
@@ -364,32 +364,32 @@ def test_a_length_button_is_ignored_while_the_main_funestra_is_off_screen(tmp_pa
 
     assert state.main_length_mode is LengthMode.MIXED
     assert builds.asked == []
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
     assert [op.op for op in ops] == [Op.IGNORED]
 
 
 def test_compilation_writes_play_compilation(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_compilation", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION\n"
 
 
 def test_full_vid_writes_play_full_vid(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_full_vid", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID\n"
 
 
 def test_video_jump_writes_play_video_jump(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_clip_jump", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP\n"
 
 
 def test_funscript_jump_writes_jump_to_funscript(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_funscript_jump", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
 
 
 def test_funscript_jump_is_refused_while_a_satellite_has_the_osr2(tmp_path: Path):
@@ -398,7 +398,7 @@ def test_funscript_jump_is_refused_while_a_satellite_has_the_osr2(tmp_path: Path
 
     _, ops = dispatch_command("main_funestra_funscript_jump", state, config)
 
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
     assert ops == [WindowOp(op="message", key="The Main Funestra doesn't have the OSR2",
                             level=logging.WARNING)]
 
@@ -406,19 +406,19 @@ def test_funscript_jump_is_refused_while_a_satellite_has_the_osr2(tmp_path: Path
 def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_next_funscripted", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED\n"
 
 
 def test_video_nav_inert_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_compilation", _make_state(main_mode=MainMode.GENAU), config)
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_a_funscript_jump_is_ignored_while_the_main_funestra_is_off_screen(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_next_funscripted", _make_state(main_mode=MainMode.GENAU), config)
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_video_nav_voice_phrases():
@@ -578,7 +578,7 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
     assert config.portrait.paused_file.read_text(encoding="utf-8") == "0"
     assert config.landscape.paused_file.read_text(encoding="utf-8") == "0"
-    assert config.main_funestra_paused_file.read_text(encoding="utf-8") == "0"
+    assert config.main_funestra.paused_file.read_text(encoding="utf-8") == "0"
 
 
 def _fmode_result(**kwargs):
@@ -616,7 +616,7 @@ def test_f_mode_on_genau_keeps_its_favorites_and_leaves_kinos_list_alone(tmp_pat
     state, ops, mock_fmode = _dispatch_fmode("main_fmode", _make_state(main_mode=MainMode.GENAU), config)
 
     assert (state.genau_favorites_filter, state.main_scripted_filter) == (True, False)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == f"{genau_f_mode(True)}\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == f"{genau_f_mode(True)}\n"
     assert mock_fmode.call_args.kwargs["funestras"] == ()
     assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source=SOURCE_MAIN, level=FAVORITE)]
 
@@ -722,11 +722,11 @@ def test_a_mode_switch_tells_the_main_funestra_which_of_kino_and_genau_has_its_w
     config = _make_config(tmp_path)
 
     dispatch_command("genau_activate", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW genau"]
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW genau"]
 
-    config.main_funestra_cmd_file.unlink()
+    config.main_funestra.cmd_file.unlink()
     dispatch_command("main_kino_activate", _make_state(main_mode=MainMode.GENAU), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW kino"]
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW kino"]
 
 
 def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
@@ -735,7 +735,7 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
     new_state, ops = dispatch_command("robot_hand_speed_down", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert new_state == state
     assert ops == []
 
@@ -747,14 +747,14 @@ def test_the_robot_hand_at_work_in_both_modes_takes_its_rate_keys_in_both(tmp_pa
 
         new_state, ops = dispatch_command("robot_hand_speed_up", state, config)
 
-        assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n", mode
-        assert not config.main_funestra_cmd_file.exists()
+        assert config.genau.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n", mode
+        assert not config.main_funestra.cmd_file.exists()
         assert new_state == state
         assert ops == []
 
 
 def _set_main_funestra_driving(config, *, driving: bool) -> None:
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.write_text(
         f"has_funscript={'1' if driving else '0'}\nfunscript_resting=0\n",
         encoding="utf-8",
     )
@@ -767,8 +767,8 @@ def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
 
     dispatch_command("robot_hand_speed_up", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert not config.main_funestra_cmd_file.exists()
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_the_bare_nudge_routes_to_main_funestra_in_kino_mode_while_the_funscript_drives(tmp_path: Path):
@@ -778,8 +778,8 @@ def test_the_bare_nudge_routes_to_main_funestra_in_kino_mode_while_the_funscript
 
     dispatch_command("speed_up", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert not config.genau_cmd_file.exists()
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert not config.genau.cmd_file.exists()
 
 
 def test_the_bare_nudge_routes_to_genau_in_kino_mode_while_genau_drives(tmp_path: Path):
@@ -789,8 +789,8 @@ def test_the_bare_nudge_routes_to_genau_in_kino_mode_while_genau_drives(tmp_path
 
     dispatch_command("speed_down", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
-    assert not config.main_funestra_cmd_file.exists()
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_the_bare_nudge_reaches_the_video_while_the_osr2_is_held(tmp_path: Path):
@@ -799,38 +799,38 @@ def test_the_bare_nudge_reaches_the_video_while_the_osr2_is_held(tmp_path: Path)
     dispatch_command("speed_up",
                      _make_state(main_mode=MainMode.KINO, osr2_control=OSR2_PARKED), config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert not config.genau_cmd_file.exists()
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert not config.genau.cmd_file.exists()
 
 
 def test_the_bare_nudge_follows_the_only_engine_running_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path / "genau")
     dispatch_command("speed_up", _make_state(main_mode=MainMode.GENAU), config)
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert not config.main_funestra_cmd_file.exists()
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_the_main_funestras_min_and_max_route_to_the_active_engine(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_speed_min", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
 
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_speed_max", _make_state(main_mode=MainMode.GENAU), config)
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 100\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "SPEED 100\n"
 
 
 def test_main_funestra_multiplier_sets_main_funestra_speed(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_speed_150", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
 
 
 def test_main_funestra_speed_up_down_nudge_the_video_rate_where_main_funestra_is_on_screen(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_speed_up", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert not config.genau_cmd_file.exists()
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert not config.genau.cmd_file.exists()
 
 
 @pytest.mark.parametrize("command", [
@@ -840,8 +840,8 @@ def test_the_main_funestras_video_rate_is_ignored_in_genau_mode(tmp_path: Path, 
 
     _state, ops = dispatch_command(command, _make_state(main_mode=MainMode.GENAU), config)
 
-    assert not config.main_funestra_cmd_file.exists()
-    assert not config.genau_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
+    assert not config.genau.cmd_file.exists()
     assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
@@ -852,8 +852,8 @@ def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_pa
 
     dispatch_command("main_funestra_speed_down", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
-    assert not config.genau_cmd_file.exists()
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
+    assert not config.genau.cmd_file.exists()
 
 
 def test_absolute_speed_reaches_main_funestra_video_in_kino_mode_even_when_genau_drives(tmp_path: Path):
@@ -862,21 +862,21 @@ def test_absolute_speed_reaches_main_funestra_video_in_kino_mode_even_when_genau
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_funestra_speed_150", state, config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
-    assert not config.genau_cmd_file.exists()
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
+    assert not config.genau.cmd_file.exists()
 
 
 def test_the_main_funestras_max_sets_its_video_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     _set_main_funestra_driving(config, driving=False)
     dispatch_command("main_funestra_speed_max", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
 
 
 def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_speed_100", _make_state(main_mode=MainMode.KINO), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
 
 
 def test_a_satellites_speed_pair_steps_that_satellite_alone(tmp_path: Path):
@@ -887,7 +887,7 @@ def test_a_satellites_speed_pair_steps_that_satellite_alone(tmp_path: Path):
 
     assert config.portrait.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert config.landscape.cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_a_rate_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: Path):
@@ -898,7 +898,7 @@ def test_a_rate_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: P
 
     assert config.portrait.cmd_file.read_text(encoding="utf-8") == "SET_SPEED 0.5\n"
     assert config.landscape.cmd_file.read_text(encoding="utf-8") == "SET_SPEED 2\n"
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_either_end_of_the_range_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: Path):
@@ -909,7 +909,7 @@ def test_either_end_of_the_range_named_for_a_satellite_is_set_on_that_satellite_
 
     assert config.portrait.cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
     assert config.landscape.cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
@@ -918,7 +918,7 @@ def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
     new_state, ops = dispatch_command("audio_volume_down", _make_state(), config)
 
     assert new_state.volume == 90
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 90 0"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 90 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "90"
     assert ops == [WindowOp(op="message", key="Volume 90%", source="main")]
 
@@ -929,7 +929,7 @@ def test_volume_up_steps_both_audio_sinks_up(tmp_path: Path):
     new_state, _ops = dispatch_command("audio_volume_up", _make_state(volume=40), config)
 
     assert new_state.volume == 50
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 50 0"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 50 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "50"
 
 
@@ -947,11 +947,11 @@ def test_the_main_funestra_is_told_muted_apart_from_turned_all_the_way_down(tmp_
     config = _make_config(tmp_path)
 
     dispatch_command("audio_mute", _make_state(volume=70), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0", "the sink stays dumb"
 
     dispatch_command("audio_set_volume|0", _make_state(volume=70), config)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").split("\n")[1] == "SET_VOLUME 0 0"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").split("\n")[1] == "SET_VOLUME 0 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0", "the sink stays dumb"
 
 
@@ -962,7 +962,7 @@ def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
         "audio_set_volume|35", _make_state(volume=70, muted=True), config)
 
     assert (new_state.volume, new_state.muted) == (35, False)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 35 0"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 35 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "35"
     assert ops == [WindowOp(op="message", key="Volume 35%", source="main")]
 
@@ -972,8 +972,8 @@ def test_both_funestras_that_draw_the_level_are_told_it_a_hidden_genau_too(tmp_p
 
     dispatch_command("audio_mute", _make_state(volume=70, main_mode=MainMode.KINO), config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
+    assert config.genau.cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
 
 
 def test_setting_the_volume_clamps_and_ignores_nonsense(tmp_path: Path):
@@ -991,7 +991,7 @@ def test_the_max_intensity_slider_reaches_every_funestra_that_can_drive_the_devi
     new_state, ops = dispatch_command("max_intensity_35", _make_state(), config)
 
     assert new_state.max_intensity == 35
-    for command_file in (config.genau_cmd_file, config.main_funestra_cmd_file,
+    for command_file in (config.genau.cmd_file, config.main_funestra.cmd_file,
                          config.portrait.cmd_file, config.landscape.cmd_file):
         assert command_file.read_text(encoding="utf-8").strip() == "SET_MAX_INTENSITY 35"
     assert ops == [WindowOp(op="message", key="Max intensity 35%", source="main")]
@@ -1025,7 +1025,7 @@ def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
     )
 
     assert new_state.muted is False
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 0"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 0"
     assert ops == [WindowOp(op="message", key="Volume 70%", source="main")]
 
 
@@ -1048,7 +1048,7 @@ def test_a_louder_said_while_muted_is_heard_rather_than_seeming_missed(tmp_path:
 
     assert new_state.muted is False
     assert new_state.volume == 80
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 80 0"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 80 0"
 
 
 def test_genau_next_flick_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
@@ -1057,7 +1057,7 @@ def test_genau_next_flick_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
     _new_state, _ops = dispatch_command("genau_next_flick", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
 def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
@@ -1066,7 +1066,7 @@ def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Pat
 
     new_state, ops = dispatch_command("robot_hand_cycle_shape_prev", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CYCLE_SHAPE_PREV\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "CYCLE_SHAPE_PREV\n"
     assert new_state == state
     assert ops == []
 
@@ -1082,7 +1082,7 @@ def test_genau_learned_motion_verbs_write_cmd_file(tmp_path: Path, command, verb
 
     new_state, ops = dispatch_command(command, state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
     assert new_state == state
     assert ops == []
 
@@ -1103,7 +1103,7 @@ class TestOsr2ControlState:
         _after, ops = dispatch_command("robot_hand_park", _make_state(), config)
 
         assert config.broker_cmd_file.read_text(encoding="utf-8").split() == [osr2_hold.PARK]
-        assert not config.genau_cmd_file.exists()
+        assert not config.genau.cmd_file.exists()
         assert ops == []
 
     def test_driving_again_calls_the_brokers_hold_off(self, tmp_path: Path):
@@ -1115,7 +1115,7 @@ class TestOsr2ControlState:
         assert after.osr2_control == OSR2_DRIVING
         assert config.broker_cmd_file.read_text(encoding="utf-8").split() == [
             osr2_hold.PARK, osr2_hold.RESUME]
-        assert not config.genau_cmd_file.exists()
+        assert not config.genau.cmd_file.exists()
 
 
 class TestTakingTheOsr2:
@@ -1148,7 +1148,7 @@ class TestTakingTheOsr2:
         after, _ops = dispatch_command("omnipause_toggle", state, config)
 
         assert after.omni_paused is False
-        assert not config.genau_cmd_file.exists()
+        assert not config.genau.cmd_file.exists()
 
     def test_the_bare_nudge_speeds_the_satellite_funestra_whose_script_has_the_osr2(self, tmp_path: Path):
         config = _make_config(tmp_path)
@@ -1159,7 +1159,7 @@ class TestTakingTheOsr2:
                                                  osr2_funestra=FunTimeFunestra.PORTRAIT), config)
 
         assert config.portrait.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-        assert not config.genau_cmd_file.exists()
+        assert not config.genau.cmd_file.exists()
 
     def test_the_bare_nudge_speeds_the_robot_hand_while_a_satellite_funestra_has_it(self, tmp_path: Path):
         config = _make_config(tmp_path)
@@ -1167,8 +1167,8 @@ class TestTakingTheOsr2:
 
         dispatch_command("speed_up", _make_state(osr2_funestra=FunTimeFunestra.PORTRAIT), config)
 
-        assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-        assert not config.main_funestra_cmd_file.exists()
+        assert config.genau.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+        assert not config.main_funestra.cmd_file.exists()
 
 
 def test_genau_flick_commands_write_cmd_file(tmp_path: Path):
@@ -1180,7 +1180,7 @@ def test_genau_flick_commands_write_cmd_file(tmp_path: Path):
         config = _make_config(tmp_path / command)
         _new_state, ops = dispatch_command(command, _make_state(main_mode=MainMode.GENAU), config)
 
-        assert config.genau_cmd_file.read_text(encoding="utf-8") == verb + "\n"
+        assert config.genau.cmd_file.read_text(encoding="utf-8") == verb + "\n"
         assert ops == []
 
 
@@ -1189,7 +1189,7 @@ def test_marking_genaus_flick_trash_flashes_marked_trash_over_the_main_funestra(
 
     _, ops = dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TRASH\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "TRASH\n"
     assert [(op.op, op.key, op.source) for op in ops] == [("message", "Sent to Trash", "main")]
 
 
@@ -1209,7 +1209,7 @@ def test_every_genau_command_is_ignored_with_video_in_the_main_funestra(
 
     new_state, ops = dispatch_command(command, state, config)
 
-    assert not config.genau_cmd_file.exists()
+    assert not config.genau.cmd_file.exists()
     assert (new_state, ops) == (replace(state, active_funestra=FunTimeFunestra.MAIN),
                                 [WindowOp(op=Op.IGNORED, key="in Kino mode")])
 
@@ -1227,7 +1227,7 @@ def test_the_robot_hands_commands_still_reach_it_with_video_in_the_main_funestra
 
     dispatch_command(command, _make_state(main_mode=MainMode.KINO), config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == verb + "\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == verb + "\n"
 
 
 def test_genau_flick_seconds_writes_a_numeric_cmd(tmp_path: Path):
@@ -1236,7 +1236,7 @@ def test_genau_flick_seconds_writes_a_numeric_cmd(tmp_path: Path):
 
     dispatch_command("genau_flick_seconds_30", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "FLICK_SECONDS 30\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "FLICK_SECONDS 30\n"
 
 
 def test_robot_hand_cmd_reaches_genau_in_kino_mode(tmp_path: Path):
@@ -1245,7 +1245,7 @@ def test_robot_hand_cmd_reaches_genau_in_kino_mode(tmp_path: Path):
 
     new_state, ops = dispatch_command("robot_hand_speed_down", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert new_state == state
     assert ops == []
 
@@ -1256,7 +1256,7 @@ def test_genau_amp_writes_numeric_cmd_file(tmp_path: Path):
 
     new_state, ops = dispatch_command("robot_hand_amp_50", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "AMP 50\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "AMP 50\n"
     assert new_state == state
     assert ops == []
 
@@ -1267,7 +1267,7 @@ def test_genau_center_writes_numeric_cmd_file(tmp_path: Path):
 
     _new_state, _ops = dispatch_command("robot_hand_center_80", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CENTER 80\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "CENTER 80\n"
 
 
 def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
@@ -1276,7 +1276,7 @@ def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
 
     _new_state, _ops = dispatch_command("robot_hand_speed_30", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 30\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "SPEED 30\n"
 
 
 def test_a_number_of_seconds_for_the_flick_reaches_genau_as_seconds_not_as_an_axis_level(tmp_path: Path):
@@ -1285,7 +1285,7 @@ def test_a_number_of_seconds_for_the_flick_reaches_genau_as_seconds_not_as_an_ax
 
     dispatch_command("genau_flick_seconds_12", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "FLICK_SECONDS 12\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "FLICK_SECONDS 12\n"
 
 
 def test_a_level_that_is_not_a_whole_number_reaches_genau_as_nothing(tmp_path: Path):
@@ -1294,7 +1294,7 @@ def test_a_level_that_is_not_a_whole_number_reaches_genau_as_nothing(tmp_path: P
 
     dispatch_command("robot_hand_amp_loud", state, config)
 
-    assert not config.genau_cmd_file.exists()
+    assert not config.genau.cmd_file.exists()
 
 
 def test_robot_hand_numeric_cmd_reaches_genau_in_kino_mode(tmp_path: Path):
@@ -1303,7 +1303,7 @@ def test_robot_hand_numeric_cmd_reaches_genau_in_kino_mode(tmp_path: Path):
 
     new_state, ops = dispatch_command("robot_hand_amp_50", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "AMP 50\n"
+    assert config.genau.cmd_file.read_text(encoding="utf-8") == "AMP 50\n"
     assert new_state == state
     assert ops == []
 
@@ -1341,7 +1341,7 @@ def test_relief_omnipause_is_omnipause_and_the_retract_hold_together(tmp_path: P
     assert any(op.op == "suspend_hotkeys" for op in ops)
     assert all(paused.read_text(encoding="utf-8") == "1" for paused in (
         config.portrait.paused_file, config.landscape.paused_file,
-        config.main_funestra_paused_file, config.genau_paused_file,
+        config.main_funestra.paused_file, config.genau.paused_file,
         config.audio_paused_file))
 
 
@@ -1465,18 +1465,18 @@ def test_leaving_omnipause_activates_the_window_kino_and_genau_share_in_either_m
 def test_the_main_funestras_nudge_pair_seeks_the_main_funestra_in_either_mode(
         tmp_path: Path, main_mode: MainMode):
     config = _make_config(tmp_path)
-    _publish_status(config.main_funestra_status_file, duration_ms=60_000, position_ms=30_000)
+    _publish_status(config.main_funestra.status_file, duration_ms=60_000, position_ms=30_000)
     state = _make_state(main_mode=main_mode)
 
     _state, back_ops = dispatch_command("main_nudge_prev", state, config)
     _state, forward_ops = dispatch_command("main_nudge_next", state, config)
 
     assert back_ops == forward_ops == []
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\nSEEK_FWD\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\nSEEK_FWD\n"
 
 
 @pytest.mark.parametrize(("command", "status_of", "expected_message"), [
-    ("main_nudge_next", lambda config: config.main_funestra_status_file,
+    ("main_nudge_next", lambda config: config.main_funestra.status_file,
      ("This video is 10s or shorter", SOURCE_MAIN)),
     ("portrait_nudge_prev", lambda config: config.satellite(FunTimeFunestra.PORTRAIT).status_file,
      ("This video is 10s or shorter", SOURCE_PORTRAIT)),
@@ -1489,7 +1489,7 @@ def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and
     _state, ops = dispatch_command(command, _make_state(), config)
 
     assert [(op.op, op.key, op.source) for op in ops] == [("message", *expected_message)]
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
     assert _cmds(config, FunTimeFunestra.PORTRAIT) == []
 
 
@@ -1498,7 +1498,7 @@ def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and
      6_000, ("Less than 10s into this video", SOURCE_PORTRAIT)),
     ("portrait_nudge_next", lambda config: config.satellite(FunTimeFunestra.PORTRAIT).status_file,
      54_000, ("Less than 10s left in this video", SOURCE_PORTRAIT)),
-    ("main_nudge_prev", lambda config: config.main_funestra_status_file,
+    ("main_nudge_prev", lambda config: config.main_funestra.status_file,
      6_000, ("Less than 10s into this video", SOURCE_MAIN)),
 ])
 def test_a_ten_second_step_with_less_than_ten_seconds_to_go_stays_put_and_says_why(
@@ -1509,7 +1509,7 @@ def test_a_ten_second_step_with_less_than_ten_seconds_to_go_stays_put_and_says_w
     _state, ops = dispatch_command(command, _make_state(), config)
 
     assert [(op.op, op.key, op.source) for op in ops] == [("message", *expected_message)]
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
     assert _cmds(config, FunTimeFunestra.PORTRAIT) == []
 
 
@@ -1541,9 +1541,9 @@ def test_main_funestra_record_commands_write_main_funestra_cmd_in_main_funestra_
         ("main_funestra_snippet_cancel", "SNIPPET_CANCEL"),
     ]:
         _new_state, ops = dispatch_command(command, state, config)
-        assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == expected + "\n"
+        assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == expected + "\n"
         assert ops == []
-        config.main_funestra_cmd_file.unlink()
+        config.main_funestra.cmd_file.unlink()
 
 
 def test_main_funestra_record_commands_work_in_kino_mode(tmp_path: Path):
@@ -1552,7 +1552,7 @@ def test_main_funestra_record_commands_work_in_kino_mode(tmp_path: Path):
 
     _new_state, ops = dispatch_command("main_funestra_record_tap", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP\n"
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == "RECORD_TAP\n"
     assert ops == []
 
 
@@ -1562,7 +1562,7 @@ def test_main_funestra_record_commands_are_ignored_in_genau_mode(tmp_path: Path)
 
     _new_state, ops = dispatch_command("main_funestra_record_tap", state, config)
 
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
     assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
@@ -1711,12 +1711,12 @@ def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path):
 
     state, ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.GENAU), config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8").split() == ["LATEST"]
+    assert config.genau.cmd_file.read_text(encoding="utf-8").split() == ["LATEST"]
     assert builds.asked == []
     assert [op.key for op in ops if op.op == "message"] == ["Latest"]
 
     dispatch_command("main_shuffle", state, config)
-    assert config.genau_cmd_file.read_text(encoding="utf-8").split() == ["LATEST", "SHUFFLE"]
+    assert config.genau.cmd_file.read_text(encoding="utf-8").split() == ["LATEST", "SHUFFLE"]
     assert builds.asked == []
 
 
@@ -1740,7 +1740,7 @@ def test_a_main_reorder_in_kino_mode_still_reaches_main_funestra(tmp_path):
 
     assert builds.asked[-1].settings.latest is True
     assert state.main_latest is True
-    assert not config.genau_cmd_file.exists()
+    assert not config.genau.cmd_file.exists()
 
 
 def test_a_length_press_hands_the_rebuild_what_it_left_to_say(tmp_path):
@@ -1775,7 +1775,7 @@ def test_an_orientation_press_in_genau_mode_tells_genau_on_the_main_funestras_ch
 
     assert (state.genau_plays_portrait, state.genau_plays_landscape) == (False, True)
     assert (state.main_plays_portrait, state.main_plays_landscape) == (True, True)
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == [
         "SET_GENAU_ORIENTATIONS landscape"]
     assert builds.asked == []
     assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
@@ -1788,7 +1788,7 @@ def test_neither_orientation_holds_genaus_flick_as_neither_shape_does(tmp_path, 
 
     _state, ops = dispatch_command("main_orientation_none", only_portrait, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
+    assert config.genau.cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
     assert [op.key for op in ops] == ["Including no other pips"]
 
 
@@ -1822,8 +1822,8 @@ def test_a_shape_press_narrows_the_browse_and_rebuilds_the_playlist(tmp_path):
 def test_a_narrowing_carries_on_from_the_video_on_screen(tmp_path):
     config, builds = _recording(_vr_config(tmp_path))
     on_screen = str(tmp_path / "primary" / "scene one.mp4")
-    config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
-    config.main_funestra_status_file.write_text(f"video={on_screen}\n", encoding="utf-8")
+    config.main_funestra.status_file.parent.mkdir(parents=True, exist_ok=True)
+    config.main_funestra.status_file.write_text(f"video={on_screen}\n", encoding="utf-8")
 
     dispatch_command("main_projection_vr", _make_state(), config)
 
@@ -1850,12 +1850,12 @@ def test_every_press_that_leaves_no_video_sends_the_one_on_screen_never_an_empty
     on_screen = tmp_path / "primary" / "vr" / "scene one.mp4"
     on_screen.parent.mkdir(parents=True)
     on_screen.write_bytes(b"")
-    config.main_funestra_status_file.write_text(f"video={on_screen}\n", encoding="utf-8")
+    config.main_funestra.status_file.write_text(f"video={on_screen}\n", encoding="utf-8")
 
     with caplog.at_level(logging.WARNING):
         _state, ops = dispatch_command(command, state, config)
 
-    sent = config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
+    sent = config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines()
     assert config.main_list.file.read_text(encoding="utf-8").splitlines() == [str(on_screen)]
     assert (sent[-1], sent.count("LOCK_ON")) == ("LOCK_ON", 1)
     assert [op.key for op in ops if op.op == "message"] + [
@@ -1888,7 +1888,7 @@ def test_a_shape_press_in_genau_mode_narrows_genaus_flicks(tmp_path):
 
     assert (state.genau_plays_vr, state.genau_plays_flat) == (True, False)
     assert (state.main_plays_vr, state.main_plays_flat) == (True, True)
-    assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHAPES vr"]
+    assert config.genau.cmd_file.read_text(encoding="utf-8").splitlines() == ["SHAPES vr"]
     assert builds.asked == []
     assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
 
@@ -1900,7 +1900,7 @@ def test_putting_genaus_other_shape_back_asks_it_for_both(tmp_path):
     state, ops = dispatch_command("main_projection_both", narrowed, config)
 
     assert (state.genau_plays_vr, state.genau_plays_flat) == (True, True)
-    assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHAPES vr flat"]
+    assert config.genau.cmd_file.read_text(encoding="utf-8").splitlines() == ["SHAPES vr flat"]
     assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
 
 
@@ -1912,7 +1912,7 @@ def test_neither_of_genaus_shapes_holds_its_flick(tmp_path, monkeypatch):
     state, ops = dispatch_command("main_projection_none", only_flat, config)
 
     assert (state.genau_plays_vr, state.genau_plays_flat) == (False, False)
-    assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
+    assert config.genau.cmd_file.read_text(encoding="utf-8").splitlines() == ["LOCK_ON"]
     assert [op.key for op in ops] == ["Including no other pips"]
 
 
@@ -1938,7 +1938,7 @@ def test_asking_genau_for_the_shapes_it_already_plays_sends_it_nothing(tmp_path)
         "main_projection_both", _make_state(main_mode=MainMode.GENAU), config)
 
     assert ops == []
-    assert not config.genau_cmd_file.exists()
+    assert not config.genau.cmd_file.exists()
 
 
 def test_a_genau_with_only_flat_flicks_ignores_the_filter(tmp_path):
@@ -1949,7 +1949,7 @@ def test_a_genau_with_only_flat_flicks_ignores_the_filter(tmp_path):
 
     assert (state.genau_plays_vr, state.genau_plays_flat) == (True, True)
     assert ops == []
-    assert not config.genau_cmd_file.exists()
+    assert not config.genau.cmd_file.exists()
 
 
 def test_main_reset_puts_back_the_defaults_the_main_funestra_holds_itself(tmp_path):
@@ -1957,14 +1957,14 @@ def test_main_reset_puts_back_the_defaults_the_main_funestra_holds_itself(tmp_pa
 
     dispatch_command("main_reset", _make_state(), config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == [
         "SNIPPET_CANCEL", "LOCK_OFF", "SET_SPEED 1"]
 
 
 def test_main_reset_does_nothing_to_a_main_funestra_already_at_every_default(tmp_path):
     config = _make_config(tmp_path)
-    config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.parent.mkdir(parents=True, exist_ok=True)
+    config.main_funestra.status_file.write_text(
         "video=C:/v/scene one.mp4\nlocked=0\nsnippet_state=normal\nspeed=1.0\n"
         "length_mode=mixed\ncompilation=\n",
         encoding="utf-8",
@@ -1973,7 +1973,7 @@ def test_main_reset_does_nothing_to_a_main_funestra_already_at_every_default(tmp
     _state, ops = dispatch_command("main_reset", _make_state(), config)
 
     assert ops == []
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
 
 
 @pytest.mark.parametrize("off_default", [
@@ -2029,7 +2029,7 @@ def test_main_reset_leaves_what_the_main_funestra_holds_alone_while_genau_owns_t
         "main_reset", _make_state(main_mode=MainMode.GENAU, main_scripted_filter=True), config)
 
     assert state.main_scripted_filter is False
-    assert not config.main_funestra_cmd_file.exists()
+    assert not config.main_funestra.cmd_file.exists()
 
 
 def test_main_reset_flashes_reset_over_the_main_funestra(tmp_path):
@@ -2088,7 +2088,7 @@ def test_a_spoken_lock_reaches_a_hosted_satellite_with_no_time_to_go_back_to_aga
 
 
 def _origenerator_cmds(config: BridgeConfig) -> list[str]:
-    cmd_file = config.origenerator_cmd_file
+    cmd_file = config.origenerator.cmd_file
     if not cmd_file.exists():
         return []
     return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -2400,14 +2400,14 @@ class TestOmniPauseWithOrigenerator:
         state = _handed_over()
         state, _ = dispatch_command("enter_omnipause", state, config)
         assert state.omni_paused
-        assert config.origenerator_paused_file.read_text(encoding="utf-8") == "1"
+        assert config.origenerator.paused_file.read_text(encoding="utf-8") == "1"
 
     def test_leave_sets_the_funestras_going_again_handed_over(self, tmp_path):
         config = _make_config(tmp_path)
         state = _handed_over(omni_paused=True)
         state, _ = dispatch_command("omnipause_toggle", state, config)
         assert not state.omni_paused
-        assert config.origenerator_paused_file.read_text(encoding="utf-8") == "0"
+        assert config.origenerator.paused_file.read_text(encoding="utf-8") == "0"
         assert config.portrait.paused_file.read_text(encoding="utf-8") == "0"
         assert config.landscape.paused_file.read_text(encoding="utf-8") == "0"
 
@@ -2669,7 +2669,7 @@ class TestASatellitesSound:
         assert state.satellite(FunTimeFunestra.PORTRAIT).volume == 90
         assert config.portrait.cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "SET_VOLUME 90 0"
         assert ops == [WindowOp(op="message", key="Volume 90%", source=SOURCE_PORTRAIT)]
-        assert not config.main_funestra_cmd_file.exists()
+        assert not config.main_funestra.cmd_file.exists()
         assert not config.landscape.cmd_file.exists()
 
     def test_a_mute_keeps_the_level_and_a_step_lifts_the_mute(self, tmp_path):
@@ -2809,7 +2809,7 @@ def test_genaus_trash_on_a_favorite_unfavorites_it_and_moves_on_leaving_it_in_pl
     _state, ops = dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config)
 
     assert not is_favorite(flick, config.regen_metadata_root)
-    assert _lines(config.genau_cmd_file) == ["NEXT"]
+    assert _lines(config.genau.cmd_file) == ["NEXT"]
     assert [(op.op, op.key) for op in ops] == [("message", "Unfavorited")]
 
 
@@ -2824,7 +2824,7 @@ def test_genaus_trash_on_an_ai_favorite_takes_its_star_off_in_the_gallery(tmp_pa
         dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config)
 
     unstar.assert_called_once_with(str(flick), config.librarys_origenerator)
-    assert _lines(config.genau_cmd_file) == ["NEXT"]
+    assert _lines(config.genau.cmd_file) == ["NEXT"]
 
 
 def test_kinos_trash_on_a_favorite_unfavorites_it_and_plays_the_next_video(tmp_path):
@@ -2837,7 +2837,7 @@ def test_kinos_trash_on_a_favorite_unfavorites_it_and_plays_the_next_video(tmp_p
     _state, ops = dispatch_command("main_trash", _make_state(), config)
 
     assert not is_favorite(video, config.regen_metadata_root)
-    assert _lines(config.main_funestra_cmd_file) == ["NEXT"]
+    assert _lines(config.main_funestra.cmd_file) == ["NEXT"]
     assert [(op.op, op.key) for op in ops] == [("message", "Unfavorited")]
 
 
@@ -2851,8 +2851,8 @@ def test_kinos_trash_pressed_while_the_main_funestra_shows_genau_touches_nothing
     dispatch_command("main_trash", _make_state(main_mode=MainMode.GENAU), config)
 
     assert is_favorite(video, config.regen_metadata_root)
-    assert _lines(config.main_funestra_cmd_file) == []
-    assert _lines(config.genau_cmd_file) == []
+    assert _lines(config.main_funestra.cmd_file) == []
+    assert _lines(config.genau.cmd_file) == []
 
 
 _GENAU_OFF_ITS_DEFAULTS = {
@@ -2870,10 +2870,10 @@ def test_genaus_reset_puts_every_setting_it_covers_back_to_how_genau_starts(tmp_
 
     assert {name: getattr(reset, name) for name in _GENAU_OFF_ITS_DEFAULTS} == {
         name: getattr(BridgeState(), name) for name in _GENAU_OFF_ITS_DEFAULTS}
-    assert _lines(config.genau_cmd_file) == [
+    assert _lines(config.genau.cmd_file) == [
         "SHAPES vr flat", "SHUFFLE", f"FLICK_SECONDS {BridgeState().genau_flick_seconds}",
         "LOCK_ON"]
-    assert _lines(config.main_funestra_cmd_file) == [
+    assert _lines(config.main_funestra.cmd_file) == [
         genau_orientations((True, True)), genau_f_mode(False)]
     assert [(op.op, op.key) for op in ops] == [("message", "Reset")]
 
@@ -2883,8 +2883,8 @@ def test_genaus_reset_tells_genau_only_what_it_changed(tmp_path):
 
     dispatch_command("genau_reset", _make_state(main_mode=MainMode.GENAU, genau_latest=True), config)
 
-    assert _lines(config.genau_cmd_file) == ["SHUFFLE"]
-    assert _lines(config.main_funestra_cmd_file) == []
+    assert _lines(config.genau.cmd_file) == ["SHUFFLE"]
+    assert _lines(config.main_funestra.cmd_file) == []
 
 
 def test_genaus_reset_with_everything_at_its_defaults_does_nothing(tmp_path):
@@ -2894,7 +2894,7 @@ def test_genaus_reset_with_everything_at_its_defaults_does_nothing(tmp_path):
     reset, ops = dispatch_command("genau_reset", state, config)
 
     assert (reset, ops) == (state, [])
-    assert _lines(config.genau_cmd_file) == []
+    assert _lines(config.genau.cmd_file) == []
 
 
 def test_kinos_trash_on_a_video_that_is_no_favorite_sends_it_to_origenerators_trash_and_moves_on(
@@ -2905,8 +2905,8 @@ def test_kinos_trash_on_a_video_that_is_no_favorite_sends_it_to_origenerators_tr
 
     _state, ops = dispatch_command("main_trash", _make_state(), config)
 
-    assert _lines(config.main_funestra_cmd_file) == ["TRASH"]
-    assert _lines(config.origenerator_cmd_file) == [f"TRASH_FILE|{video}"]
+    assert _lines(config.main_funestra.cmd_file) == ["TRASH"]
+    assert _lines(config.origenerator.cmd_file) == [f"TRASH_FILE|{video}"]
     assert [(op.op, op.key) for op in ops] == [("message", "Sent to Trash")]
 
 
@@ -2920,7 +2920,7 @@ def test_kinos_trash_lets_go_of_a_held_video_first_as_up_does(tmp_path, favorite
 
     dispatch_command("main_trash", _make_state(), config)
 
-    assert _lines(config.main_funestra_cmd_file)[0] == "LOCK_OFF"
+    assert _lines(config.main_funestra.cmd_file)[0] == "LOCK_OFF"
 
 
 def test_kinos_trash_with_nothing_on_screen_does_nothing(tmp_path):
@@ -2928,5 +2928,5 @@ def test_kinos_trash_with_nothing_on_screen_does_nothing(tmp_path):
 
     _state, ops = dispatch_command("main_trash", _make_state(), config)
 
-    assert (_lines(config.main_funestra_cmd_file), _lines(config.origenerator_cmd_file), ops) == (
+    assert (_lines(config.main_funestra.cmd_file), _lines(config.origenerator.cmd_file), ops) == (
         [], [], [])

@@ -788,10 +788,10 @@ def _queued_when_the_funestra_launches(
         pass
 
     channels = {
-        "main": config.main_funestra_cmd_file,
+        "main": config.main_funestra.cmd_file,
         "portrait": config.satellite(FunTimeFunestra.PORTRAIT).cmd_file,
         "landscape": config.satellite(FunTimeFunestra.LANDSCAPE).cmd_file,
-        "genau": config.genau_cmd_file,
+        "genau": config.genau.cmd_file,
     }
     queued: dict[str, list[str]] = {}
 
@@ -1694,7 +1694,7 @@ class TestOpeningAVrSession:
     def test_a_session_he_quit_stops_the_robot_hand_and_parks_the_osr2(self, config):
         _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked")
 
-        assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "PAUSE"
+        assert config.genau.cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "PAUSE"
         assert config.broker_cmd_file.read_text(encoding="utf-8").split() == ["PARK"]
 
     def test_a_funestra_that_dies_mid_session_leaves_its_exit_code_in_the_log(self, config, caplog):

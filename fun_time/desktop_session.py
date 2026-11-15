@@ -39,7 +39,7 @@ class SessionLaunch:
 
 
 def release_of(launch: SessionLaunch, taken_over: bool) -> Path | None:
-    return launch.bridge_config.origenerator_cmd_file if taken_over else None
+    return launch.bridge_config.origenerator.cmd_file if taken_over else None
 
 
 @dataclass(frozen=True)

@@ -12,11 +12,11 @@ Holding = Callable[[], tuple[bool, str]]
 
 def what_the_main_funestra_holds(config: BridgeConfig) -> dict[MainMode, Holding]:
     def kino() -> tuple[bool, str]:
-        status = read_main_funestra_status(config.main_funestra_status_file)
+        status = read_main_funestra_status(config.main_funestra.status_file)
         return status.locked, status.video
 
     def genau() -> tuple[bool, str]:
-        status = read_genau_status(config.genau_status_file)
+        status = read_genau_status(config.genau.status_file)
         return status.locked, status.flick
 
     return {MainMode.KINO: kino, MainMode.GENAU: genau}

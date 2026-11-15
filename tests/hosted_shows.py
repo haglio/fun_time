@@ -31,15 +31,15 @@ def an_app_that_opens_each_slideshow_asked_of_it(config: BridgeConfig | ProjectC
 
 
 def an_origenerator_that_answers(config: ProjectConfig, monkeypatch) -> list[str]:
-    config.origenerator_status_file.parent.mkdir(parents=True, exist_ok=True)
-    config.origenerator_status_file.write_text("paused = 0\n", encoding="utf-8")
+    config.origenerator.status_file.parent.mkdir(parents=True, exist_ok=True)
+    config.origenerator.status_file.write_text("paused = 0\n", encoding="utf-8")
     heard: list[str] = []
     the_app = an_app_that_opens_each_slideshow_asked_of_it(config, heard)
     append_for_real = file_channel.append_command
 
     def append(path, verb: str) -> None:
         append_for_real(path, verb)
-        if Path(path) == config.origenerator_cmd_file:
+        if Path(path) == config.origenerator.cmd_file:
             the_app(path, verb)
 
     monkeypatch.setattr("fun_time.runtime_flow.append_command", append)

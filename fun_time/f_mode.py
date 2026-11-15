@@ -68,7 +68,7 @@ def _set_the_hosted_shows_f_mode(funestras: tuple[FunTimeFunestra, ...], enabled
                                  config: BridgeConfig) -> None:
     for funestra in funestras:
         if show_f_mode(config.satellite(funestra)) not in (None, enabled):
-            append_command(config.origenerator_cmd_file, _sided_fmode_command(funestra, enabled))
+            append_command(config.origenerator.cmd_file, _sided_fmode_command(funestra, enabled))
 
 
 def _dispatch_fmode(
@@ -83,14 +83,14 @@ def _dispatch_fmode(
     _set_the_hosted_shows_f_mode(hosted, enabled, config)
     genau = _genau_among(changed, state)
     if genau:
-        append_command(config.main_funestra_cmd_file, genau_f_mode(enabled))
+        append_command(config.main_funestra.cmd_file, genau_f_mode(enabled))
     result = apply_fmode(
         funestras=tuple(funestra for funestra in changed if funestra not in genau),
         enabled=enabled,
         main_build=MainListBuild(
             main_list=config.main_list,
             settings=MainListSettings.of(state),
-            main_funestra_cmd_file=config.main_funestra_cmd_file,
+            main_funestra_cmd_file=config.main_funestra.cmd_file,
             on_screen=on_the_main_funestra(config),
         ),
         main_builds=config.main_list_builds,

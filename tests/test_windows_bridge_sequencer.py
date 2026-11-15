@@ -288,8 +288,8 @@ class TestRunStartupSequence:
             assert launch.channels.status == Path(state / f"{satellite}_status.txt")
             assert launch.log_file == tmp_path / f"{satellite}_satellite.log"
             assert launch.channels.playlist == tmp_path / f"{satellite}_playlist.tsv"
-        assert core_called["m"].commands.main_funestra_status_file == str(cfg.main_funestra_status_file)
-        assert core_called["m"].commands.main_funestra_paused_file == str(cfg.main_funestra_paused_file)
+        assert core_called["m"].commands.main_funestra_status_file == str(cfg.main_funestra.status_file)
+        assert core_called["m"].commands.main_funestra_paused_file == str(cfg.main_funestra.paused_file)
 
     def test_the_satellites_launch_straight_into_their_layout_rects(self, cfg_factory, tmp_path):
         _cfg, _result, core_called, ui_called = self._captured_launch(cfg_factory, tmp_path)
@@ -344,17 +344,17 @@ class TestRunStartupSequence:
         assert given.runtime.config_path == str(cfg.config_path)
         commands = given.commands
         assert commands.main_funestra_playlist_file == str(cfg.main_funestra_playlist_file)
-        assert commands.main_funestra_cmd_file == str(cfg.main_funestra_cmd_file)
-        assert commands.main_funestra_paused_file == str(cfg.main_funestra_paused_file)
-        assert commands.main_funestra_status_file == str(cfg.main_funestra_status_file)
+        assert commands.main_funestra_cmd_file == str(cfg.main_funestra.cmd_file)
+        assert commands.main_funestra_paused_file == str(cfg.main_funestra.paused_file)
+        assert commands.main_funestra_status_file == str(cfg.main_funestra.status_file)
         assert commands.main_funestra_console_file == str(main_funestra_hud_path(cfg.paths.state_dir))
-        assert commands.genau_drive_file == str(Path(cfg.genau_cmd_file).parent / "genau_drive.txt")
-        assert commands.genau_cmd_file == str(cfg.genau_cmd_file)
-        assert commands.genau_paused_file == str(cfg.genau_paused_file)
-        assert commands.genau_status_file == str(cfg.genau_status_file)
+        assert commands.genau_drive_file == str(Path(cfg.genau.cmd_file).parent / "genau_drive.txt")
+        assert commands.genau_cmd_file == str(cfg.genau.cmd_file)
+        assert commands.genau_paused_file == str(cfg.genau.paused_file)
+        assert commands.genau_status_file == str(cfg.genau.status_file)
         assert given.media.genau_flicks == str(cfg.paths.flicks_dir)
         assert given.regen.metadata_root == ""
-        assert commands.main_funestra_notice_file == str(cfg.main_funestra_notice_file)
+        assert commands.main_funestra_notice_file == str(cfg.main_funestra.notice_file)
         assert commands.dashboard_cmd_file == str(cfg.paths.state_dir / "dashboard_cmd.txt")
         assert commands.osr2_slot_port == str(ports.OSR2_SLOT)
         assert given.runtime.sibling_checkouts == ""
@@ -456,8 +456,8 @@ class TestRunStartupSequence:
 
     def test_genau_is_launched_onto_the_video_it_was_left_showing(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        cfg.genau_status_file.parent.mkdir(parents=True, exist_ok=True)
-        cfg.genau_status_file.write_text(
+        cfg.genau.status_file.parent.mkdir(parents=True, exist_ok=True)
+        cfg.genau.status_file.write_text(
             "flick=C:\\flicks\\alpha.mp4\n", encoding="utf-8",
         )
 
@@ -538,7 +538,7 @@ class TestRunStartupSequence:
     ):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         _seed_paused_flags(manifest_path)
-        genau_cmd = Path(cfg.genau_cmd_file)
+        genau_cmd = Path(cfg.genau.cmd_file)
         genau_cmd.parent.mkdir(parents=True, exist_ok=True)
         genau_cmd.write_text("", encoding="utf-8")
 
@@ -955,7 +955,7 @@ class TestMainFunestraGatesTheReveal:
             "browser",
             "companions",
             "funestras",
-            f"wait-for-main_player:{cfg.main_funestra_status_file}",
+            f"wait-for-main_player:{cfg.main_funestra.status_file}",
             "windows",
         ]
 
@@ -963,7 +963,7 @@ class TestMainFunestraGatesTheReveal:
         self, cfg_factory, tmp_path,
     ):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        status_file = Path(cfg.main_funestra_status_file)
+        status_file = Path(cfg.main_funestra.status_file)
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text("video=last_session.mp4\n", encoding="utf-8")
 
@@ -1409,18 +1409,18 @@ class TestOrigeneratorLaunch:
         assert handed["pid"] == open_app
         args = handed["args"]
         assert args[0] == "--fun-time"
-        for flag, path in (("--command-file", cfg.origenerator_cmd_file),
-                           ("--paused-file", cfg.origenerator_paused_file),
-                           ("--status-file", cfg.origenerator_status_file)):
+        for flag, path in (("--command-file", cfg.origenerator.cmd_file),
+                           ("--paused-file", cfg.origenerator.paused_file),
+                           ("--status-file", cfg.origenerator.status_file)):
             assert args[args.index(flag) + 1] == str(path), flag
-        assert Path(cfg.origenerator_paused_file).read_text(encoding="utf-8") == "0"
+        assert Path(cfg.origenerator.paused_file).read_text(encoding="utf-8") == "0"
 
     def test_a_frozen_app_whose_offer_still_stands_is_replaced_by_our_own(
         self, cfg_factory, tmp_path
     ):
         cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
-        stale_status = Path(cfg.origenerator_status_file)
+        stale_status = Path(cfg.origenerator.status_file)
         stale_status.write_text("portrait_active=1\n", encoding="utf-8")
 
         with _sequencer_stubs(launch_origenerator={"return_value": 91}) as stubs, \
@@ -1456,7 +1456,7 @@ class TestOrigeneratorLaunch:
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         open_app = os.getpid()
-        keep_the_origenerator(Path(cfg.origenerator_status_file).parent, pid=open_app,
+        keep_the_origenerator(Path(cfg.origenerator.status_file).parent, pid=open_app,
                               created_at=process_started(open_app), taken_over=True)
 
         with _sequencer_stubs(launch_origenerator={}) as stubs, \
@@ -1535,7 +1535,7 @@ class TestOrigeneratorLaunch:
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         kept_app = os.getpid()
-        keep_the_origenerator(Path(cfg.origenerator_status_file).parent, pid=kept_app,
+        keep_the_origenerator(Path(cfg.origenerator.status_file).parent, pid=kept_app,
                               created_at=process_started(kept_app))
 
         with _sequencer_stubs(launch_origenerator={}):
@@ -1654,7 +1654,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         self, cfg_factory, tmp_path
     ):
         cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
-        status_file = Path(cfg.origenerator_status_file)
+        status_file = Path(cfg.origenerator.status_file)
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text("portrait_active=1\nlandscape_active=1\n", encoding="utf-8")
         seen: dict = {}

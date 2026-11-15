@@ -32,7 +32,7 @@ def _genaumacher_python() -> str:
 
 
 def _what_the_main_funestra_holds(config: BridgeConfig) -> tuple[str, list[str]]:
-    status = read_main_funestra_status(config.main_funestra_status_file)
+    status = read_main_funestra_status(config.main_funestra.status_file)
     if status.snippet_bounds is None:
         return status.video, ["--time", str(status.position_ms / 1000)]
     in_ms, out_ms = status.snippet_bounds

@@ -192,7 +192,7 @@ class TestTellingAKeptAppWhereItsWindowGoes:
             app = bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=in_a_headset)
         assert app is not None
         assert app.already_open
-        return config, consume_command_file(config.origenerator_cmd_file, uppercase=False)
+        return config, consume_command_file(config.origenerator.cmd_file, uppercase=False)
 
     def test_a_headset_session_asks_for_the_frame(self, cfg_factory, tmp_path):
         config, said = self._adopt(cfg_factory, tmp_path, in_a_headset=True)
@@ -334,7 +334,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
         config, app, launched = self._bring_up(
             cfg_factory, tmp_path, it_reads_the_takeover=True)
 
-        assert not Path(config.origenerator_status_file).exists()
+        assert not Path(config.origenerator.status_file).exists()
         assert not launched, "a second copy was launched beside the one we took over"
         assert app is not None
         assert app.taken_over

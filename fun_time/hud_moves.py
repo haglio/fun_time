@@ -93,7 +93,7 @@ def _hud_placed(corner: HudCorner, funestra: FunTimeFunestra, state: BridgeState
 
 def _tell_the_hosted_app(funestra: FunTimeFunestra, action: str, config: BridgeConfig) -> None:
     if funestra in FunTimeFunestra.SATELLITES:
-        append_command(config.origenerator_cmd_file, f"{funestra.label}_{action}")
+        append_command(config.origenerator.cmd_file, f"{funestra.label}_{action}")
 
 
 def _parked(window_name: str, _state: BridgeState, _config: BridgeConfig,

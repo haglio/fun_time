@@ -7,22 +7,24 @@ from funestra.file_channel import append_command as real_append
 from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 
-from fun_time.device_arbiter import TCODE_OFF, TCODE_ON, DeviceArbiter, FunestraFiles
+from fun_time.bridge_records import BridgeConfig
+from fun_time.device_arbiter import TCODE_OFF, TCODE_ON, DeviceArbiter
 from fun_time.fun_time_funestras import FunTimeFunestra
+from tests.bridge_configs import made_up_bridge_config
 from tests.fun_time_window_fakes import HandDrivenClock
 
 
+class _DriverWhoseFilesTheTestCanRead(DeviceArbiter):
+    def __init__(self, config: BridgeConfig, **how) -> None:
+        super().__init__(funestras=config.funestras, genau=config.genau, **how)
+        self.genau_cmd_file = config.genau.cmd_file
+        self.main_funestra_cmd_file = config.main_funestra.cmd_file
+        self.main_funestra_status_file = config.main_funestra.status_file
+
+
 def make_driver(tmp_path: Path, clock=None, device_on=lambda: True) -> DeviceArbiter:
-    return DeviceArbiter(
-        main_funestra=FunestraFiles(status_file=tmp_path / "main_player_status.txt",
-                                    cmd_file=tmp_path / "main_player_cmd.txt"),
-        genau_cmd_file=tmp_path / "rh_cmd.txt",
-        satellites={funestra: FunestraFiles(status_file=tmp_path / f"{funestra.label}_status.txt",
-                                          cmd_file=tmp_path / f"{funestra.label}_cmd.txt")
-                    for funestra in FunTimeFunestra.SATELLITES},
-        device_on=device_on,
-        clock=clock or HandDrivenClock(),
-    )
+    return _DriverWhoseFilesTheTestCanRead(
+        made_up_bridge_config(tmp_path), device_on=device_on, clock=clock or HandDrivenClock())
 
 
 def publish_satellite(tmp_path: Path, funestra: FunTimeFunestra, *, resting=False,

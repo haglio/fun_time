@@ -50,7 +50,7 @@ def show_has_something_to_reset(channel: SatelliteChannel) -> bool:
 def slideshows_enhancement(
     funestra: FunTimeFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    append_command(config.origenerator_cmd_file, said_to_the_hosted_app(
+    append_command(config.origenerator.cmd_file, said_to_the_hosted_app(
         funestra.label, SAID_FOR_AN_ENHANCEMENT_LEVEL[level]))
     return state, []
 

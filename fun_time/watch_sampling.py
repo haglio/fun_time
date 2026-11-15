@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from funestra.on_screen_history import OnScreenHistory
 
 from .command_value import Command
+from .config import FunestraChannel
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_main_funestra_status
 from .satellite_control import read_satellite_status
 from .watch_stats import WatchTracker, record_watch_event
@@ -26,12 +29,12 @@ class WatchSampler:
     def __init__(
         self,
         *,
-        main_funestra_status_file: Path,
-        satellite_status_files: dict[int, Path],
+        funestras: Mapping[FunTimeFunestra, FunestraChannel],
         stats_file: Path,
     ) -> None:
-        self.main_funestra_status_file = main_funestra_status_file
-        self.satellite_status_files = satellite_status_files
+        self._main_funestra_status_file = funestras[FunTimeFunestra.MAIN].status_file
+        self._satellite_status_files = {
+            funestra: funestras[funestra].status_file for funestra in FunTimeFunestra.SATELLITES}
         self.stats_file = stats_file
         self._trackers: dict[int, WatchTracker] = {1: WatchTracker(), 2: WatchTracker(),
                                                    3: WatchTracker()}
@@ -49,7 +52,7 @@ class WatchSampler:
         self._sample_main()
 
     def _sample_satellites(self, *, now: float) -> None:
-        for which, status_file in self.satellite_status_files.items():
+        for which, status_file in self._satellite_status_files.items():
             status = read_satellite_status(status_file)
             self._on_screen[which].observe(status.video, now=now)
             if status.image:
@@ -62,7 +65,7 @@ class WatchSampler:
                 record_watch_event(self.stats_file, video, event)
 
     def _sample_main(self) -> None:
-        status = read_main_funestra_status(self.main_funestra_status_file)
+        status = read_main_funestra_status(self._main_funestra_status_file)
         if not status.video or status.paused or status.duration_ms <= 0:
             return
         fraction = status.position_ms / status.duration_ms

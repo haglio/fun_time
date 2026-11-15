@@ -6,7 +6,9 @@ from pathlib import Path
 from app_support.file_channel import read_key_values
 from funestra.status import parse_status
 
-from .funestra_status import ScriptedStatus, scripted_fields
+from .config import FunestraChannel
+from .fun_time_funestras import FunTimeFunestra
+from .funestra_status import ScriptedStatus, read_main_funestra_status, scripted_fields
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,13 @@ def read_satellite_status(status_file: Path, *,
     except OSError:
         return fallback or SatelliteStatus()
     return _satellite_status_from(fields)
+
+
+def read_scripted_status(funestra: FunTimeFunestra, channel: FunestraChannel, *,
+                         fallback: ScriptedStatus | None = None) -> ScriptedStatus:
+    read = (read_main_funestra_status if funestra is FunTimeFunestra.MAIN
+            else read_satellite_status)
+    return read(channel.status_file, fallback=fallback)
 
 
 def _satellite_status_from(fields: dict) -> SatelliteStatus:

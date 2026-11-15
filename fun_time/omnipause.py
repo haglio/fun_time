@@ -72,10 +72,10 @@ class PausedFiles:
         return cls(
             portrait=config.portrait.paused_file,
             landscape=config.landscape.paused_file,
-            genau=config.genau_paused_file,
+            genau=config.genau.paused_file,
             audio=config.audio_paused_file,
-            main_funestra=config.main_funestra_paused_file,
-            origenerator=config.origenerator_paused_file,
+            main_funestra=config.main_funestra.paused_file,
+            origenerator=config.origenerator.paused_file,
         )
 
 

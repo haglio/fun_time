@@ -128,11 +128,11 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
     s.wait_for_new_log("Switched to genau mode")
 
     s.wait_until(
-        lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "0",
+        lambda: s.config.genau.paused_file.read_text(encoding="utf-8") == "0",
         description="Genau paused file to flip off (active)",
     )
     s.wait_until(
-        lambda: s.config.main_funestra_paused_file.read_text(encoding="utf-8") == "1",
+        lambda: s.config.main_funestra.paused_file.read_text(encoding="utf-8") == "1",
         description="the Main Funestra paused file to flip on (inactive)",
     )
 
@@ -140,10 +140,10 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
     s.wait_for_new_log("Switched to kino mode")
 
     s.wait_until(
-        lambda: s.config.main_funestra_paused_file.read_text(encoding="utf-8") == "0",
+        lambda: s.config.main_funestra.paused_file.read_text(encoding="utf-8") == "0",
         description="the Main Funestra paused file to flip back off (active)",
     )
-    assert s.config.genau_paused_file.read_text(encoding="utf-8") == "0"
+    assert s.config.genau.paused_file.read_text(encoding="utf-8") == "0"
 
 
 def _osr2_still(heights: list[float]) -> bool:
@@ -171,7 +171,7 @@ def _wait_for_genau_to_say(session: FunTimeIntegrationSession, **fields: int) ->
 
     def saying() -> bool:
         try:
-            said = read_key_values(session.config.genau_status_file)
+            said = read_key_values(session.config.genau.status_file)
         except (OSError, ValueError):
             return False
         return all(said.get(key, "").strip() == value for key, value in wanted.items())
@@ -256,7 +256,7 @@ def test_fun_time_mode_switch_keeps_the_one_main_funestra_window_up_and_topmost(
         s.write_dashboard_command(command)
         s.wait_for_new_log(f"Switched to {mode} mode")
         s.wait_until(
-            lambda held=held: s.config.main_funestra_paused_file.read_text(encoding="utf-8") == held,
+            lambda held=held: s.config.main_funestra.paused_file.read_text(encoding="utf-8") == held,
             description=f"Kino's video to be {'held' if held == '1' else 'playing'} in {mode} mode",
         )
         assert _stays_up_and_topmost(main_funestra_hwnd, seconds=1.0), (
@@ -276,14 +276,14 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
     shared_integration_session.write_dashboard_command("omnipause_toggle")
     shared_integration_session.wait_for_new_log("OmniPause: entering")
     shared_integration_session.wait_until(
-        lambda: shared_integration_session.config.genau_paused_file.read_text(encoding="utf-8") == "1",
+        lambda: shared_integration_session.config.genau.paused_file.read_text(encoding="utf-8") == "1",
         description="Genau paused file to flip on",
     )
 
     shared_integration_session.write_dashboard_command("omnipause_toggle")
     shared_integration_session.wait_for_new_log("OmniPause: leaving")
     shared_integration_session.wait_until(
-        lambda: shared_integration_session.config.genau_paused_file.read_text(encoding="utf-8") == "0",
+        lambda: shared_integration_session.config.genau.paused_file.read_text(encoding="utf-8") == "0",
         description="Genau paused file to flip off",
     )
 
@@ -303,7 +303,7 @@ def test_fun_time_omnipause_pauses_genau_and_keeps_the_main_funestra_running(
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: entering")
     s.wait_until(
-        lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "1",
+        lambda: s.config.genau.paused_file.read_text(encoding="utf-8") == "1",
         description="Genau paused file to flip on",
     )
 
@@ -424,7 +424,7 @@ def _main_funestra_playing_in_kino_mode(session: FunTimeIntegrationSession) -> N
 
 @contextmanager
 def _main_funestra_held_still(session: FunTimeIntegrationSession):
-    paused_file = session.config.main_funestra_paused_file
+    paused_file = session.config.main_funestra.paused_file
     try:
         session.wait_until(
             lambda: write_flag(paused_file, True) and session.read_main_funestra_status().paused,
@@ -710,7 +710,7 @@ def test_fun_time_reset_all_unlocks_the_main_funestra_and_asks_the_app_to_reset_
     isolated_integration_session: FunTimeIntegrationSession,
 ):
     session = isolated_integration_session
-    main_funestra_status = session.config.main_funestra_status_file
+    main_funestra_status = session.config.main_funestra.status_file
     session.wait_until(
         lambda: read_main_funestra_status(main_funestra_status).locked,
         description="the Main Funestra to report itself locked",
@@ -850,7 +850,7 @@ def _config_whose_genau_browses_in_folder_order(temp_root: Path) -> Path:
 
 def _wait_for_genau_on(session: FunTimeIntegrationSession, flick: Path, waiting_for: str) -> None:
     def showing() -> bool:
-        published = read_genau_status(session.config.genau_status_file).flick
+        published = read_genau_status(session.config.genau.status_file).flick
         return bool(published) and Path(published).resolve() == flick.resolve()
 
     session.wait_until(showing, description=waiting_for)

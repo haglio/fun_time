@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from pathlib import Path
 
 from fun_time.dispatch_loop_setup import Publishing, SessionFiles, SessionStart
@@ -13,8 +14,9 @@ from tests.fun_time_window_fakes import MAIN_FUNESTRA_PID
 
 
 def _runner(tmp_path: Path) -> DispatchLoopRunner:
-    config = made_up_bridge_config(
-        tmp_path, main_funestra_notice_file=tmp_path / "main_player_notice.txt")
+    config = made_up_bridge_config(tmp_path)
+    config = replace(config, main_funestra=replace(
+        config.main_funestra, notice_file=tmp_path / "main_player_notice.txt"))
     return DispatchLoopRunner(
         config,
         SessionFiles(

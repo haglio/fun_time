@@ -42,7 +42,7 @@ def _lock_before_the_hosted_slideshow_moves_on(
 
 
 def _tell_the_hosted_app_after(config: BridgeConfig, said: str) -> None:
-    append_command(config.origenerator_cmd_file, said)
+    append_command(config.origenerator.cmd_file, said)
 
 
 def lock_said(funestra: FunTimeFunestra, locked: bool) -> str:
