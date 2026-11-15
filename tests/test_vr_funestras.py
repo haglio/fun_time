@@ -179,7 +179,7 @@ from fun_time_vr.reference_panel import (
     reference_actions,
     reference_size,
 )
-from fun_time_vr.room import Hanging, RoomLaunch
+from fun_time_vr.room import Hanging, Pumped, RoomLaunch, RoomUnit, Scrolls
 from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
@@ -1579,7 +1579,7 @@ def _hang_a_room(tmp_path, *, present_the_loading_screen=lambda: None, loading_s
 
 def _kinds_of_screen() -> dict[str, type]:
     return {name: thing for name, thing in vars(funestras).items()
-            if isinstance(thing, type) and name.endswith("Unit")}
+            if isinstance(thing, type) and name.endswith("Unit") and thing is not RoomUnit}
 
 
 class TestHangingTheRoom:
@@ -1595,14 +1595,19 @@ class TestHangingTheRoom:
 
         assert {type(unit).__name__ for unit in the_room.units} == held
 
-    def test_everything_it_holds_answers_every_question_it_is_asked(
+    def test_everything_it_holds_is_a_room_unit(self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+
+        assert [type(unit).__name__ for unit in the_room.units
+                if not isinstance(unit, RoomUnit)] == []
+
+    def test_what_the_stick_can_scroll_is_a_room_unit_that_scrolls(
             self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
 
-        for unit in the_room.units:
-            for asked in ("hangings", "hangs_by", "put_back", "point", "pump",
-                          "render_latest_frame", "close"):
-                assert callable(getattr(unit, asked, None)), (type(unit).__name__, asked)
+        assert all(isinstance(unit, Scrolls) for unit in the_room.scrollable)
+        assert {type(unit).__name__ for unit in the_room.scrollable} == {
+            "_LibraryUnit", "_GalleryUnit", "_ReferenceUnit"}
 
     def test_the_loading_screen_it_is_handed_hangs_in_it(self, tmp_path, faked_collaborators):
         loading_screen = LoadingScreenUnit(tmp_path)
@@ -1655,8 +1660,7 @@ class TestHangingTheRoom:
         riding_as_no_screen = [one for one in the_room.closing if one not in the_room.units]
         assert [type(one).__name__ for one in riding_as_no_screen] == [
             "MessageBoard", "_LayoutKeeper", "_ControllerPosts"]
-        assert [(type(one).__name__, asked) for one in the_room.closing
-                for asked in ("pump", "close") if not callable(getattr(one, asked, None))] == []
+        assert [type(one).__name__ for one in the_room.closing if not isinstance(one, Pumped)] == []
 
     def _closed_by(self, the_room, *, keep_the_loading_screen: bool) -> list:
         closed: list = []
@@ -1717,12 +1721,13 @@ class TestHangingTheRoom:
             2 * _SatelliteUnit.SPOTS[PORTRAIT].width_deg * a_headsets_pixels_per_degree) <= SATELLITE_VIDEO_CAP_PX
 
     def test_the_browse_asks_whether_genau_has_the_main_funestra(self, tmp_path, faked_collaborators):
-        the_room = _hang_a_room(tmp_path)
+        (library,) = [unit for unit in _hang_a_room(tmp_path).units
+                      if isinstance(unit, funestras._LibraryUnit)]
 
         faked_collaborators["Funestra"].return_value.showing = MainMode.KINO
-        assert the_room.library._genau_has_the_slot() is False
+        assert library._genau_has_the_slot() is False
         faked_collaborators["Funestra"].return_value.showing = MainMode.GENAU
-        assert the_room.library._genau_has_the_slot() is True
+        assert library._genau_has_the_slot() is True
 
     def test_a_cold_library_read_of_seconds_keeps_presenting_the_loading_screen(
             self, tmp_path, faked_collaborators):
@@ -1931,9 +1936,7 @@ def _a_room_to_arrange(*, main=None, satellites=(), others=()):
     return SimpleNamespace(
         main_unit=main, satellites=satellites, units=units,
         where=room.where_they_hang(units), hangings=lambda: room.what_hangs(units),
-        library=SimpleNamespace(takes_the_stick=False),
-        gallery=SimpleNamespace(takes_the_stick=False),
-        reference=SimpleNamespace(takes_the_stick=False),
+        scrollable=tuple(SimpleNamespace(takes_the_stick=False) for _ in range(3)),
         posts=MagicMock(), keeper=MagicMock(), pointing=MagicMock(),
     )
 
