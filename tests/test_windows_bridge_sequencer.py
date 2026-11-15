@@ -46,6 +46,7 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.shortcuts import Shortcut
+from fun_time.startup_steps import STEP_LINE
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
@@ -659,6 +660,23 @@ class TestTheOrderInsideTheStartupPhases:
 
         assert order[-1] == "release"
         assert order.index("companions") < order.index("release")
+
+    def _steps_timed(self, caplog, cfg_factory, tmp_path, *, hide_windows) -> list[str]:
+        with caplog.at_level("INFO", logger=SEQUENCER):
+            self._sequence(cfg_factory, tmp_path, hide_windows=hide_windows)
+        return [record.args[0] for record in caplog.records
+                if record.msg == STEP_LINE]
+
+    def test_a_slow_start_says_how_long_each_phase_took(self, caplog, cfg_factory, tmp_path):
+        assert self._steps_timed(caplog, cfg_factory, tmp_path, hide_windows=False) == [
+            "starting Origenerator", "launching the satellites", "launching the Main Funestra",
+            "placing the windows", "opening the Random Faves Browser",
+            "launching the dashboard and the sound companion"]
+
+    def test_a_slow_start_under_the_loading_screen_says_how_long_the_waits_under_it_took(
+            self, caplog, cfg_factory, tmp_path):
+        assert self._steps_timed(caplog, cfg_factory, tmp_path, hide_windows=True)[-1] == (
+            "waiting for the windows under the loading screen")
 
     def test_a_covered_startup_releases_nothing_at_all(self, cfg_factory, tmp_path):
         order = self._sequence(cfg_factory, tmp_path, hide_windows=True)

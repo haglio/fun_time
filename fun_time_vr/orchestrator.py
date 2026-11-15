@@ -105,6 +105,7 @@ from fun_time.single_instance import (
     show_already_running_message,
     the_one_sessions_mutex,
 )
+from fun_time.startup_steps import timed_step
 from fun_time.state_file_names import take_up_the_retired_state_file_names
 from fun_time.voice_control import VoiceController
 from fun_time.vr_videos import shapes_verb
@@ -719,7 +720,9 @@ def main(argv: list[str] | None = None) -> int:
         tell_the_hidden_launcher_startup_resolved(config, VR_STARTUP_MARKER_NAME)
         return 1
 
-    if engine_missing_abort(config, log=logger.error):
+    with timed_step(logger, "checking the video engine"):
+        engine_missing = engine_missing_abort(config, log=logger.error)
+    if engine_missing:
         tell_the_hidden_launcher_startup_resolved(config, VR_STARTUP_MARKER_NAME)
         return 1
 

@@ -33,6 +33,7 @@ from .single_instance import (
     show_already_running_message,
     the_one_sessions_mutex,
 )
+from .startup_steps import timed_step
 from .win32_taskbar import APP_USER_MODEL_ID
 
 if TYPE_CHECKING:
@@ -86,10 +87,12 @@ def no_origenerator_set_up(config, *, log) -> bool:
 
 
 def run_windows_bridge(config, logger, env: SessionEnvironment, loading_screen: RaisedLoadingScreen) -> SessionOver:
-    from .windows_bridge_orchestrator import HotkeyScriptLaunch, run_session  # noqa: PLC0415
+    with timed_step(logger, "loading the bridge's code"):
+        from .windows_bridge_orchestrator import HotkeyScriptLaunch, run_session  # noqa: PLC0415
 
-    manifest_path = write_windows_bridge_manifest(
-        config, dashboard_enabled=env.dashboard_enabled)
+    with timed_step(logger, "writing the bridge's manifest"):
+        manifest_path = write_windows_bridge_manifest(
+            config, dashboard_enabled=env.dashboard_enabled)
     hotkey_script = config.project_dir / HOTKEY_SCRIPT_NAME
 
     logger.info("Launching Python-orchestrated Windows bridge using config %s", config.config_path)
@@ -172,22 +175,27 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     open_event_log(state_dir)
-    loading_screen = open_the_loading_screen(
-        state_dir, show_overlays=env.show_overlays,
-        sibling_checkouts=config.paths.sibling_checkouts_path, cancelable=not args.no_cancel,
-    )
+    with timed_step(logger, "opening the loading screen"):
+        loading_screen = open_the_loading_screen(
+            state_dir, show_overlays=env.show_overlays,
+            sibling_checkouts=config.paths.sibling_checkouts_path, cancelable=not args.no_cancel,
+        )
     try:
         if config.config_path == DEFAULT_CONFIG_PATH:
             stamp_the_users_pin_outside_every_checkout()
         describe_the_session_on_the_taskbar(PROJECT_DIR)
 
         loading_screen.progress.announce("engine")
-        if engine_missing_abort(config, log=logger.error, uncover=loading_screen.take_it_down):
+        with timed_step(logger, "checking the video engine"):
+            engine_missing = engine_missing_abort(config, log=logger.error,
+                                                  uncover=loading_screen.take_it_down)
+        if engine_missing:
             tell_the_hidden_launcher_startup_resolved(config)
             return 1
 
         tell_the_hidden_launcher_startup_resolved(config)
-        prepare_orchestrator_launcher()
+        with timed_step(logger, "naming the orchestrator's process"):
+            prepare_orchestrator_launcher()
         wake_the_headset(state_dir, integration=env.integration)
         ended = run_windows_bridge(config, logger, env, loading_screen)
     except BaseException:

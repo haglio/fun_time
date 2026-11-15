@@ -33,6 +33,7 @@ from fun_time.orchestrator import (
 from fun_time.project_paths import PROJECT_DIR, SIBLING_CHECKOUTS_OVERRIDE_NAME
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import VR, request_handoff
+from fun_time.startup_steps import STEP_LINE
 from fun_time.windows_bridge_orchestrator import HotkeyScriptLaunch, SessionOver
 from tests.launcher_python import run_python_the_way_a_launcher_does
 from tests.made_up_genau import point_the_shared_settings_at
@@ -381,6 +382,35 @@ class TestRunController:
             project_dir=cfg.project_dir)
         assert call_kwargs["state_dir"] == cfg.paths.state_dir
         assert call_kwargs["env"] == SessionEnvironment()
+
+
+def _steps_timed_on(logger: MagicMock) -> list[str]:
+    return [call.args[1] for call in logger.info.call_args_list
+            if call.args and call.args[0] == STEP_LINE]
+
+
+class TestASlowStartSaysWhichStepWasSlow:
+    def test_every_step_before_the_bridge_logs_how_long_it_took(self, cfg_path: Path):
+        logger = MagicMock()
+
+        with _a_launch_with_the_machine_held_off(configure_logging=MagicMock(return_value=logger)):
+            main(["--config", str(cfg_path)])
+
+        assert _steps_timed_on(logger) == [
+            "opening the loading screen", "checking the video engine",
+            "naming the orchestrator's process"]
+
+    def test_loading_the_bridge_and_writing_its_manifest_each_log_how_long_they_took(
+            self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        logger = MagicMock()
+
+        with patch("fun_time.orchestrator.write_windows_bridge_manifest",
+                   return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME), \
+             patch("fun_time.windows_bridge_orchestrator.run_session", return_value=SessionOver(0)):
+            run_windows_bridge(cfg, logger, SessionEnvironment(), _a_loading_screen())
+
+        assert _steps_timed_on(logger) == ["loading the bridge's code", "writing the bridge's manifest"]
 
 
 class TestTheProcessEdgeReadsTheSwitchesOnce:

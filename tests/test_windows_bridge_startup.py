@@ -44,6 +44,7 @@ from fun_time.shared_state import (
     shared_state_path,
     write_shared_state,
 )
+from fun_time.startup_steps import STEP_LINE
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.windows_bridge_startup import (
@@ -2113,3 +2114,37 @@ def test_a_satellite_launched_to_tile_is_told_so_on_its_command_line():
         "python.exe", "satellite", channels=_a_satellite_channels(), placement=placement)
 
     assert ("--tile" in tiling, "--tile" in plain) == (True, False)
+
+
+def _steps_timed_in(caplog) -> list[str]:
+    return [record.args[0] for record in caplog.records
+            if record.msg == STEP_LINE]
+
+
+def test_a_slow_start_says_how_long_each_companion_took_to_launch(tmp_path: Path, caplog):
+    with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"), patch(
+        "fun_time.windows_bridge_startup.subprocess.Popen",
+        side_effect=[_FakeProc(11), _FakeProc(33)],
+    ), patch("fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}):
+        _call_launch_ui_companions(tmp_path, tmp_path / "ui_companions.ini", dashboard_enabled=True)
+
+    assert _steps_timed_in(caplog) == ["launching the dashboard", "launching the sound companion"]
+
+
+def test_a_slow_start_says_how_long_each_satellite_took_to_launch(tmp_path: Path, caplog):
+    state_dir = tmp_path / "state"
+    rect = WindowRect(x=0, y=0, width=10, height=10)
+
+    with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"), patch(
+        "fun_time.windows_bridge_startup.launch_satellite", side_effect=[202, 303],
+    ):
+        launch_core_apps(
+            _a_session_manifest(tmp_path, executables={"python_exe": "fun_time_python.exe"},
+                                modules={"satellite_module": "satellite"}),
+            _launch(FunTimeFunestra.PORTRAIT, state_dir, rect),
+            _launch(FunTimeFunestra.LANDSCAPE, state_dir, rect),
+            tmp_path / "core_apps.ini",
+        )
+
+    assert _steps_timed_in(caplog) == [
+        "launching the Portrait satellite", "launching the Landscape satellite"]
