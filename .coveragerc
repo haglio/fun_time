@@ -14,8 +14,6 @@ omit =
     fun_time_vr/gl_contexts.py
     # needs a graphics context
     fun_time_vr/render.py
-    # the headset's shell: needs a headset
-    fun_time_vr/app.py
     # sets Windows' default sound devices: a test would change the machine's
     fun_time_vr/windows_sound.py
 relative_files = true

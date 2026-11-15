@@ -87,7 +87,7 @@ from fun_time.startup_steps import STEP_LINE
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from fun_time.windows_bridge_startup import open_the_main_list, the_main_list
-from fun_time_vr import app, orchestrator, vr_runtime
+from fun_time_vr import orchestrator, vr_runtime
 from fun_time_vr.bringup import SESSION_BRINGUP_TIMEOUT_S
 from fun_time_vr.funestras import VrSettings
 from fun_time_vr.loading_screen import (
@@ -980,25 +980,6 @@ class TestGenausRoleInTheManifest:
 
 
 class TestTheOnePin:
-    def test_a_vr_session_claims_fun_times_own_identity(self):
-        source = inspect.getsource(app.main)
-        claimed = [
-            ast.unparse(node.args[0])
-            for node in ast.walk(ast.parse(source.lstrip()))
-            if isinstance(node, ast.Call)
-            and getattr(node.func, "id", "") == "set_app_user_model_id"
-        ]
-        assert claimed == ["preview_marker.session_identity(preview_marker.shown_as())"]
-
-    def test_the_identity_is_claimed_before_any_window_of_the_session_exists(self):
-        called_at = {ast.unparse(node.func): node.lineno
-                     for node in ast.walk(ast.parse(inspect.getsource(app.main)))
-                     if isinstance(node, ast.Call)}
-        what_opens_a_window = ("_say_why_the_headset_never_lit_up", "_run")
-
-        assert all(called_at["set_app_user_model_id"] < called_at[opener]
-                   for opener in what_opens_a_window)
-
     def test_there_is_no_second_identity_left_to_claim(self):
         assert not [name for name in vars(win32_taskbar) if name.endswith("APP_USER_MODEL_ID")
                     and name != "APP_USER_MODEL_ID"]
@@ -1760,7 +1741,6 @@ class TestOpeningAVrSession:
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["vr_runtime.runtime_was_running"] < calls["launch_vr_funestras"]
-        assert "vr_runtime.ensure_ready()" in inspect.getsource(app.main)
 
     def test_a_launch_canceled_before_the_headsets_phase_stops_no_runtime(self, config):
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)

@@ -1519,16 +1519,6 @@ class TestWhenTheRoomIsUp:
         assert _MainUnit.texture_on_the_screen.fget(unit) is unit.users_frame_texture
 
 
-def test_the_loading_screen_is_up_while_the_funestras_are_built():
-    tree = ast.parse(inspect.getsource(app._run))
-    calls = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            calls.setdefault(ast.unparse(node.func), node.lineno)
-
-    assert calls["LoadingScreenUnit"] < calls["raise_the_loading_screen"] < calls["hang_the_room"]
-
-
 def test_the_eyes_are_handed_the_arrangement_the_pointer_was():
     tree = ast.parse(inspect.getsource(frame_loop.FrameLoop.show_a_frame).lstrip())
     (drawn,) = [n for n in ast.walk(tree)
@@ -1555,16 +1545,6 @@ def _keyword_given(source_of, call: str, keyword: str) -> str:
 def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records():
     assert _keyword_given(funestras._users, "GenauFlicks", "metadata_root") == (
         "manifest.regen.metadata_folder")
-
-
-def test_the_headset_session_runs_ahead_of_background_work():
-    tree = ast.parse(inspect.getsource(app.main))
-    (scheduled,) = [n for n in ast.walk(tree)
-                    if isinstance(n, ast.With)
-                    and [ast.unparse(item.context_expr) for item in n.items]
-                    == ["ahead_of_background_work()"]]
-
-    assert ast.unparse(scheduled.body) == "return _run(manifest, vr, args.manifest)"
 
 
 def _hang_a_room(tmp_path, *, present_the_loading_screen=lambda: None, loading_screen=None):

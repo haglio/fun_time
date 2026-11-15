@@ -162,6 +162,7 @@ class FakeOpenXR:
         return SimpleNamespace(view_state_flags=tracked), [xr.View(fov=fov), xr.View(fov=fov)]
 
     def end_frame(self, _session, info) -> None:
+        self.journal.append("end a frame")
         self.ended_frames.append(info)
 
     def acquire_swapchain_image(self, _swapchain, _info) -> int:
