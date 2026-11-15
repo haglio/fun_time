@@ -23,8 +23,8 @@ from .hud_transport import HudPublisher, hosted_model
 from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
     genau_flick_shapes,
-    main_funestra_at_defaults,
     main_video_shapes,
+    the_main_huds_reset_has_nothing_to_do,
 )
 from .mode_plan import kino_shows
 from .osr2_section import (
@@ -108,7 +108,7 @@ class HudFeed:
             main_funestra=main_funestra,
             genau=genau,
             genau_pace_s=self._genau_pace_s(),
-            nothing_to_reset=main_funestra_at_defaults(state, self.config, main_funestra),
+            nothing_to_reset=the_main_huds_reset_has_nothing_to_do(state, self.config, main_funestra),
             in_vr=self.config.vr_main_funestra,
             crowned=state.crowned is Crown.MAIN,
             has_osr2=with_the_osr2 is FunTimeFunestra.MAIN,

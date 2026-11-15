@@ -20,7 +20,7 @@ from funestra.inclusion_pair import (
 from funestra.modes import LengthMode
 from funestra.playback_rate import NORMAL_RATE
 
-from main_funestra.genau_verbs import genau_orientations
+from main_funestra.genau_verbs import genau_f_mode, genau_orientations
 from main_funestra.snippet_controller import SnippetState
 
 from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, Op, WindowOp, ignored
@@ -32,6 +32,7 @@ from .main_list import MainListSettings, new_shuffle_seed
 from .main_list_builds import MainListBuild
 from .mode_plan import EnhancementLevel, kino_shows
 from .modes import VideoShapes
+from .session_resume import FLICK_SECONDS
 from .shared_state import BridgeState
 from .vr_videos import shapes_verb
 
@@ -237,6 +238,58 @@ def _dispatch_main_reset(
     return state, [WindowOp(op="message", key="Reset", source=SOURCE_MAIN)]
 
 
+GENAU_RESET = "genau_reset"
+
+
+@dataclass(frozen=True)
+class _GenausSetting:
+    fields: tuple[str, ...]
+    tell_genau: Callable[[BridgeConfig, tuple], None]
+
+    def held(self, state: BridgeState) -> tuple:
+        return tuple(getattr(state, name) for name in self.fields)
+
+
+_GENAU_STARTS_WITH = BridgeState()
+
+_GENAUS_SETTINGS = (
+    _GenausSetting(("genau_plays_flat", "genau_plays_vr"), _tell_genau_its_shapes),
+    _GenausSetting(("genau_plays_portrait", "genau_plays_landscape"), _tell_genau_its_orientations),
+    _GenausSetting(("genau_favorites_filter",), lambda config, held: append_command(
+        config.main_funestra_cmd_file, genau_f_mode(*held))),
+    _GenausSetting(("genau_latest",), lambda config, held: append_command(
+        config.genau_cmd_file, _GENAU_ORDER_CMD[held[0]])),
+    _GenausSetting(("genau_flick_seconds",), lambda config, held: append_command(
+        config.genau_cmd_file, f"{FLICK_SECONDS} {held[0]}")),
+)
+
+
+def _genaus_settings_off_their_defaults(state: BridgeState) -> list[_GenausSetting]:
+    return [setting for setting in _GENAUS_SETTINGS
+            if setting.held(state) != setting.held(_GENAU_STARTS_WITH)]
+
+
+def the_main_huds_reset_has_nothing_to_do(state: BridgeState, config: BridgeConfig,
+                                         status: MainFunestraStatus) -> bool:
+    if kino_shows(state.main_mode):
+        return main_funestra_at_defaults(state, config, status)
+    return not _genaus_settings_off_their_defaults(state)
+
+
+def _genau_reset(state: BridgeState, config: BridgeConfig,
+                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    off_their_defaults = _genaus_settings_off_their_defaults(state)
+    if not off_their_defaults:
+        logger.info("Reset Genau: already at its defaults")
+        return state, []
+    for setting in off_their_defaults:
+        state = replace(state, **dict(zip(setting.fields, setting.held(_GENAU_STARTS_WITH),
+                                          strict=True)))
+        setting.tell_genau(config, setting.held(state))
+    logger.info("Reset Genau")
+    return state, [WindowOp(op="message", key="Reset", source=SOURCE_MAIN)]
+
+
 def _include(pair: InclusionPair, wanted: Included, state: BridgeState, config: BridgeConfig,
              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_inclusion(pair, wanted, state, config)
@@ -267,4 +320,5 @@ HANDLERS: dict[str, Handler] = {
        for cmd, wanted in pair.asked.items()},
     **{cmd: partial(_enhancement, level) for cmd, level in _ENHANCEMENT_COMMANDS.items()},
     MAIN_RESET: _main_reset,
+    GENAU_RESET: _genau_reset,
 }

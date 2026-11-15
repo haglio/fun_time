@@ -102,7 +102,7 @@ def _console_verbs_in_every_state() -> frozenset[str]:
             plays_portrait=plays_portrait, plays_landscape=plays_landscape,
             length_mode=length_mode, compilation=compilation, has_compilation=True,
             jump_to=jump_to, has_osr2=has_osr2, in_vr=in_vr, flick_one="pip", flick_many="pips"))
-        for button in row
+        for button in row if not button.dim
     )
     brokers = (button.command for broker in (False, True) for button in osr2_controls(broker_running=broker))
     return frozenset(command for command in (*declared, *brokers) if command)

@@ -10,7 +10,7 @@ from .bridge_records import BridgeConfig, Handler, Route, WindowOp
 from .command_value import Command
 from .event_log import SOURCE_MAIN
 from .funestra_status import read_genau_status
-from .lock import SENT_TO_TRASH, unfavorite
+from .lock import SENT_TO_TRASH, UNFAVORITED, unfavorited
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,9 @@ def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
 
 def _send_genaus_flick_to_trash(state: BridgeState, config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    unfavorite(read_genau_status(config.genau_status_file).flick, config)
+    if unfavorited(read_genau_status(config.genau_status_file).flick, config):
+        append_command(config.genau_cmd_file, NEXT)
+        return state, [WindowOp(op="message", key=UNFAVORITED, source=SOURCE_MAIN)]
     append_command(config.genau_cmd_file, "TRASH")
     return state, [WindowOp(op="message", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
