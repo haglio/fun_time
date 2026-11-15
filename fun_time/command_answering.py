@@ -38,7 +38,7 @@ from .funestra_status import read_main_funestra_status
 from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
 from .hosted_words import aimed_at_the_tracked_target
-from .lock_follower import LockFollower, what_the_main_funestra_holds
+from .lock_follower import LockFollower, what_the_funestras_hold
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .mode_plan import kino_shows
 from .origenerator_opening import OrigeneratorOpening
@@ -91,7 +91,7 @@ class CommandAnswering:
         self.arbiter = DeviceArbiter(
             funestras=config.funestras, genau=config.genau,
             device_on=lambda: osr2_device.switched_on(config.broker_state))
-        self.lock_follower = LockFollower(what_the_main_funestra_holds(config))
+        self.lock_follower = LockFollower(what_the_funestras_hold(config))
         self._opening = opening
         self._clock = clock
         self._answers = 0

@@ -17,7 +17,7 @@ from .funestra_messages import FunestraMessages
 from .funestra_settings import FunestraReporting
 from .hud_feed import HudFeed
 from .latest_arrivals import LatestArrivals
-from .lock import a_lock_holds
+from .lock import a_lock_holds_on
 from .mode_plan import kino_shows
 from .origenerator_opening import OrigeneratorOpening
 from .rfb_mode import switch_the_rfb_mode
@@ -116,11 +116,11 @@ class TheCrownsSeat:
             answering.keep(seated)
 
 
-class LocksWhatTheMainFunestraHolds:
+class LocksWhatTheFunestrasHold:
     def tick(self, now: float, answering: CommandAnswering) -> None:
         held = answering.lock_follower.held()
         if held:
-            answering.take(*a_lock_holds(held, answering.state, answering.config))
+            answering.take(*a_lock_holds_on(*held, answering.state, answering.config))
 
 
 class TheBrowsersSlideshow:
@@ -171,7 +171,7 @@ def the_followers(parts: LoopParts) -> tuple[Follower, ...]:
             EachTick(lambda now, answering: answering.update_dashboard_if_there_is_one()),
         )),
         EachTick(lambda now, answering: parts.latest_arrivals.deliver(answering.state)),
-        LocksWhatTheMainFunestraHolds(),
+        LocksWhatTheFunestrasHold(),
         EachTick(lambda now, answering: answering.watch.sample_due(
             now=now, omni_paused=answering.state.omni_paused,
             genau_on_screen=not kino_shows(answering.state.main_mode))),

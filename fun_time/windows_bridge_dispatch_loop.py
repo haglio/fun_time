@@ -15,7 +15,7 @@ from .config import FunestraChannel
 from .dispatch_loop_setup import LOOP_TICK_S, Publishing, SessionFiles, SessionStart
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import HandOvers
-from .gallery import the_librarys_origenerator
+from .gallery import GalleryKeptOffTheLoop, gallery_database_in, the_librarys_origenerator
 from .hosted_contract import said_at_suffix_of
 from .hud_feed import HudFeed
 from .latest_arrivals import LatestArrivals
@@ -115,6 +115,10 @@ class DispatchLoopRunner:
         self._typing.start()
         start_daemon_thread(target=keep_looking, args=(self.latest_arrivals.look, self._stop),
                             name="latest-arrivals")
+        kept_gallery = self.answering.config.kept_gallery
+        if kept_gallery is not None:
+            start_daemon_thread(target=keep_looking, args=(kept_gallery.look, self._stop),
+                                name="kept-gallery")
         last_wall = time.time()
         while not self._stop.is_set():
             now = time.time()
@@ -146,6 +150,7 @@ def build_bridge_config_from_manifest(
     vr_main_funestra: bool = False,
 ) -> BridgeConfig:
     commands = manifest.commands
+    librarys_origenerator = the_librarys_origenerator()
     return BridgeConfig(
         vr_main_funestra=vr_main_funestra,
         main_list_builds=BuildsOffTheLoop(),
@@ -182,6 +187,7 @@ def build_bridge_config_from_manifest(
         regen_metadata_root=manifest.regen.metadata_folder,
         regen_generate_video_url=manifest.regen.generate_video_url,
         regen_generate_image_url=manifest.regen.generate_image_url,
-        librarys_origenerator=the_librarys_origenerator(),
+        librarys_origenerator=librarys_origenerator,
+        kept_gallery=GalleryKeptOffTheLoop(gallery_database_in(librarys_origenerator)),
         origenerator_said_at_suffix=said_at_suffix_of(manifest.runtime.origenerator_dir.strip()),
     )

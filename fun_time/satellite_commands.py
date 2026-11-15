@@ -5,48 +5,52 @@ from functools import partial
 from funestra.file_channel import append_command
 from funestra.hud_placement import HudCorner
 
-from .bridge_records import BridgeConfig, Route, SatelliteHandler, WindowOp
+from .bridge_records import BridgeConfig, Op, Route, SatelliteHandler, WindowOp
 from .command_value import Command
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import slideshows_enhancement
+from .hud_transport import the_hosted_slideshow_is_locked
 from .lock import a_hosted_lock_holds
 from .mode_plan import EnhancementLevel
 from .osr2_commands import PLAYBACK_RATE_ACTS, percent_rate
 from .satellite_groups import lock_on_what_was_meant, send_satellite
 from .shared_state import BridgeState
 
+LOCK_ON_LED_BY_THE_SESSION = "lock_on_led_by_the_session"
+
 
 def _lock_as_said(
     locked: bool, funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
     target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
-    return _lock_before_the_hosted_slideshow_moves_on(
-        funestra, lock_said(funestra, locked), state, config, target_path)
+    if locked:
+        return _lock_and_follow_it(funestra, state, config, target_path)
+    return _let_go(funestra, state, config)
 
 
 def _toggle_lock(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    return _lock_before_the_hosted_slideshow_moves_on(
-        funestra, Command.to(funestra, "lock").text, state, config, target_path)
+    return _lock_as_said(
+        not the_hosted_slideshow_is_locked(config.satellite(funestra).origenerator_hud_file),
+        funestra, state, config, target_path)
 
 
-def _lock_before_the_hosted_slideshow_moves_on(
-    funestra: FunTimeFunestra, said: str, state: BridgeState, config: BridgeConfig,
-    target_path: str,
-) -> tuple[BridgeState, list[WindowOp]]:
-    if said != lock_said(funestra, False):
-        lock_on_what_was_meant(funestra, config, target_path)
-    _tell_the_hosted_app_after(config, said)
+def _lock_and_follow_it(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
+                        target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    lock_on_what_was_meant(funestra, config, target_path)
+    _tell_the_hosted_app(config, Command.to(funestra, LOCK_ON_LED_BY_THE_SESSION).text)
+    return state, [WindowOp(op=Op.FOLLOW_THE_LOCK, key=funestra.label)]
+
+
+def _let_go(funestra: FunTimeFunestra, state: BridgeState,
+            config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
+    _tell_the_hosted_app(config, Command.to(funestra, "lock_off").text)
     return state, []
 
 
-def _tell_the_hosted_app_after(config: BridgeConfig, said: str) -> None:
+def _tell_the_hosted_app(config: BridgeConfig, said: str) -> None:
     append_command(config.origenerator.cmd_file, said)
-
-
-def lock_said(funestra: FunTimeFunestra, locked: bool) -> str:
-    return Command.to(funestra, "lock_on" if locked else "lock_off").text
 
 
 def _send_to_satellite(verb: str, funestra: FunTimeFunestra, state: BridgeState,

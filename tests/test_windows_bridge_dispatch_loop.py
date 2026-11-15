@@ -49,6 +49,7 @@ from fun_time.fun_time_windows import (
     ChildPids,
     FunTimeWindows,
 )
+from fun_time.gallery import GalleryKeptOffTheLoop
 from fun_time.hosted_contract import SAID_AT_FIELD
 from fun_time.hud_transport import HudPublisher
 from fun_time.library_browser import BrowseOpening
@@ -106,6 +107,7 @@ from tests.hosted_shows import (
     take_the_satellite,
 )
 from tests.loop_parts import made_up_session_files
+from tests.made_up_gallery import a_row, made_up_origenerator
 from tests.made_up_state import remembered_values, shifted_state
 
 BROWSE_PID = 424242
@@ -1223,7 +1225,7 @@ def test_a_word_the_app_hears_as_a_lock_locks_a_satellite_showing_the_hosted_app
 
     assert (tmp_path / "portrait_cmd.txt").read_text(encoding="utf-8").split() == ["LOCK_ON"]
     assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-        "portrait_lock_on"]
+        "portrait_lock_on_led_by_the_session"]
 
 
 class TestOpenRfbTab:
@@ -1572,6 +1574,17 @@ class TestWhatArrivesInTheLibrary:
         look, stopping = looking["args"]
         assert look == runner.latest_arrivals.look
         assert stopping.is_set()
+
+    def test_the_gallery_a_lock_reads_is_kept_from_a_thread_of_its_own_so_a_lock_never_waits_on_it(
+            self, tmp_path):
+        kept = GalleryKeptOffTheLoop(None)
+        runner = make_runner(tmp_path, config=make_config(tmp_path, kept_gallery=kept))
+        runner.stop()
+
+        with patch("fun_time.windows_bridge_dispatch_loop.start_daemon_thread") as start:
+            runner.run()
+
+        assert start.call_args.kwargs["args"] == (kept.look, runner._stop)
 
     def test_each_tick_hands_what_arrived_to_the_funestras_as_they_stand(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2937,6 +2950,39 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
         assert _what_the_gallery_heard(tmp_path) == []
 
 
+class TestASatelliteLockOpensWhereMoreOfItIsMadeAsAMainFunestraLockDoes:
+    MADE_HERE = r"C:\library\videos\2D\AI\portrait\gen_00042_.mp4"
+
+    def _a_satellite_beside_origenerator(self, tmp_path):
+        runner = make_runner(tmp_path, config=make_config(tmp_path), origenerator_pid=700)
+        _the_hosted_app_answers(tmp_path)
+        runner.answering.state = replace(runner.answering.state, rfb_mode=RfbMode.ORIGENERATOR,
+                                         origenerator_core_ready=True)
+        return runner
+
+    def _the_satellite_shows(self, runner, *, locked: bool) -> None:
+        satellite = runner.answering.config.satellite(FunTimeFunestra.PORTRAIT)
+        _write_satellite_status(satellite.status_file, self.MADE_HERE, locked=locked)
+        satellite.origenerator_hud_file.write_text(
+            hud_text(HudModel(funestra="portrait", locked=locked)), encoding="utf-8")
+
+    def test_origenerator_is_asked_to_go_to_the_video_the_moment_the_satellite_holds_it(
+            self, tmp_path):
+        runner = self._a_satellite_beside_origenerator(tmp_path)
+        self._the_satellite_shows(runner, locked=False)
+
+        runner.answering.dispatch(parse_command("portrait_lock"))
+        runner.tick()
+        told_at_the_press = _what_the_gallery_heard(tmp_path)
+
+        self._the_satellite_shows(runner, locked=True)
+        runner.tick()
+
+        assert (told_at_the_press, _what_the_gallery_heard(tmp_path)) == (
+            ["portrait_lock_on_led_by_the_session"],
+            ["portrait_lock_on_led_by_the_session", f"GO_TO|{self.MADE_HERE}"])
+
+
 def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):
     opened = []
     real_socket = socket.socket
@@ -3289,6 +3335,17 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
 
         assert build_bridge_config_from_manifest(manifest).state_dir == tmp_path / "elsewhere"
 
+    def test_a_session_keeps_the_gallery_of_the_librarys_origenerator_off_the_loop(
+            self, cfg_factory, tmp_path, monkeypatch):
+        origenerator = made_up_origenerator(tmp_path, a_row("gen-1", "vid_00001_.mp4", starred=1))
+        monkeypatch.setattr("fun_time.windows_bridge_dispatch_loop.the_librarys_origenerator",
+                            lambda: origenerator)
+
+        kept = build_bridge_config_from_manifest(self._manifest(cfg_factory, tmp_path)).kept_gallery
+
+        assert kept.latest().is_starred(
+            tmp_path / "kino" / "2D" / "AI" / "portrait" / "vid_00001__topaz.mp4")
+
     def test_the_message_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
         manifest = self._manifest(
             cfg_factory, tmp_path,
@@ -3320,8 +3377,8 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
         headset = build_bridge_config_from_manifest(manifest, vr_main_funestra=True)
 
         assert (desktop.vr_main_funestra, headset.vr_main_funestra) == (False, True)
-        assert replace(headset, vr_main_funestra=False,
-                       main_list_builds=desktop.main_list_builds) == desktop
+        assert replace(headset, vr_main_funestra=False, main_list_builds=desktop.main_list_builds,
+                       kept_gallery=desktop.kept_gallery) == desktop
 
 
 class TestTheAppTakesAFunestra:

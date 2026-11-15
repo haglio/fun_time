@@ -5,6 +5,7 @@ from funestra.file_channel import append_command
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
+from .fun_time_funestras import FunTimeFunestra
 from .gallery import Gallery, star_in_the_gallery, the_gallery_in, unstar_in_the_gallery
 from .media_metadata import a_favorite, mark_favorite, metadata_path_for
 from .random_faves_browser import FavEntry, target_for_fav, with_its_page
@@ -23,11 +24,21 @@ def go_to_line(item: str) -> str:
     return f"{_GO_TO}|{item}"
 
 
+def a_lock_holds_on(holder: str, item: str, state: BridgeState,
+                    config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
+    if holder in _THE_SATELLITES:
+        return a_hosted_lock_holds(item, state, config)
+    return a_lock_holds(item, state, config)
+
+
+_THE_SATELLITES = frozenset(funestra.label for funestra in FunTimeFunestra.SATELLITES)
+
+
 def a_lock_holds(item: str, state: BridgeState,
                  config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     if not item:
         return state, []
-    gallery = the_gallery_in(config.librarys_origenerator)
+    gallery = _the_gallery(config)
     favorite = with_its_page(item, gallery, load_web_providers())
     if is_ai_video(item):
         star_in_the_gallery(item, config.librarys_origenerator)
@@ -37,13 +48,19 @@ def a_lock_holds(item: str, state: BridgeState,
     return _where_more_of_it_is_made(favorite, state, config, gallery)
 
 
+def _the_gallery(config: BridgeConfig) -> Gallery:
+    if config.kept_gallery is not None:
+        return config.kept_gallery.latest()
+    return the_gallery_in(config.librarys_origenerator)
+
+
 def a_hosted_lock_holds(item: str, state: BridgeState,
                         config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     if is_ai_video(item):
         record_watch_event(watch_stats_path(config.state_dir), item, "lock")
     elif _has_a_record(item, config):
         return a_lock_holds(item, state, config)
-    gallery = the_gallery_in(config.librarys_origenerator)
+    gallery = _the_gallery(config)
     return _where_more_of_it_is_made(with_its_page(item, gallery, load_web_providers()),
                                      state, config, gallery)
 
@@ -55,7 +72,7 @@ def _has_a_record(item: str, config: BridgeConfig) -> bool:
 
 def unfavorited(item: str, config: BridgeConfig) -> bool:
     if not item or not a_favorite(item, config.regen_metadata_root,
-                                  lambda: the_gallery_in(config.librarys_origenerator)):
+                                  lambda: _the_gallery(config)):
         return False
     if is_ai_video(item):
         unstar_in_the_gallery(item, config.librarys_origenerator)

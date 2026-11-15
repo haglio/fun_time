@@ -10,6 +10,7 @@ from fun_time.gallery import (
     CONTRACT_FILE,
     Gallery,
     GalleryFlips,
+    GalleryKeptOffTheLoop,
     ai_videos_of_the_library,
     gallery_database_in,
     star_in_the_gallery,
@@ -41,6 +42,30 @@ def test_a_video_is_known_by_the_row_that_made_it(tmp_path):
     assert {key: gallery.record_of(starred)["video"][key] for key in ("prompt", "model")} == {
         "prompt": "made up words", "model": "Made Up"}
     assert not gallery.is_starred(_kino_copy(tmp_path, "beta_00007__topaz.mp4"))
+
+
+def test_a_gallery_kept_off_the_loop_answers_from_its_last_look_and_rereads_only_a_changed_one(
+        tmp_path):
+    database = made_up_gallery(
+        tmp_path, a_row("gen-1", "alpha_00007_.mp4", web_url="https://example.com/a"))
+    reads, stamp = [], [1.0]
+    kept = GalleryKeptOffTheLoop(database, read=lambda path: reads.append(path) or Gallery.read(path),
+                                 changed_at=lambda _path: stamp[0])
+
+    kept.look()
+    kept.look()
+    page = kept.latest().page_of(_kino_copy(tmp_path, "alpha_00007__topaz.mp4"))
+    stamp[0] = 2.0
+    kept.look()
+
+    assert (page, reads) == ("https://example.com/a", [database, database])
+
+
+def test_a_gallery_kept_off_the_loop_reads_it_at_once_when_asked_before_its_first_look(tmp_path):
+    database = made_up_gallery(tmp_path, a_row("gen-1", "alpha_00007_.mp4", starred=1))
+    kept = GalleryKeptOffTheLoop(database, changed_at=lambda _path: 1.0)
+
+    assert kept.latest().is_starred(_kino_copy(tmp_path, "alpha_00007__topaz.mp4"))
 
 
 def test_a_video_no_row_made_is_unstarred_with_no_page_or_prompt(tmp_path):

@@ -17,6 +17,7 @@ from .main_list_builds import BUILDS_HERE, MainListBuilds
 
 if TYPE_CHECKING:
     from .command_value import Command
+    from .gallery import GalleryKeptOffTheLoop
     from .shared_state import BridgeState
 
 
@@ -50,6 +51,7 @@ class BridgeConfig:
     regen_generate_video_url: str = RegenConfig.generate_video_url
     regen_generate_image_url: str = RegenConfig.generate_image_url
     main_list_builds: MainListBuilds = BUILDS_HERE
+    kept_gallery: GalleryKeptOffTheLoop | None = None
 
     def satellite(self, funestra: FunTimeFunestra) -> SatelliteChannel:
         return (self.portrait if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT
