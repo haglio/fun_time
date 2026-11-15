@@ -6,7 +6,7 @@ from funestra import broker
 from funestra.main_hud import main_hud_text
 from funestra.modes import MainMode, Osr2State
 from funestra.osr2_visualizer import read_drive
-from funestra.satellite_hud import HudModel, hud_text, parse_hud
+from funestra.satellite_hud import HudModel, hud_text
 
 from .bridge_records import BridgeConfig
 from .crown import Crown
@@ -19,7 +19,7 @@ from .funestra_status import (
     read_main_funestra_status,
 )
 from .gallery import the_gallery_in
-from .hud_transport import HudPublisher, hosted_model
+from .hud_transport import HudPublisher, hosted_model, read_the_hosted_hud
 from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
     genau_flick_shapes,
@@ -149,12 +149,9 @@ class HudFeed:
         if path is None:
             return None
         try:
-            text = path.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            text = ""
+            hud = self._hosted_huds[funestra] = read_the_hosted_hud(path)
         except OSError:
             return self._the_hud_the_app_is_republishing(funestra)
-        hud = self._hosted_huds[funestra] = parse_hud(text)
         return hud
 
     def _the_hud_the_app_is_republishing(self, funestra: FunTimeFunestra) -> HudModel | None:

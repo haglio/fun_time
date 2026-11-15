@@ -8,6 +8,7 @@ from urllib.request import url2pathname
 from app_support import favorites
 
 from fun_time.content import WebProvider, load_web_providers
+from fun_time.gallery import Gallery, GalleryKeptOffTheLoop
 from fun_time.lock import a_hosted_lock_holds, a_lock_holds, go_to_line
 from fun_time.media_actions import make_web_url_from_path
 from fun_time.media_metadata import metadata_path_for, recorded_for
@@ -183,3 +184,15 @@ def test_a_lock_on_an_ai_video_stars_it_in_the_gallery_and_writes_it_no_record(t
     assert star.call_args_list == [call(video, tmp_path / "made up origenerator")]
     assert not config.regen_metadata_root.exists()
     assert [counts["locks"] for counts in load_watch_stats(watch_stats_path(config.state_dir)).values()] == [1]
+
+
+def test_a_lock_takes_its_page_from_the_gallery_kept_off_the_loop_and_reads_none_of_its_own(
+        tmp_path):
+    page = "https://example.com/made-up-page"
+    kept = GalleryKeptOffTheLoop(None, read=lambda _path: Gallery(
+        [a_row("gen-1", "vid_00001_.mp4", web_url=page)]), changed_at=lambda _path: 1.0)
+    config = make_config(tmp_path, kept_gallery=kept)
+
+    _state, [opened] = a_hosted_lock_holds(str(_an_ai_video(tmp_path)), BridgeState(), config)
+
+    assert page in _page_of(opened.key)

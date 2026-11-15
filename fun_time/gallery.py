@@ -111,6 +111,43 @@ class Gallery:
         return {} if row is None else self._reading.record_of(row, where=PurePath(video))
 
 
+def _last_written(db_path: Path | None) -> tuple[float, ...]:
+    if db_path is None:
+        return ()
+    stamps = []
+    for path in (db_path, db_path.with_name(db_path.name + "-wal")):
+        try:
+            stamps.append(path.stat().st_mtime)
+        except OSError:
+            stamps.append(0.0)
+    return tuple(stamps)
+
+
+class GalleryKeptOffTheLoop:
+    def __init__(self, db_path: Path | None, *,
+                 read: Callable[[Path | None], Gallery] = Gallery.read,
+                 changed_at: Callable[[Path | None], object] = _last_written) -> None:
+        self._db_path = db_path
+        self._read = read
+        self._changed_at = changed_at
+        self._kept: Gallery | None = None
+        self._read_as_of: object = None
+
+    def latest(self) -> Gallery:
+        kept = self._kept
+        if kept is None:
+            self.look()
+            kept = self._kept
+        return kept
+
+    def look(self) -> None:
+        as_of = self._changed_at(self._db_path)
+        if self._kept is not None and as_of == self._read_as_of:
+            return
+        self._kept = self._read(self._db_path)
+        self._read_as_of = as_of
+
+
 class GalleryFlips:
     def __init__(self, gallery: Gallery, *, popen: Callable[..., object] = subprocess.Popen) -> None:
         self._gallery, self._popen = gallery, popen

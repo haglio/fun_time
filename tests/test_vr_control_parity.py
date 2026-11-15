@@ -270,10 +270,11 @@ class TestTheHostedOrigenerator:
         assert landed["kino/portrait_next"]["origenerator_cmd_file"] == [
             "portrait_next"]
 
-    def test_a_lock_locks_the_funestra_and_then_tells_the_hosted_app(self, landed):
+    def test_a_lock_locks_the_funestra_tells_the_hosted_app_and_follows_the_lock(self, landed):
         assert landed["kino/portrait_lock"] == {
-            "portrait_cmd_file": ["LOCK_ON"], "origenerator_cmd_file": ["portrait_lock"],
-            "__ops__": []}
+            "portrait_cmd_file": ["LOCK_ON"],
+            "origenerator_cmd_file": ["portrait_lock_on_led_by_the_session"],
+            "__ops__": [Op.FOLLOW_THE_LOCK]}
 
 
 _THE_LOOPS_OWN = frozenset({
