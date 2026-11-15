@@ -39,9 +39,9 @@ def switch_the_rfb_mode(target: RfbMode, state: BridgeState, _config: BridgeConf
     refused = _origenerator_refused(state, asked_for=target is RfbMode.ORIGENERATOR)
     if refused is not None:
         return state, refused
-    if state.rfb_mode is target:
-        return state, []
-    logger.info("Origenerator mode" if target is RfbMode.ORIGENERATOR else "Random Faves Browser mode")
+    if state.rfb_mode is not target:
+        logger.info("Origenerator mode" if target is RfbMode.ORIGENERATOR
+                    else "Random Faves Browser mode")
     moved = (replace(state, rfb_mode=target) if target is RfbMode.ORIGENERATOR
              else with_the_browser_in_its_place(state))
     return moved, _rfb_mode_ops(target)
