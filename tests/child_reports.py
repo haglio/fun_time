@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes.wintypes as wt
+import os
 import subprocess
 import sys
 import time
@@ -30,6 +31,8 @@ _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _WAIT_TIMEOUT = 0x00000102
 
 THE_INTERPRETER_NOT_A_VENVS_LAUNCHER = sys._base_executable
+_THE_VENV_AN_INTERPRETER_RUNS_IN = "__PYVENV_LAUNCHER__"
+_STARTS_COVERAGE = frozenset({"COVERAGE_PROCESS_START", "COVERAGE_PROCESS_CONFIG"})
 
 
 class StartedProcess(NamedTuple):
@@ -51,19 +54,30 @@ def an_interpreter_running(code: str, *args: str) -> Iterator[subprocess.Popen]:
         child.wait()
 
 
+def a_child_of_this_venv(code: str, **popen) -> subprocess.Popen:
+    environment = {name: value for name, value in os.environ.items() if name not in _STARTS_COVERAGE}
+    if sys.executable != THE_INTERPRETER_NOT_A_VENVS_LAUNCHER:
+        environment[_THE_VENV_AN_INTERPRETER_RUNS_IN] = sys.executable
+    return subprocess.Popen([THE_INTERPRETER_NOT_A_VENVS_LAUNCHER, "-c", code], env=environment, **popen)
+
+
 def an_interpreter_asleep(*args: str) -> AbstractContextManager[subprocess.Popen]:
     return an_interpreter_running("import time; time.sleep(60)", *args)
 
 
 def pid_written_to(path: Path, *, by: subprocess.Popen | None = None) -> int:
+    return int(text_written_to(path, by=by))
+
+
+def text_written_to(path: Path, *, by: subprocess.Popen | None = None) -> str:
     budget = Budget(A_STARVED_CHILDS_START_S)
     while not (path.exists() and path.read_text()):
         if by is not None and by.poll() is not None:
             raise ChildProcessError(f"{path} was never written: its writer exited {by.returncode}")
         if budget.expired():
-            raise TimeoutError(f"nothing wrote a pid to {path} within {A_STARVED_CHILDS_START_S:g}s")
+            raise TimeoutError(f"nothing was written to {path} within {A_STARVED_CHILDS_START_S:g}s")
         time.sleep(0.05)
-    return int(path.read_text())
+    return path.read_text()
 
 
 def with_what_it_started(pid: int) -> list[StartedProcess]:
