@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import glfw
 import numpy as np
-from OpenGL import GL
+from OpenGL import GL, WGL
+
+from fun_time import preview_marker
+from fun_time.project_paths import PROJECT_VR_ICON
+from fun_time.win32 import draw_nothing_at_all, minimize_window, set_the_icon_alt_tab_draws
 
 from .render import RenderTarget
 
@@ -83,3 +87,59 @@ class SharedContexts:
     @staticmethod
     def get_proc_address(name: str):
         return glfw.get_proc_address(name)
+
+
+class SceneWindow:
+    def __init__(self) -> None:
+        self._window = None
+        self._fbo = 0
+
+    def open(self, title: str) -> None:
+        if not glfw.init():
+            raise RuntimeError("Failed to initialize GLFW")
+        try:
+            self._window = hidden_gl_window(title)
+        except RuntimeError:
+            glfw.terminate()
+            raise
+        glfw.make_context_current(self._window)
+        hwnd = glfw.get_win32_window(self._window)
+        self._wear_the_sessions_taskbar_button(hwnd)
+        draw_nothing_at_all(hwnd)
+        minimize_window(hwnd, activate_the_next_window=False)
+
+    @staticmethod
+    def _wear_the_sessions_taskbar_button(hwnd: int) -> None:
+        set_the_icon_alt_tab_draws(hwnd, preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
+        preview_marker.dress_the_window(hwnd)
+
+    @staticmethod
+    def drawing_context() -> tuple[int, int]:
+        return WGL.wglGetCurrentDC(), WGL.wglGetCurrentContext()
+
+    def make_framebuffer(self) -> None:
+        self._fbo = GL.glGenFramebuffers(1)
+
+    def draw_into(self, texture: int, width: int, height: int) -> None:
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._fbo)
+        GL.glFramebufferTexture2D(
+            GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D, texture, 0)
+        GL.glViewport(0, 0, width, height)
+
+    @staticmethod
+    def done_drawing() -> None:
+        GL.glFlush()
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+
+    def close_requested(self) -> bool:
+        return bool(glfw.window_should_close(self._window))
+
+    def shared_contexts(self) -> SharedContexts:
+        return SharedContexts(self._window)
+
+    def close(self) -> None:
+        if self._fbo:
+            GL.glDeleteFramebuffers(1, [self._fbo])
+        if self._window:
+            glfw.destroy_window(self._window)
+        glfw.terminate()
