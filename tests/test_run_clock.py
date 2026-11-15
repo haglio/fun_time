@@ -259,3 +259,12 @@ def test_the_on_time_clock_reads_this_processes_threads_and_their_states_from_wi
 
     assert threading.get_native_id() in run_clock._thread_ids_of(os.getpid())
     assert run_clock._scheduler_state(kernel32.GetCurrentThread()) == run_clock._RUNNING
+
+
+def test_a_spent_budget_says_how_long_it_ran_on_the_runs_clock_and_on_the_wall(frozen):
+    wall = [500.0]
+    budget = Budget(120.0, wall=lambda: wall[0])
+
+    frozen.at, wall[0] = 120.0, 671.0
+
+    assert budget.spent() == "120s on the run's clock and 171s on the wall clock"

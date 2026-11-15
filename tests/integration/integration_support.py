@@ -169,7 +169,10 @@ SESSION_MONITORS = (MonitorRect(0, 0, 1280, 720), MonitorRect(1280, 0, 720, 1440
 
 
 def seen_within(look, *, seconds: float, every_s: float = 0.2):
-    budget = Budget(seconds)
+    return seen_before(look, Budget(seconds), every_s=every_s)
+
+
+def seen_before(look, budget: Budget, *, every_s: float = 0.2):
     while not (seen := look()) and not budget.expired():
         time.sleep(every_s)
     return seen
@@ -350,10 +353,12 @@ class FunTimeIntegrationSession:
         return already_logged
 
     def _wait_for_own_log(self, needle: str, *, after: int, timeout: float) -> None:
-        if seen_within(lambda: needle in self._read_windows_bridge_log()[after:], seconds=timeout):
+        budget = Budget(timeout)
+        if seen_before(lambda: needle in self._read_windows_bridge_log()[after:], budget):
             return
         raise AssertionError(
-            f"Did not find log line containing {needle!r} from this session\n{self._log_tail()}"
+            f"Did not find log line containing {needle!r} from this session\n"
+            f"--- waited {budget.spent()} ---\n{self._log_tail()}"
         )
 
     def stop(self) -> None:
