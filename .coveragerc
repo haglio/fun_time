@@ -14,8 +14,8 @@ omit =
     fun_time_vr/gl_contexts.py
     # needs a graphics context
     fun_time_vr/render.py
-    # sets Windows' default sound devices: a test would change the machine's
-    fun_time_vr/windows_sound.py
+    # reads and sets Windows' default sound devices through COM: a test would change the machine's
+    fun_time_vr/sound_endpoints.py
 relative_files = true
 
 [report]
