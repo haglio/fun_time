@@ -11,7 +11,6 @@
     "fun_time/audio_companion_app.py": 1
   },
   "private_reaches": {
-    "fun_time/windows_bridge_dispatch_loop.py": 16,
     "fun_time_vr/funestras.py": 5,
     "main_funestra/genau.py": 5
   },

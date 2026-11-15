@@ -699,9 +699,9 @@ class TestRunPythonOrchestratedBridge:
             )
 
         omni_paused = mock_serve.call_args.kwargs["omni_paused"]
-        mock_runner.return_value.state = BridgeState(omni_paused=True)
+        mock_runner.return_value.answering.state = BridgeState(omni_paused=True)
         assert omni_paused() is True
-        mock_runner.return_value.state = BridgeState(omni_paused=False)
+        mock_runner.return_value.answering.state = BridgeState(omni_paused=False)
         assert omni_paused() is False
 
     def test_a_session_with_its_own_browser_window_runs_the_slideshow_on_it(self, cfg_factory, tmp_path):
@@ -3264,7 +3264,7 @@ class TestStartingVoice:
     @classmethod
     def _started(cls, config_path, tmp_path, *, mic_muted=False, runner=None, **preparing):
         runner = runner or MagicMock()
-        runner.state = BridgeState(mic_muted=mic_muted)
+        runner.answering.state = BridgeState(mic_muted=mic_muted)
         prepared = cls._prepared(config_path, tmp_path, **preparing)
         return windows_bridge_orchestrator.start_voice_control(prepared, dispatch_runner=runner)
 
@@ -3330,7 +3330,7 @@ class TestStartingVoice:
 
         self._started(config_path, tmp_path, controller=controller, runner=runner)
 
-        runner.hear_as_a_lock.assert_called_once_with(frozenset({"hold"}))
+        runner.answering.hear_as_a_lock.assert_called_once_with(frozenset({"hold"}))
 
     def test_a_microphone_that_will_not_open_leaves_a_session_without_voice(
         self, cfg_factory, tmp_path,

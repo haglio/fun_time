@@ -141,15 +141,15 @@ def _writes_to_the_mailbox(node, word: str) -> bool:
 
 
 def test_the_quit_command_says_whether_it_was_spoken(tmp_path):
-    make_runner(tmp_path)._handle_command("quit", spoken_at=123.0)
+    make_runner(tmp_path).answering.answer("quit", spoken_at=123.0)
     assert "spoken" in (tmp_path / SESSION_END_MARKER).read_text(encoding="utf-8")
 
-    make_runner(tmp_path)._handle_command("quit")
+    make_runner(tmp_path).answering.answer("quit")
     assert "pressed" in (tmp_path / SESSION_END_MARKER).read_text(encoding="utf-8")
 
 
 def test_a_crossing_to_the_headset_names_itself(tmp_path):
-    make_runner(tmp_path)._handle_command("enter_vr")
+    make_runner(tmp_path).answering.answer("enter_vr")
 
     reason = (tmp_path / SESSION_END_MARKER).read_text(encoding="utf-8")
     assert "crossing" in reason

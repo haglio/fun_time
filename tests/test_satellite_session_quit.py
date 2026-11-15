@@ -5,8 +5,8 @@ from pathlib import Path
 
 from funestra.session_quit import SESSION_QUIT
 
+from fun_time.command_answering import LOOP_COMMANDS
 from fun_time.dashboard_actions import QUIT_BUTTON
-from fun_time.windows_bridge_dispatch_loop import _LOOP_COMMANDS
 
 ROOT = Path(__file__).resolve().parents[1]
 SATELLITE = ROOT / "satellite" / "app.py"
@@ -20,7 +20,7 @@ def test_the_ask_is_the_dashboards_own_quit_verb():
 
 
 def test_a_closed_satellite_asks_for_something_the_session_answers():
-    assert SESSION_QUIT in _LOOP_COMMANDS, (
+    assert SESSION_QUIT in LOOP_COMMANDS, (
         f"a closed satellite asks for {SESSION_QUIT!r} and nothing answers: "
         "the close goes quiet instead of ending the session")
 

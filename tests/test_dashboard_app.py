@@ -87,6 +87,7 @@ from fun_time.event_log import (
     event_log_path,
 )
 from fun_time.log_panel_model import LogPanelState, save_ui_state, ui_state_path
+from fun_time.loop_followers import poll_dashboard_commands
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.press_flash import PRESS_FLASH_S
@@ -102,7 +103,6 @@ from fun_time.window_layout import (
     compute_window_layout,
     secondary_monitor_rects,
 )
-from fun_time.windows_bridge_dispatch_loop import poll_dashboard_commands
 from tests.fun_time_window_fakes import HandDrivenClock
 from tests.held_files import held_by_another_program, let_go_soon
 from tests.integration.integration_support import environment_with_this_checkouts_siblings

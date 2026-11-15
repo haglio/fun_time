@@ -641,7 +641,7 @@ def _band_again_after_the_overlay_hands_activation_on(
 
 def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> ThreadingHTTPServer | None:
     try:
-        server = serve_loopback(port=port, omni_paused=lambda: dispatch_runner.state.omni_paused)
+        server = serve_loopback(port=port, omni_paused=lambda: dispatch_runner.answering.state.omni_paused)
     except OSError:
         logger.warning("Loopback server not started (port %d busy)", port, exc_info=True)
         return None
@@ -741,10 +741,10 @@ def start_voice_control(
         voice_controller = prepared.controller.result(timeout=ASKING_BUDGET_S)
     except Exception:
         return None, None
-    dispatch_runner.voice.controller = voice_controller
-    dispatch_runner.hear_as_a_lock(voice_controller.hosted.lock_phrases)
-    voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
-    if not dispatch_runner.state.mic_muted:
+    dispatch_runner.answering.voice.controller = voice_controller
+    dispatch_runner.answering.hear_as_a_lock(voice_controller.hosted.lock_phrases)
+    voice_controller.active_funestra = lambda: dispatch_runner.answering.state.active_funestra
+    if not dispatch_runner.answering.state.mic_muted:
         voice_controller.unmute()
     return voice_controller, prepared.thread
 
@@ -774,7 +774,7 @@ def activate_origenerator_under_the_loading_screen(
     progress: ProgressReporter,
 ) -> RfbMode:
     if not runner.opening.activates:
-        return runner.state.rfb_mode
+        return runner.answering.state.rfb_mode
     started = time.monotonic()
 
     def wait_for_the_app(has_answered: Callable[[], bool]) -> bool:
@@ -788,7 +788,7 @@ def activate_origenerator_under_the_loading_screen(
 
     progress.announce(ACTIVATING_ORIGENERATOR.key)
     runner.activate_origenerator(wait_for_the_app=wait_for_the_app)
-    return runner.state.rfb_mode
+    return runner.answering.state.rfb_mode
 
 
 def finish_under_the_loading_screen(

@@ -37,4 +37,4 @@ class Publishing:
     dashboard_enabled: bool
     hud_publisher: HudPublisher | None = None
     secondary_rects: Callable[..., SecondaryMonitorRects] | None = None
-    sync_interval_ms: int = 200
+    sync_interval_ms: float = 200

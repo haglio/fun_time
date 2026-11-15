@@ -25,12 +25,12 @@ from funestra.testing import FakeEngine
 from shared_ui.orientation import PORTRAIT
 
 from fun_time.bridge_records import Op
+from fun_time.command_answering import AHK_PASSTHROUGH_OPS, HANDOFF_COMMANDS
 from fun_time.command_dispatch import dispatch_command
 from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMMANDS
 from fun_time.genau_config import GenauSettings
 from fun_time.mode_plan import MAIN_KINO_MODE
 from fun_time.shared_state import BridgeState
-from fun_time.windows_bridge_dispatch_loop import _AHK_PASSTHROUGH_OPS, HANDOFF_COMMANDS
 from fun_time_vr import headset_verbs
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from fun_time_vr.headset_verbs import HeadsetVerbs
@@ -60,7 +60,7 @@ _OPS_WITH_NO_WINDOWS = (
     | _OPS_ON_WINDOWS_NEVER_HANDED_IN
 )
 
-_OPS_THE_HOTKEY_SCRIPT_RUNS = frozenset(_AHK_PASSTHROUGH_OPS)
+_OPS_THE_HOTKEY_SCRIPT_RUNS = frozenset(AHK_PASSTHROUGH_OPS)
 _OPS_IN_THE_GENAUMACHERS_PROCESS = frozenset({Op.SAVE_CLIP})
 _OPS_SKIPPED_WHERE_NO_BROWSER_WINDOW_IS_OPEN = frozenset({Op.OPEN_RFB_TAB})
 _FILE_WORK_ON_FUNESTRA_CHANNELS = frozenset({
@@ -292,8 +292,8 @@ class TestTheLoopInFrontOfTheDispatch:
         for command in every_command():
             if command in _THE_LOOPS_OWN:
                 continue
-            with patch.object(runner, "_dispatch") as dispatched:
-                runner._handle_command(command)
+            with patch.object(runner.answering, "dispatch") as dispatched:
+                runner.answering.answer(command)
             handed = [(said.text, spoken_at) for said, spoken_at in
                       (call.args for call in dispatched.call_args_list)]
             if handed != [(command, None)]:

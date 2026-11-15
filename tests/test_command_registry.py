@@ -15,17 +15,17 @@ from funestra.main_hud import osr2_controls
 from funestra.modes import LengthMode, MainMode
 
 from fun_time import (
+    command_answering,
     command_dispatch,
     dashboard_actions,
     satellite_commands,
-    windows_bridge_dispatch_loop,
 )
+from fun_time.command_answering import REQUEST_NEWS
 from fun_time.command_dispatch import ROUTES, handles
 from fun_time.command_reference import build_reference_sections
 from fun_time.command_value import MAIN_EQUIVALENTS, Scope, parse_command
 from fun_time.filter_vocab import filter_voice_commands
 from fun_time.voice_commands import build_voice_commands
-from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from fun_time_vr.thumbs import PROJECTION_BACK
 from tests.test_command_id_snapshot import (
     IDS_POSTED_OFF_ONE_SURFACE_ALONE,
@@ -46,7 +46,7 @@ _TOLD_BY_THE_HOSTED_APP = frozenset(
 
 
 def _loop_branch_ids() -> frozenset[str]:
-    return (frozenset(windows_bridge_dispatch_loop._LOOP_COMMANDS)
+    return (frozenset(command_answering.LOOP_COMMANDS)
             | dashboard_actions.HEADSET_SIGNALS)
 
 
@@ -189,9 +189,8 @@ def test_every_loop_branch_is_reachable_and_known():
 
 
 _THE_LOOPS_LIVE_OBJECTS = frozenset({
-    "windows", "voice", "ahk_cmd_file", "broker",
-    "_flag_the_panel_for_the_headset", "_handle_browse_library", "_log_topmost_state",
-    "_log_any_window_still_on_top_under_the_pause",
+    "window_work", "voice", "ahk_cmd_file", "broker", "flag_the_panel_for_the_headset",
+    "log_any_window_still_on_top_under_the_pause",
 })
 
 
@@ -200,11 +199,11 @@ def _what_a_loop_command_reaches(handler, followed: frozenset[str] = frozenset()
     reached: set[str] = set()
     for node in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(function)))):
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-            if node.value.id in ("runner", "broker"):
-                reached.add(node.attr if node.value.id == "runner" else "broker")
+            if node.value.id in ("answering", "broker"):
+                reached.add(node.attr if node.value.id == "answering" else "broker")
         elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
               and node.func.id.startswith("_") and node.func.id not in followed):
-            helper = getattr(windows_bridge_dispatch_loop, node.func.id, None)
+            helper = getattr(command_answering, node.func.id, None)
             if callable(helper):
                 reached |= _what_a_loop_command_reaches(helper, followed | {node.func.id})
     return reached
@@ -212,7 +211,7 @@ def _what_a_loop_command_reaches(handler, followed: frozenset[str] = frozenset()
 
 def test_each_of_the_loops_own_commands_needs_one_of_its_live_objects():
     stateless = sorted(
-        command for command, handler in windows_bridge_dispatch_loop._LOOP_COMMANDS.items()
+        command for command, handler in command_answering.LOOP_COMMANDS.items()
         if not _what_a_loop_command_reaches(handler) & _THE_LOOPS_LIVE_OBJECTS)
 
     assert stateless == [], (

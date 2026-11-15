@@ -13,7 +13,7 @@ from uuid import uuid4
 import pytest
 from shared_ui.testing import alert_shown
 
-from fun_time import session_handoff, windows_bridge_dispatch_loop
+from fun_time import command_answering, session_handoff
 from fun_time.config import load_config
 from fun_time.orchestrator import STARTUP_MARKER_NAME
 from fun_time.overlay_progress import CANCEL_FILENAME, CANCELING, parse_progress
@@ -86,8 +86,8 @@ def _fun_time_modules_imported_by(module, *, top_level_only: bool = False) -> se
 
 
 class TestTheRelayAsAModuleOfTheSession:
-    def test_the_relay_the_dispatch_loop_imports_touches_no_import_path(self):
-        assert "session_handoff" in _fun_time_modules_imported_by(windows_bridge_dispatch_loop)
+    def test_the_relay_the_loops_command_answering_imports_touches_no_import_path(self):
+        assert "session_handoff" in _fun_time_modules_imported_by(command_answering)
 
         source = inspect.getsource(session_handoff)
 
