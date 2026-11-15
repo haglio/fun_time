@@ -4,7 +4,13 @@ import re
 
 from fun_time.overlay_progress import CANCEL_FILENAME
 from fun_time.session_handoff import CROSSING_PROGRESS_NAME, LOADING_SCREEN_STALE_S
-from tests.ahk_script import function_source, script_text, suspend_exempt_block, suspend_exempt_keys
+from tests.ahk_script import (
+    function_source,
+    hotkeys_in_order,
+    script_text,
+    suspend_exempt_block,
+    suspend_exempt_keys,
+)
 
 
 def test_a_lifted_function_holds_no_line_of_another():
@@ -185,3 +191,12 @@ def test_the_keys_let_go_within_a_twentieth_of_a_second_of_a_pause():
 
     assert interval is not None
     assert int(interval.group(1)) <= 50
+
+
+def test_a_hotkeys_place_in_the_script_is_the_number_a_press_of_it_arrives_under():
+    defined = [line.split("::", 1)[0] for line in script_text().splitlines()
+               if "::" in line and not line[:1].isspace() and not line.startswith(";")]
+
+    assert "#HotIf" not in script_text()
+    assert list(hotkeys_in_order()) == defined
+    assert hotkeys_in_order()["b"] == "QueueCommand(\"broker_panel\")"

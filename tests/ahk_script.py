@@ -18,6 +18,11 @@ def suspend_exempt_keys() -> set[str]:
     return {line.split("::", 1)[0] for line in suspend_exempt_block().splitlines() if "::" in line}
 
 
+def hotkeys_in_order() -> dict[str, str]:
+    return {line.split("::", 1)[0]: line.split("::", 1)[1] for line in script_text().splitlines()
+            if "::" in line and not line[:1].isspace() and not line.startswith(";")}
+
+
 def function_source(name: str) -> str:
     text = script_text()
     for line in text.splitlines():
