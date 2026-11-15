@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+import contextlib
+from ctypes import POINTER, Structure, byref, c_uint, c_ushort, c_void_p, wstring_at
+from ctypes.wintypes import DWORD, LPCWSTR
+from typing import ClassVar
+
+import comtypes
+from app_support.win32_loader import load_dll
+from comtypes import CLSCTX_ALL, COMMETHOD, GUID, HRESULT, IUnknown
+
+FAILURES = (OSError, comtypes.COMError)
+
+
+class _PropertyKey(Structure):
+    _fields_ = [("fmtid", GUID), ("pid", DWORD)]
+
+
+class _PropVariant(Structure):
+    _fields_ = [("vt", c_ushort), ("reserved1", c_ushort), ("reserved2", c_ushort),
+                ("reserved3", c_ushort), ("text", c_void_p), ("rest", c_void_p)]
+
+
+_ole32 = load_dll("ole32")
+_ole32.CoTaskMemFree.argtypes = [c_void_p]
+_ole32.CoTaskMemFree.restype = None
+_ole32.PropVariantClear.argtypes = [POINTER(_PropVariant)]
+_ole32.PropVariantClear.restype = HRESULT
+
+_VT_LPWSTR = 31
+_FRIENDLY_NAME = _PropertyKey(GUID("{a45c254e-df1c-4efd-8020-67d146a850e0}"), 14)
+_DEVICE_ENUMERATOR = GUID("{BCDE0395-E52F-467C-8E3D-C4579291692E}")
+_POLICY_CONFIG_CLIENT = GUID("{870af99c-171d-4f9e-af0d-e63df40c2bc9}")
+
+
+class _IPropertyStore(IUnknown):
+    _iid_ = GUID("{886d8eeb-8cf2-4446-8d02-cdba1dbdcf99}")
+    _methods_: ClassVar[list] = [
+        COMMETHOD([], HRESULT, "GetCount", (["out"], POINTER(DWORD))),
+        COMMETHOD([], HRESULT, "GetAt", (["in"], DWORD), (["out"], POINTER(_PropertyKey))),
+        COMMETHOD([], HRESULT, "GetValue",
+                  (["in"], POINTER(_PropertyKey)), (["out"], POINTER(_PropVariant))),
+    ]
+
+
+class _IMMDevice(IUnknown):
+    _iid_ = GUID("{D666063F-1587-4E43-81F1-B948E807363F}")
+    _methods_: ClassVar[list] = [
+        COMMETHOD([], HRESULT, "Activate", (["in"], POINTER(GUID)), (["in"], DWORD),
+                  (["in"], c_void_p), (["out"], POINTER(c_void_p))),
+        COMMETHOD([], HRESULT, "OpenPropertyStore",
+                  (["in"], DWORD), (["out"], POINTER(POINTER(_IPropertyStore)))),
+        COMMETHOD([], HRESULT, "GetId", (["out"], POINTER(c_void_p))),
+    ]
+
+
+class _IMMDeviceEnumerator(IUnknown):
+    _iid_ = GUID("{A95664D2-9614-4F35-A746-DE8DB63617E6}")
+    _methods_: ClassVar[list] = [
+        COMMETHOD([], HRESULT, "EnumAudioEndpoints",
+                  (["in"], c_uint), (["in"], DWORD), (["out"], POINTER(c_void_p))),
+        COMMETHOD([], HRESULT, "GetDefaultAudioEndpoint",
+                  (["in"], c_uint), (["in"], c_uint), (["out"], POINTER(POINTER(_IMMDevice)))),
+    ]
+
+
+_SLOTS_BEFORE_SET_DEFAULT_ENDPOINT = (
+    "GetMixFormat", "GetDeviceFormat", "ResetDeviceFormat", "SetDeviceFormat",
+    "GetProcessingPeriod", "SetProcessingPeriod", "GetShareMode", "SetShareMode",
+    "GetPropertyValue", "SetPropertyValue",
+)
+
+
+class _IPolicyConfig(IUnknown):
+    _iid_ = GUID("{f8679f50-850a-41cf-9c72-430f290290c8}")
+    _methods_: ClassVar[list] = [
+        *(COMMETHOD([], HRESULT, name) for name in _SLOTS_BEFORE_SET_DEFAULT_ENDPOINT),
+        COMMETHOD([], HRESULT, "SetDefaultEndpoint", (["in"], LPCWSTR), (["in"], c_uint)),
+    ]
+
+
+def _com_on_this_thread_in_whichever_apartment() -> None:
+    with contextlib.suppress(OSError):
+        comtypes.CoInitialize()
+
+
+def open_device_enumerator():
+    _com_on_this_thread_in_whichever_apartment()
+    return comtypes.CoCreateInstance(_DEVICE_ENUMERATOR, _IMMDeviceEnumerator, CLSCTX_ALL)
+
+
+def open_policy_config():
+    _com_on_this_thread_in_whichever_apartment()
+    return comtypes.CoCreateInstance(_POLICY_CONFIG_CLIENT, _IPolicyConfig, CLSCTX_ALL)
+
+
+def id_of(device) -> str:
+    address = device.GetId()
+    try:
+        return wstring_at(address)
+    finally:
+        _ole32.CoTaskMemFree(address)
+
+
+def name_of(device) -> str:
+    value = device.OpenPropertyStore(0).GetValue(byref(_FRIENDLY_NAME))
+    try:
+        return wstring_at(value.text) if value.vt == _VT_LPWSTR and value.text else ""
+    finally:
+        _ole32.PropVariantClear(byref(value))
