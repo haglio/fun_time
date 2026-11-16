@@ -18,6 +18,7 @@ from app_support.state_files import OSR2_SERIAL_RX
 from app_support.threading_utils import wait_until
 from funestra.file_channel import publish_whole
 from funestra.funestra_status import status_fields
+from funestra.funestra_verbs import play_file
 from funestra.main_hud import OSR2_PARKED
 from funestra.modes import MainMode
 from funestra.playlist import PlaylistItem, write_playlist
@@ -63,6 +64,8 @@ from fun_time.media_metadata import (
     is_favorite,
     metadata_path_for,
 )
+from fun_time.mode_switches import PLAY_IN_KINO
+from fun_time.modes import scripted_item
 from fun_time.origenerator_opening import OrigeneratorNeverCameUp
 from fun_time.regen import build_regen_url
 from fun_time.rfb_modes import RfbMode
@@ -937,6 +940,18 @@ class TestDispatchLoopRunner:
         assert load_watch_stats(tmp_path / "watch_stats.json")[
             normalize_path_key(str(video))]["locks"] == 1
         assert not hosted_app.exists()
+
+    def test_a_video_the_hosted_app_hands_over_reaches_the_main_funestra_with_its_whole_path(
+            self, tmp_path):
+        runner = make_runner(tmp_path)
+        config = runner.answering.config
+        video = tmp_path / "videos" / "videos" / "sample full" / "video one (2).mp4"
+        (tmp_path / "dashboard_cmd.txt").write_text(f"{PLAY_IN_KINO}|{video}\n", encoding="utf-8")
+
+        runner.tick()
+
+        assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines()[-1] == (
+            play_file(scripted_item(str(video), config.regen_metadata_root)))
 
     def test_omnipause_suspends_the_voice_controller(self, tmp_path):
         runner = make_runner(tmp_path)
