@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support import video_ids
-from app_support.video_names import clip_title, stable_title, version_group_of
+from app_support.video_names import stable_title, title_while_playing, version_group_of
 
 from fun_time.media_metadata import recorded_for
 
@@ -61,7 +61,7 @@ class ClipNav:
             given = video_ids.recorded_id(payload)
             if given is not None:
                 by_id[given] = video
-            titles[video] = str(payload.get("title", "") or "").strip()
+            titles[video] = title_while_playing(payload, video)
             meta = payload.get("clip")
             if isinstance(meta, dict):
                 clips[video] = meta
@@ -74,13 +74,7 @@ class ClipNav:
         return self._evolver_families.get(scene) or stable_title(scene.stem)
 
     def title_of(self, video: Path) -> str:
-        meta = self._clips.get(video)
-        return (
-            self._titles.get(video)
-            or (clip_title({"clip": meta}) if meta is not None else "")
-            or self._evolver_families.get(video)
-            or video.stem
-        )
+        return self._titles.get(video) or video.stem
 
     def compilation_of(self, video: Path) -> str:
         meta = self._clips.get(video)
