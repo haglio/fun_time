@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support import video_ids
-from app_support.video_names import stable_title, title_while_playing, version_group_of
+from app_support.video_names import (
+    full_video_id_of,
+    stable_title,
+    title_while_playing,
+    version_group_of,
+)
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -99,7 +104,7 @@ class ClipNav:
         return _resolve(meta, [c for c in self._non_clips if c != video])
 
     def _family_evolver_matched_frames_to(self, meta: dict) -> str | None:
-        scene = self._by_id.get(str(meta.get("full_video_id", "")))
+        scene = self._by_id.get(full_video_id_of({"clip": meta}) or "")
         return self._family(scene) if scene is not None else None
 
     def clip_of(self, video: Path) -> Path | None:
