@@ -86,6 +86,11 @@ class TestLoadWebProviders:
         assert load_web_providers(local, EXAMPLE_CONTENT) == ()
 
 
+def test_a_unit_test_reads_the_example_whatever_overlay_its_checkout_holds(tmp_path: Path):
+    assert load_content() == _example()
+    assert load_web_providers() == load_web_providers(tmp_path / "missing.json", EXAMPLE_CONTENT)
+
+
 def test_no_overlay_is_read_before_a_caller_names_which():
     probe = (
         "import fun_time.content, fun_time.filter_vocab, fun_time.media_actions; "

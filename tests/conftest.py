@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+import tests.example_content_only  # noqa: F401
 from fun_time import (
     chrome_accessibility,
     closing_screen,
