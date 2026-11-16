@@ -39,6 +39,7 @@ from tests.integration.integration_support import (
     COMMAND_BUDGET_S,
     INTEGRATION_CONFIG_NAME,
     SESSION_MONITORS,
+    THE_RUNS_OSR2_REPORTER,
     FunTimeIntegrationSession,
     ReadProbe,
     TheRunsOsr2,
@@ -567,6 +568,17 @@ def test_the_runs_osr2_reports_itself_switched_on_to_the_session_as_a_powered_os
         assert osr2_device.switched_on(tmp_path)
     finally:
         osr2.close()
+
+
+def test_a_closed_runs_osr2_writes_nothing_more_into_the_state_folder_its_case_is_about_to_remove(tmp_path):
+    before = set(threading.enumerate())
+    osr2 = TheRunsOsr2()
+    osr2.reports_switched_on_to(tmp_path)
+
+    osr2.close()
+
+    assert [thread for thread in set(threading.enumerate()) - before
+            if thread.name == THE_RUNS_OSR2_REPORTER and thread.is_alive()] == []
 
 
 def test_a_run_serves_its_loopback_surface_somewhere_of_its_own(isolated_ports):
