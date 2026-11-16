@@ -528,6 +528,7 @@ def _free_tcp_port() -> int:
 
 
 A_POWERED_OSR2_REPORTS_EVERY_S = 1.0
+THE_RUNS_OSR2_REPORTER = "the-runs-osr2-reports"
 
 
 class TheRunsOsr2:
@@ -540,11 +541,13 @@ class TheRunsOsr2:
         self._slot.start()
         self.port = self._slot.address[1]
         self._closed = threading.Event()
+        self._reporters: list[threading.Thread] = []
 
     def reports_switched_on_to(self, session_state_dir: Path) -> None:
         self._report_switched_on(session_state_dir)
-        start_daemon_thread(target=self._keep_reporting_switched_on, args=(session_state_dir,),
-                            name="the-runs-osr2-reports")
+        self._reporters.append(start_daemon_thread(
+            target=self._keep_reporting_switched_on, args=(session_state_dir,),
+            name=THE_RUNS_OSR2_REPORTER))
 
     def _report_switched_on(self, state_dir: Path) -> None:
         stamp = state_dir / OSR2_SERIAL_RX
@@ -568,6 +571,8 @@ class TheRunsOsr2:
 
     def close(self) -> None:
         self._closed.set()
+        for reporter in self._reporters:
+            reporter.join()
         self._slot.close()
 
 
