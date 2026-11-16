@@ -17,6 +17,7 @@ from .hosted_contract import SAID_FOR_AN_ENHANCEMENT_LEVEL
 logger = logging.getLogger(__name__)
 
 _SPOKEN_AT_SEP = " @"
+_PRESSED_AT_SEP = " #"
 _SAID_SEP = "\t"
 _MOST_SECONDS = 60
 
@@ -26,6 +27,7 @@ class CommandLine:
     command: str
     spoken_at: float | None = None
     said: str = ""
+    pressed_at: float | None = None
 
 
 def format_spoken_command(command: str, *, spoken_at: float, said: str) -> str:
@@ -34,13 +36,21 @@ def format_spoken_command(command: str, *, spoken_at: float, said: str) -> str:
 
 def parse_command_line(line: str) -> CommandLine:
     stamped, _, said = line.partition(_SAID_SEP)
-    command, separator, stamp = stamped.rpartition(_SPOKEN_AT_SEP)
-    if not separator:
-        return CommandLine(line)
+    command, spoken_at = _stamp_off(stamped, _SPOKEN_AT_SEP)
+    if spoken_at is not None:
+        return CommandLine(command, spoken_at, said)
+    command, pressed_at = _stamp_off(line, _PRESSED_AT_SEP)
+    return CommandLine(command, pressed_at=pressed_at)
+
+
+def _stamp_off(line: str, separator: str) -> tuple[str, float | None]:
+    command, found, stamp = line.rpartition(separator)
+    if not found:
+        return line, None
     try:
-        return CommandLine(command, float(stamp), said)
+        return command, float(stamp)
     except ValueError:
-        return CommandLine(line)
+        return line, None
 
 
 GENAU_SAID: tuple[str, ...] = ("genau", "go now")

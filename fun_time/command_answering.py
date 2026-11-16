@@ -106,7 +106,7 @@ class CommandAnswering:
         answers_before = self._answers
         self._ignored_because = ""
         for command in aimed_at_the_tracked_target(said, self.state).each():
-            self.answer(command, line.spoken_at)
+            self.answer(command, line.spoken_at, pressed_at=line.pressed_at)
         if not line.said:
             return
         if self._ignored_because:
@@ -125,7 +125,8 @@ class CommandAnswering:
     def it_was_ignored_because(self, why: str) -> None:
         self._ignored_because = why
 
-    def answer(self, command: str | Command, spoken_at: float | None = None) -> None:
+    def answer(self, command: str | Command, spoken_at: float | None = None, *,
+               pressed_at: float | None = None) -> None:
         if isinstance(command, str):
             command = parse_command(command)
         if command.text in HEADSET_SIGNALS:
@@ -136,16 +137,18 @@ class CommandAnswering:
             self._opening.he_picked_what_shows_in_the_browsers_place()
         its_own = LOOP_COMMANDS.get(command.text)
         if its_own is None:
-            self.dispatch(command, spoken_at)
+            self.dispatch(command, spoken_at, pressed_at=pressed_at)
         else:
             its_own(self, spoken_at)
 
-    def dispatch(self, command: Command, spoken_at: float | None = None) -> None:
+    def dispatch(self, command: Command, spoken_at: float | None = None, *,
+                 pressed_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command.text)
+        target_path = self.watch.video_at(command, spoken_at if spoken_at is not None else pressed_at)
         self.watch.note_command(command.text)
         self.take(*dispatch_command(
             command, self.state, self.config,
-            target_path=self.watch.video_at(command, spoken_at),
+            target_path=target_path,
             spoken_at=spoken_at,
         ))
 

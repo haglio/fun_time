@@ -339,6 +339,7 @@ WatchStartup() {
 
 QueueCommand(cmd) {
     global DASHBOARD_CMD_FILE, StartupPhase
+    pressed := " #" . SecondsOnFunTimesClock()
     if (StartupPhase) {
         ; No session to drive yet, and no dispatch loop draining the file this
         ; would go in.  The keys that mean "stop" never come through here.
@@ -349,8 +350,20 @@ QueueCommand(cmd) {
     ; key appends fast enough to overlap that rename, and Windows then refuses
     ; the open with "(32) ... being used by another process". Wait it out, about
     ; five seconds at most, so a collision on a starved machine costs no keypress.
-    if !AppendWithRetry(cmd . "`n", DASHBOARD_CMD_FILE)
+    if !AppendWithRetry(cmd . pressed . "`n", DASHBOARD_CMD_FILE)
         Log("QueueCommand dropped (file busy): " . cmd)
+}
+
+; The moment of a press, on the clock Python's time.monotonic reads on Windows
+; (QueryPerformanceCounter over its frequency), so a lock Fun Time reads late
+; still finds the video that was on screen when the key went down.
+SecondsOnFunTimesClock() {
+    static frequency := 0
+    if (!frequency)
+        DllCall("QueryPerformanceFrequency", "Int64*", &frequency)
+    count := 0
+    DllCall("QueryPerformanceCounter", "Int64*", &count)
+    return Format("{:.3f}", count / frequency)
 }
 
 AppendWithRetry(text, path, attempts := 320, delayMs := 5, access := "exclusive") {

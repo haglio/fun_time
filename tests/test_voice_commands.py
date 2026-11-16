@@ -33,6 +33,10 @@ class TestCommandLineFormat:
         line = format_spoken_command("portrait_lock_on", spoken_at=1234.5, said="lock portrait")
         assert parse_command_line(line) == CommandLine("portrait_lock_on", 1234.5, "lock portrait")
 
+    def test_a_pressed_key_reads_back_the_moment_it_was_pressed(self):
+        assert parse_command_line("portrait_lock #1234.500") == CommandLine(
+            "portrait_lock", pressed_at=1234.5)
+
     def test_an_unstamped_line_is_a_bare_command(self):
         assert parse_command_line("portrait_next") == CommandLine("portrait_next")
 
