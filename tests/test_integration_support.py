@@ -738,19 +738,32 @@ def test_a_run_finds_genau_where_this_machine_keeps_it_and_reads_the_rest_of_the
     assert haglio_settings.value("genau_dir") == before_the_run
 
 
-def test_a_video_reads_at_speed_only_when_its_first_bytes_arrive_in_time():
+def test_a_read_that_finishes_before_its_budget_runs_out_is_at_speed():
     def instant(path, size):
         return None
 
-    def cold(path, size):
-        time.sleep(0.5)
+    assert readable_at_speed("warm.mp4", budget_s=0.2, read=instant, now=SleepDrivenClock().monotonic)
 
+
+def test_a_read_that_fails_is_not_at_speed_without_waiting_out_its_budget():
     def gone(path, size):
         raise OSError("no such file")
 
-    assert readable_at_speed("warm.mp4", budget_s=0.2, read=instant)
-    assert not readable_at_speed("cold.mp4", budget_s=0.05, read=cold)
-    assert not readable_at_speed("gone.mp4", budget_s=0.2, read=gone)
+    assert not readable_at_speed("gone.mp4", budget_s=0.2, read=gone, now=SleepDrivenClock().monotonic)
+
+
+def test_a_read_still_going_when_its_budget_runs_out_is_not_at_speed():
+    clock = SleepDrivenClock()
+    released = threading.Event()
+
+    def cold(path, size):
+        clock.sleep(0.5)
+        released.wait()
+
+    try:
+        assert not readable_at_speed("cold.mp4", budget_s=0.05, read=cold, now=clock.monotonic)
+    finally:
+        released.set()
 
 
 def test_a_sample_skips_the_videos_the_drive_cannot_serve_at_speed(monkeypatch, capsys):
