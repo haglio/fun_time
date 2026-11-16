@@ -4,9 +4,14 @@ import logging
 from dataclasses import replace
 from functools import partial
 
-from .bridge_records import BridgeConfig, Handler, WindowOp
+from funestra.file_channel import append_command
+from funestra.funestra_verbs import play_file
+
+from .bridge_records import BridgeConfig, Handler, Route, WindowOp
+from .command_value import Command
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
 from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE
+from .modes import scripted_item
 from .rfb_mode import core_shows, switch_the_rfb_mode
 from .rfb_modes import RfbMode
 from .runtime_flow import apply_mode_switch
@@ -57,6 +62,19 @@ def _core_picked(state: BridgeState, config: BridgeConfig,
     state, ops = switch_the_rfb_mode(RfbMode.ORIGENERATOR, state, config, target_path)
     return (replace(state, core_named_last=True) if core_shows(state) else state), ops
 
+
+PLAY_IN_KINO = "kino_play"
+
+
+def _play_in_kino(command: Command, state: BridgeState, config: BridgeConfig,
+                  _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    state, ops = _dispatch_mode_switch(MAIN_KINO_MODE, state, config, [])
+    append_command(config.main_funestra.cmd_file,
+                   play_file(scripted_item(command.argument, config.regen_metadata_root)))
+    return state, ops
+
+
+VALUED: dict[str, Route] = {PLAY_IN_KINO: _play_in_kino}
 
 HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_mode_switch, target) for cmd, target in _MODE_SWITCH_COMMANDS.items()},
