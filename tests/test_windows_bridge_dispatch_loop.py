@@ -2270,7 +2270,7 @@ class TestIdempotentVoiceCommands:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_fmode_on", encoding="utf-8")
             runner.tick()
-        mock_d.assert_called_once_with(parse_command("portrait_fmode_on"), None)
+        mock_d.assert_called_once_with(parse_command("portrait_fmode_on"), None, pressed_at=None)
 
     def test_satellites_fmode_reaches_the_f_mode_table_as_its_portrait_and_landscape_halves(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2290,7 +2290,7 @@ class TestIdempotentVoiceCommands:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
-        mock_d.assert_called_once_with(parse_command("genau_activate"), None)
+        mock_d.assert_called_once_with(parse_command("genau_activate"), None, pressed_at=None)
 
     def test_a_switch_to_the_current_mode_is_left_for_the_planner_to_drop(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2299,7 +2299,7 @@ class TestIdempotentVoiceCommands:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
-        mock_d.assert_called_once_with(parse_command("genau_activate"), None)
+        mock_d.assert_called_once_with(parse_command("genau_activate"), None, pressed_at=None)
 
 
     def test_the_snapshot_says_whether_every_funestra_has_nothing_to_reset(self, tmp_path):
@@ -2426,6 +2426,25 @@ class TestIdempotentVoiceCommands:
         with patch(self.STOP) as mock_stop:
             self._say(runner, tmp_path, "broker_stop")
         mock_stop.assert_not_called()
+
+
+class TestALockPressedWhileFunTimeIsSlow:
+    def test_locks_the_video_that_was_showing_when_the_key_went_down(self, tmp_path):
+        clock = HandDrivenClock()
+        runner = make_runner(tmp_path, loop_clock=clock)
+        portrait = runner.answering.config.portrait
+        meant = tmp_path / "meant.mp4"
+        clock.now = 100.0
+        _write_satellite_status(portrait.status_file, str(meant), fraction=0.2)
+        runner.tick()
+
+        clock.now = 104.0
+        _write_satellite_status(portrait.status_file, str(tmp_path / "next.mp4"), fraction=0.3)
+        (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock #103.000\n", encoding="utf-8")
+        runner.tick()
+
+        assert portrait.cmd_file.read_text(encoding="utf-8").split("\n")[:2] == [
+            f"PLAY_FILE {meant}", "LOCK_ON"]
 
 
 class TestWatchTracking:

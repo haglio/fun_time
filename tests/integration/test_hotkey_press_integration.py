@@ -5,12 +5,14 @@ import ctypes.wintypes
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
 from app_support.win32_loader import load_dll
 
 from fun_time.config import load_config
+from fun_time.voice_commands import CommandLine, parse_command_line
 from tests.ahk_script import THE_RESIDENT_ENTRYPOINT_NO_TEST_CAN_IMPORT, hotkeys_in_order
 
 from .integration_support import ended_within, seen_within, the_machines_config_path
@@ -78,13 +80,17 @@ class _TheHotkeyScript:
         hotkey_id = list(hotkeys_in_order()).index(key)
         assert _user32.PostMessageW(self.window, WM_HOTKEY, hotkey_id, 0), ctypes.get_last_error()
 
-    def queued(self) -> list[str]:
+    def queued_lines(self) -> list[CommandLine]:
         try:
-            return self.commands.read_text(encoding="utf-8").split()
+            lines = self.commands.read_text(encoding="utf-8").splitlines()
         except FileNotFoundError:
             return []
         except PermissionError:
-            return ["the script is still writing"]
+            return [CommandLine("the script is still writing")]
+        return [parse_command_line(line) for line in lines]
+
+    def queued(self) -> list[str]:
+        return [line.command for line in self.queued_lines()]
 
     def tell(self, action: str) -> None:
         with self.ahk_commands.open("a", encoding="utf-8") as mailbox:
@@ -114,6 +120,18 @@ def test_a_pressed_key_queues_the_command_its_line_names(hotkey_script):
     assert seen_within(
         lambda: hotkey_script.queued() == ["broker_panel", "portrait_hud_left"], seconds=10), (
         hotkey_script.queued())
+
+
+def test_a_pressed_key_carries_the_moment_it_went_down_on_fun_times_clock(hotkey_script):
+    before = time.monotonic()
+    hotkey_script.press("Down")
+    assert seen_within(lambda: hotkey_script.queued() == ["portrait_lock"], seconds=10), (
+        hotkey_script.queued())
+    after = time.monotonic()
+
+    [line] = hotkey_script.queued_lines()
+    assert line.pressed_at is not None
+    assert before - 0.01 <= line.pressed_at <= after, (before, line.pressed_at, after)
 
 
 def test_a_key_pressed_while_the_session_is_paused_queues_nothing(hotkey_script):
