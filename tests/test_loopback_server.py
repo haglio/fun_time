@@ -4,17 +4,19 @@ import json
 import threading
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 from shared_ui import palette
 from shared_ui.spacing import MARGIN_STANDARD
 
+from fun_time import loopback_server
 from fun_time.loopback_server import (
+    EXAMPLE_USERSCRIPT_NAME,
     LOOPBACK_PORT,
     OMNIPAUSE_PATH,
     USERSCRIPT_NAME,
     make_server,
-    userscript_path,
 )
 
 
@@ -136,8 +138,8 @@ def test_omnipause_is_readable_from_a_file_uri_page(tmp_path):
         server.shutdown()
 
 
-def test_real_userscript_points_its_updates_at_this_server():
-    text = userscript_path().read_text(encoding="utf-8")
+def test_the_example_userscript_points_its_updates_at_this_server():
+    text = (Path(loopback_server.__file__).parent / "static" / EXAMPLE_USERSCRIPT_NAME).read_text(encoding="utf-8")
     endpoint = f"http://127.0.0.1:{LOOPBACK_PORT}/{USERSCRIPT_NAME}"
     assert "@updateURL" in text
     assert "@downloadURL" in text
