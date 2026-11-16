@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from funestra.video_groups import normalize_path_key
 
 from fun_time.command_value import parse_command
@@ -232,11 +233,33 @@ class TestBackDating:
 
         assert sampler.video_at(parse_command("portrait_lock_on"), 100.2) == "C:\\images\\meant.png"
 
-    def test_a_hotkey_command_names_no_video(self, tmp_path):
+    def test_a_command_given_at_no_known_moment_names_no_video(self, tmp_path):
         sampler = make_sampler(tmp_path)
         self._observe(sampler, "portrait", "C:\\clips\\meant.mp4", at=100.0)
 
         assert sampler.video_at(parse_command("portrait_trash"), None) == ""
+
+    def test_a_video_the_satellite_moved_on_to_while_fun_time_was_slow_is_dated_by_how_far_it_has_played(
+            self, tmp_path):
+        sampler = make_sampler(tmp_path)
+        self._observe(sampler, "portrait", "C:\\clips\\meant.mp4", at=100.0)
+        _publish(sampler.stats_file.parent / "portrait_status.txt",
+                 "C:\\clips\\advanced_to.mp4", fraction=0.3)
+        sampler.sample_due(now=104.0, omni_paused=False)
+
+        assert sampler.video_at(parse_command("portrait_lock"), 103.5) == "C:\\clips\\meant.mp4"
+
+    @pytest.mark.parametrize("moved_by", ["portrait_next", "portrait_prev", "portrait_trash"])
+    def test_a_video_he_moved_to_just_before_the_lock_is_kept_however_late_it_started(
+            self, tmp_path, moved_by):
+        sampler = make_sampler(tmp_path)
+        self._observe(sampler, "portrait", "C:\\clips\\left.mp4", at=100.0)
+        sampler.note_command(moved_by)
+        _publish(sampler.stats_file.parent / "portrait_status.txt",
+                 "C:\\clips\\moved_to.mp4", fraction=0.1)
+        sampler.sample_due(now=104.0, omni_paused=False)
+
+        assert sampler.video_at(parse_command("portrait_lock"), 100.5) == "C:\\clips\\moved_to.mp4"
 
 
 

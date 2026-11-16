@@ -9,7 +9,7 @@ from .command_value import Command
 from .config import FunestraChannel
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_main_funestra_status
-from .satellite_control import read_satellite_status
+from .satellite_control import SatelliteStatus, read_satellite_status
 from .watch_stats import WatchTracker, record_watch_event
 
 SAMPLE_INTERVAL_S = 0.5
@@ -23,6 +23,12 @@ NAV_COMMANDS: dict[int, frozenset[str]] = {
 DISCARD_COMMANDS: dict[str, int] = {"portrait_trash": 2, "landscape_trash": 3}
 
 _NOTHING_BEING_WATCHED = ("", 0.0)
+
+
+def _how_long_it_has_played(status: SatelliteStatus) -> float | None:
+    if status.image or status.fraction is None:
+        return None
+    return status.position_ms / 1000
 
 
 class WatchSampler:
@@ -54,7 +60,8 @@ class WatchSampler:
     def _sample_satellites(self, *, now: float) -> None:
         for which, status_file in self._satellite_status_files.items():
             status = read_satellite_status(status_file)
-            self._on_screen[which].observe(status.video, now=now)
+            self._on_screen[which].observe(status.video, now=now,
+                                           playing_for=_how_long_it_has_played(status))
             if status.image:
                 watched, fraction = _NOTHING_BEING_WATCHED
             elif status.fraction is None:
@@ -76,9 +83,16 @@ class WatchSampler:
         for which, nav_commands in NAV_COMMANDS.items():
             if command in nav_commands:
                 self._trackers[which].note_user_nav()
+                self._he_moved(which)
         discard_which = DISCARD_COMMANDS.get(command)
         if discard_which is not None:
             self._trackers[discard_which].note_discard()
+            self._he_moved(discard_which)
+
+    def _he_moved(self, which: int) -> None:
+        history = self._on_screen.get(which)
+        if history is not None:
+            history.a_change_was_asked_for()
 
     def video_at(self, command: Command, spoken_at: float | None) -> str:
         if spoken_at is None:
