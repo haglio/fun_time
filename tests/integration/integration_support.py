@@ -907,23 +907,27 @@ def one_video_per_video(videos, version_index) -> list[Path]:
         [PlaylistItem(video) for video in videos], version_index)]
 
 
-def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read=None) -> bool:
+def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read=None,
+                      now: Callable[[], float] = run_clock.now) -> bool:
     read = _read_head if read is None else read
-    arrived = threading.Event()
+    budget = Budget(budget_s, now=now)
+    finished = threading.Event()
+    arrived = []
 
     def read_however_long_the_drive_takes() -> None:
         try:
             read(path, size)
+            arrived.append(path)
         except OSError:
-            return
-        arrived.set()
+            pass
+        finally:
+            finished.set()
 
     threading.Thread(target=read_however_long_the_drive_takes, daemon=True).start()
-    budget = Budget(budget_s)
-    while not arrived.wait(min(0.1, budget.left())):
+    while not finished.wait(min(0.1, budget.left())):
         if budget.expired():
             return False
-    return True
+    return bool(arrived)
 
 
 def _read_head(path, size: int) -> None:
