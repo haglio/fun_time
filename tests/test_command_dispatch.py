@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from app_support import osr2_hold
 from funestra.file_channel import append_command
+from funestra.funestra_verbs import play_file
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.hud_title import ENHANCED_LABEL, FAVORITES_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
@@ -35,6 +36,8 @@ from fun_time.media_metadata import (
     mark_favorite,
     metadata_path_for,
 )
+from fun_time.mode_switches import PLAY_IN_KINO
+from fun_time.modes import scripted_item
 from fun_time.rfb_mode import with_the_browser_in_its_place
 from fun_time.rfb_modes import RfbMode
 from fun_time.satellite_groups import send_satellite
@@ -743,6 +746,21 @@ def test_a_mode_switch_tells_the_main_funestra_which_of_kino_and_genau_has_its_w
     config.main_funestra.cmd_file.unlink()
     dispatch_command("main_kino_activate", _make_state(main_mode=MainMode.GENAU), config)
     assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW kino"]
+
+
+def test_a_video_the_gallery_hands_over_plays_on_the_main_funestra_which_goes_to_kino_for_it(
+        tmp_path: Path):
+    config = _make_config(tmp_path)
+    video = tmp_path / "primary" / "video one.mp4"
+
+    state, ops = dispatch_command(f"{PLAY_IN_KINO}|{video}", _make_state(main_mode=MainMode.GENAU),
+                                  config)
+
+    assert state.main_mode is MainMode.KINO
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == [
+        "SHOW kino", play_file(scripted_item(str(video), config.regen_metadata_root))]
+    assert ops == [WindowOp(op="show_window", key="main_funestra"),
+                   WindowOp(op="activate_window", key="main_funestra")]
 
 
 def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
