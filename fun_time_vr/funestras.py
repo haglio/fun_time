@@ -625,6 +625,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
             latest=resumed.genau_latest,
             favorites=resumed.genau_favorites_filter,
+            enhanced=resumed.genau_enhanced_filter,
             orientations=(resumed.genau_plays_portrait, resumed.genau_plays_landscape),
             metadata_root=manifest.regen.metadata_folder,
             gallery=the_librarys_gallery(),

@@ -10,7 +10,7 @@ import pytest
 from app_support import osr2_hold
 from funestra.file_channel import append_command
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.hud_title import FAVORITES_LABEL
+from funestra.hud_title import ENHANCED_LABEL, FAVORITES_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import LengthMode, MainMode
 
@@ -38,7 +38,7 @@ from fun_time.rfb_modes import RfbMode
 from fun_time.satellite_groups import send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
-from main_funestra.genau_verbs import genau_favorites, genau_orientations
+from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_orientations
 from tests.bridge_configs import made_up_bridge_config
 from tests.hosted_shows import publish_the_show
 from tests.made_up_gallery import a_row
@@ -614,6 +614,17 @@ def test_favorites_on_genau_keeps_its_favorites_and_leaves_kinos_list_alone(tmp_
     assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == f"{genau_favorites(True)}\n"
     assert builds.asked == []
     assert ops == [WindowOp(op="message", key=f"{FAVORITES_LABEL} on", source=SOURCE_MAIN, level=FAVORITE)]
+
+
+def test_enhanceds_on_genau_keeps_its_upscaled_flicks_and_leaves_kinos_list_alone(tmp_path: Path):
+    config, builds = _recording(_make_config(tmp_path))
+
+    state, ops = dispatch_command("main_enhanced", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert (state.genau_enhanced_filter, state.main_enhanced_filter) == (True, False)
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == f"{genau_enhanced(True)}\n"
+    assert builds.asked == []
+    assert ops == [WindowOp(op="message", key=f"{ENHANCED_LABEL} on", source=SOURCE_MAIN, level=MESSAGE)]
 
 
 def test_favorites_on_or_off_said_twice_still_lands_where_it_was_asked(tmp_path: Path):
@@ -2584,17 +2595,6 @@ class TestKinosEnhanceds:
         dispatch_command("main_enhanced_off", _make_state(), config)
 
         assert builds.asked == []
-
-    def test_in_genau_mode_the_main_funestras_enhanceds_does_nothing(self, tmp_path):
-        config, builds = _recording(_make_config(tmp_path))
-
-        state, _ops = dispatch_command("main_enhanced", _make_state(main_mode=MainMode.GENAU),
-                                       config)
-
-        assert state.main_enhanced_filter is False
-        assert builds.asked == []
-        assert not config.main_funestra.cmd_file.exists() or not config.main_funestra.cmd_file.read_text(
-            encoding="utf-8")
 
     def test_a_reset_turns_the_main_funestras_enhanceds_off(self, tmp_path):
         config, builds = _recording(_make_config(tmp_path))

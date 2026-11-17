@@ -885,7 +885,8 @@ _MANIFEST_FIELDS_OF_A_MAIN_FUNESTRA = {
     "origenerator_cmd_file": ("commands", "origenerator_cmd_file"),
 }
 _GENAU_STARTS = {"genau_start_flick": "start_flick", "genau_latest": "latest",
-                 "genau_favorites": "favorites", "genau_orientations": "orientations"}
+                 "genau_favorites": "favorites", "genau_enhanced": "enhanced",
+                 "genau_orientations": "orientations"}
 
 
 def _a_main_funestra_launch(tmp_path: Path, **overrides) -> dict:
@@ -985,6 +986,11 @@ def test_the_launch_names_latest_only_for_a_session_left_browsing_it(tmp_path: P
 def test_the_launch_names_favorites_only_for_a_session_left_with_them(tmp_path: Path):
     assert "--genau-favorites" in _launched_main_funestra(tmp_path, genau_favorites=True)
     assert "--genau-favorites" not in _launched_main_funestra(tmp_path, genau_favorites=False)
+
+
+def test_the_launch_names_enhanceds_only_for_a_session_left_with_it(tmp_path: Path):
+    assert "--genau-enhanced" in _launched_main_funestra(tmp_path, genau_enhanced=True)
+    assert "--genau-enhanced" not in _launched_main_funestra(tmp_path, genau_enhanced=False)
 
 
 def test_the_launch_names_genaus_orientations_only_for_a_session_left_narrowed(tmp_path: Path):

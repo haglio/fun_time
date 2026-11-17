@@ -445,14 +445,14 @@ class TestResumeGenau:
         assert {field for control in resent for field in self._KEPT_IN_THE_APPS_STATE[control]} == {
             name for name in RESUMED_FIELDS if name.startswith("genau_")
             and name not in ("genau_latest", "genau_plays_vr", "genau_plays_flat",
-                             "genau_favorites_filter", "genau_plays_portrait",
+                             "genau_favorites_filter", "genau_enhanced_filter", "genau_plays_portrait",
                              "genau_plays_landscape")}
 
     def test_what_the_apps_state_keeps_for_genau_is_remembered(self):
         assert {field for fields in self._KEPT_IN_THE_APPS_STATE.values() for field in fields} <= set(
             RESUMED_FIELDS)
 
-    _KEPT_FOR_ITS_LAUNCH: ClassVar[dict] = {"favorites": ("genau_favorites_filter",),
+    _KEPT_FOR_ITS_LAUNCH: ClassVar[dict] = {"favorites": ("genau_favorites_filter",), "enhanced": ("genau_enhanced_filter",),
                             "orientations": ("genau_plays_portrait", "genau_plays_landscape")}
 
     def test_every_verb_genau_answers_on_the_main_funestras_channel_comes_back_at_its_launch(self):

@@ -340,6 +340,7 @@ class GenauStart:
     start_flick: str = ""
     latest: bool = False
     favorites: bool = False
+    enhanced: bool = False
     orientations: Included = BOTH
 
 
@@ -467,6 +468,8 @@ def launch_main_funestra(
         cmd.append("--genau-latest")
     if genau.favorites:
         cmd.append("--genau-favorites")
+    if genau.enhanced:
+        cmd.append("--genau-enhanced")
     if genau.orientations != BOTH:
         cmd += ["--genau-orientations", *orientation_words(genau.orientations)]
     cmd += ["--origenerator-command-file", str(commands.origenerator_cmd_file)]

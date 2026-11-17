@@ -29,7 +29,7 @@ from main_funestra.genau import (
     GenauFlicks,
     GenauOutputs,
 )
-from main_funestra.genau_verbs import genau_favorites, genau_orientations
+from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_orientations
 from tests.genau_fakes import (
     FakeNotifier,
     FakeSink,
@@ -343,6 +343,27 @@ class TestAnAiFlicksShape:
         assert world.genau.top_block().video == "beta two"
 
 
+class TestEnhanceds:
+    def test_it_keeps_only_the_upscaled_flicks(self, tmp_path):
+        world = World(tmp_path, WorldSetup(flicks=("alpha one.mp4", "beta two_topaz.mp4", "gamma three.mp4")))
+
+        assert world.genau.apply_command(genau_enhanced(True)) is True
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "beta two_topaz"
+
+    def test_off_it_brings_every_flick_back_and_keeps_the_one_on_screen(self, tmp_path):
+        world = World(tmp_path, WorldSetup(flicks=("alpha one.mp4", "beta two_topaz.mp4", "gamma three.mp4")))
+        world.genau.apply_command(genau_enhanced(True))
+        world.send("NEXT")
+
+        world.genau.apply_command(genau_enhanced(False))
+        assert world.genau.top_block().video == "beta two_topaz"
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "gamma three"
+
+
 class TestAnAiFlicksFlip:
     def test_it_is_shown_as_the_gallery_keeps_it(self, tmp_path):
         world = World(tmp_path, WorldSetup(kind="AI", flipped=("alpha one.mp4",)))
@@ -360,7 +381,7 @@ class TestAnAiFlicksFlip:
         assert not world.metadata_root.exists()
 
 
-class TestFMode:
+class TestFavorites:
     def test_an_ai_flicks_favorite_is_its_star_in_the_gallery_never_its_record(self, tmp_path):
         world = World(tmp_path, WorldSetup(kind="AI", starred=("beta two.mp4",),
                                            favorites=("gamma three.mp4",)))

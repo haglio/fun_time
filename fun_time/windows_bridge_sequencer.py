@@ -283,6 +283,7 @@ def _launch_the_main_funestra(
             start_flick=genau_flick,
             latest=state.genau_latest,
             favorites=state.genau_favorites_filter,
+            enhanced=state.genau_enhanced_filter,
             orientations=(state.genau_plays_portrait, state.genau_plays_landscape),
         ),
     )

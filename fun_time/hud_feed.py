@@ -93,6 +93,7 @@ class HudFeed:
             favorites_filter=state.main_favorites_filter,
             enhanced_filter=state.main_enhanced_filter,
             genau_favorites_filter=state.genau_favorites_filter,
+            genau_enhanced_filter=state.genau_enhanced_filter,
             latest=state.main_latest,
             genau_latest=state.genau_latest,
             plays_vr=main_shapes.plays_vr if main_shapes.offered else None,
