@@ -58,10 +58,12 @@ class _TheHotkeyScript:
         self.commands = tmp_path / "dashboard_cmd.txt"
         self.log = state / "windows_bridge.log"
         self.ahk_commands = state / "ahk_cmd.txt"
+        self.portrait_commands = tmp_path / "portrait_cmd.txt"
         manifest = tmp_path / "manifest.ini"
         manifest.write_text(
             f"[commands]\ndashboard_cmd_file={self.commands}\n\n"
-            f"[runtime]\nwindows_bridge_log_file={self.log}\n", encoding="utf-8")
+            f"[runtime]\nwindows_bridge_log_file={self.log}\n\n"
+            f"[portrait]\ncmd_file={self.portrait_commands}\n", encoding="utf-8")
         pids = tmp_path / "pids.txt"
         pids.write_text("", encoding="utf-8")
         ahk_exe = str(load_config(the_machines_config_path()).paths.ahk_exe)
@@ -132,6 +134,26 @@ def test_a_pressed_key_carries_the_moment_it_went_down_on_fun_times_clock(hotkey
     [line] = hotkey_script.queued_lines()
     assert line.pressed_at is not None
     assert before - 0.01 <= line.pressed_at <= after, (before, line.pressed_at, after)
+
+
+def test_next_goes_straight_into_its_funestras_file_and_fun_time_hears_it_already_went(
+        hotkey_script):
+    hotkey_script.press("Right")
+
+    assert seen_within(lambda: hotkey_script.queued() == ["portrait_next"], seconds=10), (
+        hotkey_script.queued())
+    [line] = hotkey_script.queued_lines()
+    verb, _, when = hotkey_script.portrait_commands.read_text(encoding="utf-8").strip().partition(" ")
+    assert (verb, float(when)) == ("NEXT", line.pressed_at)
+    assert line.already_sent is True
+
+
+def test_a_step_whose_funestra_the_manifest_does_not_name_goes_through_fun_time(hotkey_script):
+    hotkey_script.press("d")
+
+    assert seen_within(lambda: hotkey_script.queued() == ["landscape_next"], seconds=10), (
+        hotkey_script.queued())
+    assert hotkey_script.queued_lines()[0].already_sent is False
 
 
 def test_a_key_pressed_while_the_session_is_paused_queues_nothing(hotkey_script):
