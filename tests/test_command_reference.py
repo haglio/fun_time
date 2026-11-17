@@ -420,7 +420,7 @@ def test_one_row_steps_every_funestra_through_its_enhancements():
 
     assert versions == _the_row_of("main_funestra_cycle_version_back")
     assert versions.description == "cycle enhancement"
-    assert versions.detail == "the upscale, the original it was made from, or an enhancement"
+    assert versions.detail == "the Evolved version, the original it was made from, or an enhancement"
     assert versions.voice == ("version", "change version", "cycle version", "next version")
     assert versions.key_columns == (("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D"),
                                     ("Shift+M", "Shift+."))
