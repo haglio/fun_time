@@ -41,7 +41,6 @@ from .process_identity import NAMER
 from .process_sweep import processes_matching
 from .process_tree import kill_process_tree
 from .project_paths import PROJECT_ICON
-from .random_faves_browser_manifest import prepare_random_faves_browser_manifest
 from .runtime_flow import write_flag_file
 from .satellite_launch import SatelliteLaunch, for_funestra
 from .session_resume import (
@@ -252,8 +251,6 @@ def start_core_session(
     portrait = for_funestra(portrait, FunTimeFunestra.PORTRAIT)
     landscape = for_funestra(landscape, FunTimeFunestra.LANDSCAPE)
     carried = carry_the_last_session_in(m, (portrait, landscape), state_dir=Path(state_dir))
-    prepare_random_faves_browser_manifest(
-        m.runtime.config_path, m.random_faves_browser.manifest_file)
     launch_core_apps(m, portrait, landscape, result_file)
     return carried.main_mode
 

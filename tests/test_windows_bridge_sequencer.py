@@ -3,6 +3,7 @@ from __future__ import annotations
 import configparser
 import contextlib
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -182,6 +183,7 @@ def _sequencer_stubs(**overrides):
         "is_process_alive": {"return_value": True},
         "launch_origenerator": {"side_effect": _fake_origenerator},
         "close_tabs_it_did_not_open_while_it_starts": {},
+        "prepare_random_faves_browser_manifest": {},
     }
     spec.update(overrides)
     with contextlib.ExitStack() as stack:
@@ -638,6 +640,39 @@ class TestTheOrderInsideTheStartupPhases:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
                                  hide_windows=hide_windows)
         return order
+
+    def test_the_browsers_pages_are_written_beside_the_launches_and_the_browser_waits_for_them(
+            self, cfg_factory, tmp_path):
+        satellites_launched = threading.Event()
+        written: list[tuple] = []
+
+        def launch(m, **kwargs):
+            satellites_launched.set()
+            return _fake_core(m, **kwargs)
+
+        def write_the_pages_once_the_satellites_are_launched(config_path, manifest_file):
+            satellites_launched.wait()
+            written.append((config_path, manifest_file))
+
+        def the_pages_stand_written(*args, **kwargs):
+            assert written, "the browser opened before its pages were written"
+            return 0
+
+        cfg = load_config(cfg_factory({}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        m = LaunchManifest.read(manifest_path)
+        with _sequencer_stubs(
+                start_core_session={"side_effect": launch},
+                prepare_random_faves_browser_manifest={
+                    "side_effect": write_the_pages_once_the_satellites_are_launched}), \
+             patch("fun_time.windows_bridge_sequencer._maybe_launch_random_faves_browser",
+                   side_effect=the_pages_stand_written) as browser:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
+                                 hide_windows=False)
+
+        assert written == [(m.runtime.config_path, m.random_faves_browser.manifest_file)]
+        browser.assert_called_once()
 
     def test_the_layout_is_computed_before_any_funestra_launches(self, cfg_factory, tmp_path):
         order = self._sequence(cfg_factory, tmp_path)
