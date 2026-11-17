@@ -21,6 +21,9 @@ NAV_COMMANDS: dict[int, frozenset[str]] = {
     3: frozenset({"landscape_prev", "landscape_next", "landscape_cycle_action", "landscape_cycle_seed"}),
 }
 
+STEPS = frozenset({"portrait_prev", "portrait_next", "landscape_prev", "landscape_next",
+                   "main_prev", "main_next", "genau_prev_flick", "genau_next_flick"})
+
 DISCARD_COMMANDS: dict[str, int] = {"portrait_trash": 2, "landscape_trash": 3,
                                      "main_trash": 1, "genau_trash_flick": 1}
 
@@ -62,6 +65,9 @@ class WatchSampler:
         self._last_sample = now
         if omni_paused:
             return
+        self._sample(now=now, genau_on_screen=genau_on_screen)
+
+    def _sample(self, *, now: float, genau_on_screen: bool) -> None:
         self._sample_satellites(now=now)
         if genau_on_screen:
             self._sample_genau(now=now)
@@ -119,6 +125,17 @@ class WatchSampler:
         if history is None:
             return ""
         return history.path_at(given_at)
+
+    def already_moved_on_by_itself(self, command: Command, given_at: float | None, *,
+                                   now: float, genau_on_screen: bool) -> bool:
+        if command.text not in STEPS or given_at is None:
+            return False
+        self._sample(now=now, genau_on_screen=genau_on_screen)
+        history = self._on_screen.get(_the_funestra_it_acts_on(command))
+        if history is None:
+            return False
+        pressed_on = history.path_at(given_at)
+        return bool(pressed_on) and pressed_on != history.path_at(float("inf"))
 
 
 def _the_funestra_it_acts_on(command: Command) -> FunTimeFunestra | None:

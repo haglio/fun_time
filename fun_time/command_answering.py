@@ -40,6 +40,7 @@ from .headset_power import the_headset_is_ready
 from .hosted_words import aimed_at_the_tracked_target
 from .lock_follower import LockFollower, what_the_main_funestra_holds
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
+from .mode_plan import kino_shows
 from .origenerator_opening import OrigeneratorOpening
 from .runtime_flow import write_flag_file
 from .session_end import mark_session_end
@@ -145,6 +146,12 @@ class CommandAnswering:
                  pressed_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command.text)
         given_at = spoken_at if spoken_at is not None else pressed_at
+        if self.watch.already_moved_on_by_itself(
+                command, given_at, now=self._clock(),
+                genau_on_screen=not kino_shows(self.state.main_mode)):
+            logger.info("%s was pressed on a video already gone from the screen; "
+                        "the move it asked for has happened", command.text)
+            return
         target_path = self.watch.video_at(command, given_at)
         self.watch.note_command(command.text)
         self.take(*dispatch_command(
