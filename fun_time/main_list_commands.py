@@ -20,7 +20,7 @@ from funestra.inclusion_pair import (
 from funestra.modes import LengthMode
 from funestra.playback_rate import NORMAL_RATE
 
-from main_funestra.genau_verbs import genau_favorites, genau_orientations
+from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_orientations
 from main_funestra.snippet_controller import SnippetState
 
 from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, Op, WindowOp, ignored
@@ -238,6 +238,8 @@ _GENAUS_SETTINGS = (
     _GenausSetting(("genau_plays_portrait", "genau_plays_landscape"), _tell_genau_its_orientations),
     _GenausSetting(("genau_favorites_filter",), lambda config, held: append_command(
         config.main_funestra.cmd_file, genau_favorites(*held))),
+    _GenausSetting(("genau_enhanced_filter",), lambda config, held: append_command(
+        config.main_funestra.cmd_file, genau_enhanced(*held))),
     _GenausSetting(("genau_latest",), lambda config, held: append_command(
         config.genau.cmd_file, _GENAU_ORDER_CMD[held[0]])),
     _GenausSetting(("genau_flick_seconds",), lambda config, held: append_command(

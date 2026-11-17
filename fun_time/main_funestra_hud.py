@@ -39,6 +39,7 @@ class MainFunestraInputs:
     favorites_filter: bool = False
     enhanced_filter: bool = False
     genau_favorites_filter: bool = False
+    genau_enhanced_filter: bool = False
     latest: bool = False
     genau_latest: bool = False
     plays_vr: bool | None = None
@@ -71,7 +72,7 @@ def main_hud_model(inputs: MainFunestraInputs) -> HudModel:
             main_mode=inputs.main_mode,
             locked=main_funestra.locked if video else genau.locked,
             favorites=inputs.favorites_filter if video else inputs.genau_favorites_filter,
-            enhanced=inputs.enhanced_filter and video,
+            enhanced=inputs.enhanced_filter if video else inputs.genau_enhanced_filter,
             latest=inputs.latest if video else inputs.genau_latest,
             snippet=main_funestra.snippet_state.value,
             plays_vr=inputs.plays_vr if video else inputs.genau_plays_vr,

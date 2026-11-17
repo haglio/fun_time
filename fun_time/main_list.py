@@ -88,7 +88,7 @@ def _made_by_an_upscaler(stem: str) -> bool:
     return strip_processing_suffixes(stem) != stem
 
 
-def _has_an_enhanced_version(every: list[str]) -> Callable[[str], bool]:
+def has_an_enhanced_version(every: list[str]) -> Callable[[str], bool]:
     enhanced: dict[tuple[Path, str], bool] = {}
     for video in every:
         family = _family_of(video)
@@ -159,7 +159,7 @@ class MainList:
             gallery = _read_once(lambda: the_gallery_in(self.origenerator))
             kept = [video for video in kept if a_favorite(video, self.metadata_root, gallery)]
         if settings.enhanced:
-            enhanced = _has_an_enhanced_version(videos)
+            enhanced = has_an_enhanced_version(videos)
             kept = [video for video in kept if enhanced(video)]
         return kept
 

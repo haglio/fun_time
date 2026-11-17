@@ -75,6 +75,8 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="The orientations Genau plays; absent is both")
     p.add_argument("--genau-favorites", action="store_true", default=False,
                    help="Browse only the favorites from the start")
+    p.add_argument("--genau-enhanced", action="store_true", default=False,
+                   help="Browse only the upscaled flicks from the start")
     p.add_argument("--notify-host", default=audio_companion.get("host", "127.0.0.1"),
                    help="Where Genau tells the audio companion what is up")
     p.add_argument("--notify-port", type=int,

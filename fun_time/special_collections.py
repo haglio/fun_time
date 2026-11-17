@@ -8,7 +8,7 @@ from functools import partial
 from funestra.file_channel import append_command
 from funestra.hud_title import ENHANCED_LABEL, FAVORITES_LABEL
 
-from main_funestra.genau_verbs import genau_favorites
+from main_funestra.genau_verbs import genau_enhanced, genau_favorites
 
 from .bridge_records import BridgeConfig, Handler, WindowOp
 from .command_value import FUNESTRA_SOURCES
@@ -36,6 +36,13 @@ class Collection(StrEnum):
     def kinos_field(self) -> str:
         return f"main_{self.value}_filter"
 
+    @property
+    def genaus_field(self) -> str:
+        return f"genau_{self.value}_filter"
+
+    def told_to_genau(self, on: bool) -> str:
+        return {Collection.FAVORITES: genau_favorites, Collection.ENHANCED: genau_enhanced}[self](on)
+
 
 _SIDES: dict[bool | None, str] = {None: "", True: "_on", False: "_off"}
 
@@ -49,9 +56,7 @@ def every_funestras_command(collection: Collection, target: bool | None) -> str:
 
 
 def _main_funestras(state: BridgeState, collection: Collection) -> bool | None:
-    if kino_shows(state.main_mode):
-        return getattr(state, collection.kinos_field)
-    return state.genau_favorites_filter if collection is Collection.FAVORITES else None
+    return getattr(state, collection.kinos_field if kino_shows(state.main_mode) else collection.genaus_field)
 
 
 def _funestras(state: BridgeState, config: BridgeConfig, funestra: FunTimeFunestra,
@@ -73,8 +78,8 @@ def _tell_the_main_funestra(state: BridgeState, config: BridgeConfig, collection
         state = replace(state, **{collection.kinos_field: enabled})
         rebuild_the_main_list(state, config)
         return state
-    append_command(config.main_funestra.cmd_file, genau_favorites(enabled))
-    return replace(state, genau_favorites_filter=enabled)
+    append_command(config.main_funestra.cmd_file, collection.told_to_genau(enabled))
+    return replace(state, **{collection.genaus_field: enabled})
 
 
 def _dispatch(collection: Collection, asked_for: tuple[FunTimeFunestra, ...], target: bool | None,

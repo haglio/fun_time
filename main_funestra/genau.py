@@ -26,6 +26,7 @@ from fun_time.genau_engine import (
     Narrow,
     build_genau_engine,
 )
+from fun_time.main_list import has_an_enhanced_version
 from fun_time.media_metadata import record_of, recorded_orientation
 from fun_time.modes import videos_in
 from fun_time.origenerator_trash import tell_origenerator_it_went
@@ -44,6 +45,7 @@ class GenauFlicks:
     start_flick: Path | None = None
     latest: bool = False
     favorites: bool = False
+    enhanced: bool = False
     orientations: Included = BOTH
     metadata_root: Path | None = None
     narrow: Narrow | None = None
@@ -78,6 +80,7 @@ class Genau:
         self._settings = settings
         self._recent = flicks.latest
         self._favorites = flicks.favorites
+        self._enhanced = flicks.enhanced
         self._orientations = flicks.orientations
         self._metadata_root = flicks.metadata_root
         self._gallery = flicks.gallery
@@ -91,7 +94,7 @@ class Genau:
         self._clock = clock
         browsed = self._browsed()
         turned = self._turned_as_asked(browsed)
-        kept = self._favorites_of(turned)
+        kept = self._collections_of(turned)
         self._engine = build_genau_engine(
             settings,
             channels,
@@ -123,6 +126,10 @@ class Genau:
 
     def keep_favorites(self, on: bool) -> None:
         self._favorites = on
+        self._engine.narrow(self._scan)
+
+    def keep_enhanced(self, on: bool) -> None:
+        self._enhanced = on
         self._engine.narrow(self._scan)
 
     def keep_orientations(self, orientations: Included) -> None:
@@ -183,7 +190,7 @@ class Genau:
         return self._kept_of(self._browsed())
 
     def _kept_of(self, flicks: list[Path]) -> list[Path]:
-        return self._favorites_of(self._turned_as_asked(flicks))
+        return self._collections_of(self._turned_as_asked(flicks))
 
     def _turned_as_asked(self, flicks: list[Path]) -> list[Path]:
         if self._orientations == BOTH:
@@ -204,10 +211,19 @@ class Genau:
     def _shaped(self, flicks: list[Path]) -> list[Path]:
         return flicks
 
+    def _collections_of(self, flicks: list[Path]) -> list[Path]:
+        return self._enhanced_of(self._favorites_of(flicks))
+
     def _favorites_of(self, flicks: list[Path]) -> list[Path]:
         if not self._favorites or self._metadata_root is None:
             return flicks
         return [flick for flick in flicks if favorites.is_favorite(self._record_of(flick))]
+
+    def _enhanced_of(self, flicks: list[Path]) -> list[Path]:
+        if not self._enhanced:
+            return flicks
+        enhanced = has_an_enhanced_version([str(flick) for flick in flicks])
+        return [flick for flick in flicks if enhanced(str(flick))]
 
     def _record_of(self, flick: Path) -> dict:
         return record_of(flick, self._metadata_root, lambda: self._gallery)
