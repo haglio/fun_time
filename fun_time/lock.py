@@ -23,8 +23,16 @@ def go_to_line(item: str) -> str:
     return f"{_GO_TO}|{item}"
 
 
-def a_lock_holds(item: str, state: BridgeState,
-                 config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
+def core_goes_ahead_to(item: str, state: BridgeState, config: BridgeConfig) -> bool:
+    if not item:
+        return False
+    gallery = _the_gallery(config)
+    favorite = with_its_page(item, gallery, load_web_providers())
+    return not _its_page(favorite, config, gallery).url and _core_goes_to(item, state, config)
+
+
+def a_lock_holds(item: str, state: BridgeState, config: BridgeConfig, *,
+                 core_is_there: bool = False) -> tuple[BridgeState, list[WindowOp]]:
     if not item:
         return state, []
     gallery = _the_gallery(config)
@@ -34,7 +42,8 @@ def a_lock_holds(item: str, state: BridgeState,
     else:
         mark_favorite(item, config.regen_metadata_root, True, page=favorite.web_url)
     record_watch_event(watch_stats_path(config.state_dir), item, "lock")
-    return _where_more_of_it_is_made(favorite, state, config, gallery)
+    return _where_more_of_it_is_made(favorite, state, config, gallery,
+                                     core_is_there=core_is_there)
 
 
 def _the_gallery(config: BridgeConfig) -> Gallery:
@@ -72,13 +81,23 @@ def unfavorited(item: str, config: BridgeConfig) -> bool:
     return True
 
 
+def _its_page(favorite: FavEntry, config: BridgeConfig, gallery: Gallery):
+    return target_for_fav(favorite, config.regen, load_web_providers(), gallery)
+
+
+def _core_goes_to(item: str, state: BridgeState, config: BridgeConfig) -> bool:
+    if state.origenerator_core_ready:
+        append_command(config.origenerator.cmd_file, go_to_line(item))
+    return state.origenerator_core_ready
+
+
 def _where_more_of_it_is_made(favorite: FavEntry, state: BridgeState, config: BridgeConfig,
-                              gallery: Gallery) -> tuple[BridgeState, list[WindowOp]]:
-    item = favorite.local_path
-    target = target_for_fav(favorite, config.regen, load_web_providers(), gallery)
+                              gallery: Gallery, *,
+                              core_is_there: bool = False) -> tuple[BridgeState, list[WindowOp]]:
+    target = _its_page(favorite, config, gallery)
     if not target.url:
-        if state.origenerator_core_ready:
-            append_command(config.origenerator.cmd_file, go_to_line(item))
+        if not core_is_there:
+            _core_goes_to(favorite.local_path, state, config)
         return state, []
     ops: list[WindowOp] = []
     if state.rfb_mode is RfbMode.ORIGENERATOR:

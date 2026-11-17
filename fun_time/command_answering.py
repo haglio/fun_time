@@ -38,6 +38,7 @@ from .funestra_status import read_main_funestra_status
 from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
 from .hosted_words import aimed_at_the_tracked_target
+from .lock import core_goes_ahead_to
 from .lock_follower import LockFollower, what_the_main_funestra_holds
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .mode_plan import kino_shows
@@ -401,7 +402,9 @@ def _run_notice(answering: CommandAnswering, op: WindowOp) -> None:
 
 
 def _run_follow_the_lock(answering: CommandAnswering, op: WindowOp) -> None:
-    answering.lock_follower.follow(op.key)
+    shown = answering.lock_follower.follow(op.key)
+    if core_goes_ahead_to(shown, answering.state, answering.config):
+        answering.lock_follower.core_went_ahead_to(shown)
 
 
 def _run_ahk_passthrough(answering: CommandAnswering, op: WindowOp) -> None:

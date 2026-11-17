@@ -2896,18 +2896,30 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
                                rfb_mode=RfbMode.RFB, origenerator_core_ready=True)
         return runner
 
-    def test_origenerator_is_asked_to_go_to_the_video_once_the_main_funestra_holds_it(
+    def test_origenerator_is_asked_to_go_to_the_video_at_the_press_and_only_once(
             self, tmp_path):
         runner = self._kino_beside_origenerator(tmp_path)
         _the_main_funestra_publishes(tmp_path, locked=False, video=self.MADE_HERE)
 
         runner.answering.dispatch(parse_command("main_lock"))
-        runner.tick()
-        assert _what_the_gallery_heard(tmp_path) == []
+        assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.MADE_HERE}"]
 
         _the_main_funestra_publishes(tmp_path, locked=True, video=self.MADE_HERE)
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.MADE_HERE}"]
+
+    def test_origenerator_is_sent_on_when_the_main_funestra_holds_another_video_than_it_showed(
+            self, tmp_path):
+        runner = self._kino_beside_origenerator(tmp_path)
+        moved_on_to = self.MADE_HERE.replace("00042", "00043")
+        _the_main_funestra_publishes(tmp_path, locked=False, video=self.MADE_HERE)
+
+        runner.answering.dispatch(parse_command("main_lock"))
+        _the_main_funestra_publishes(tmp_path, locked=True, video=moved_on_to)
+        runner.tick()
+
+        assert _what_the_gallery_heard(tmp_path) == [
+            f"GO_TO|{self.MADE_HERE}", f"GO_TO|{moved_on_to}"]
 
     def test_the_video_goes_in_the_favorites_and_counts_as_a_lock_once_it_is_held(
             self, tmp_path):

@@ -120,7 +120,9 @@ class LocksWhatTheMainFunestraHolds:
     def tick(self, now: float, answering: CommandAnswering) -> None:
         held = answering.lock_follower.held()
         if held:
-            answering.take(*a_lock_holds(held, answering.state, answering.config))
+            answering.take(*a_lock_holds(
+                held, answering.state, answering.config,
+                core_is_there=answering.lock_follower.core_is_at(held)))
 
 
 class TheBrowsersSlideshow:
