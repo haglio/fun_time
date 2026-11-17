@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import configparser
+import threading
 from contextlib import ExitStack, contextmanager
 from functools import partial
 from pathlib import Path
@@ -26,6 +27,7 @@ from fun_time.orchestrator import (
     require_dir,
     require_file,
     run_windows_bridge,
+    start_loading_the_bridges_code,
     startup_marker_path,
     tell_the_hidden_launcher_startup_resolved,
     validate_config,
@@ -54,6 +56,7 @@ def _a_launch_with_the_machine_held_off(**overrides):
         "ensure_runtime_files": MagicMock(),
         "validate_config": MagicMock(),
         "open_event_log": MagicMock(),
+        "start_loading_the_bridges_code": MagicMock(),
         "open_the_loading_screen": MagicMock(return_value=_a_loading_screen()),
         "stamp_the_users_pin_outside_every_checkout": MagicMock(),
         "describe_the_session_on_the_taskbar": MagicMock(),
@@ -411,6 +414,36 @@ class TestASlowStartSaysWhichStepWasSlow:
             run_windows_bridge(cfg, logger, SessionEnvironment(), _a_loading_screen())
 
         assert _steps_timed_on(logger) == ["loading the bridge's code", "writing the bridge's manifest"]
+
+
+class TestTheBridgesCodeLoadsWhileTheLoadingScreenOpens:
+    def test_the_load_is_under_way_before_the_loading_screen_is_asked_for(self, cfg_path: Path):
+        order = []
+
+        def a_loading_screen_opened(*_args, **_kwargs):
+            order.append("screen")
+            return _a_loading_screen()
+
+        with _a_launch_with_the_machine_held_off(
+                start_loading_the_bridges_code=lambda: order.append("load"),
+                open_the_loading_screen=a_loading_screen_opened):
+            main(["--config", str(cfg_path)])
+
+        assert order == ["load", "screen"]
+
+    def test_a_check_of_the_config_loads_nothing(self, cfg_path: Path):
+        with _a_launch_with_the_machine_held_off() as launch:
+            main(["--config", str(cfg_path), "--check"])
+
+        launch.start_loading_the_bridges_code.assert_not_called()
+
+
+    def test_the_load_runs_off_the_thread_that_opens_the_loading_screen(self):
+        loading = start_loading_the_bridges_code()
+
+        assert loading is not threading.current_thread()
+        loading.join(timeout=60)
+        assert not loading.is_alive()
 
 
 class TestTheProcessEdgeReadsTheSwitchesOnce:
