@@ -27,7 +27,7 @@ AFTER_THE_SLIDE = "FUNTIMEMARK-AFTER-THE-SLIDE"
 AFTER_AN_ACTIVATION = "FUNTIMEMARK-AFTER-AN-ACTIVATION"
 
 # Chrome builds its accessibility tree when it is first asked about it, and under
-# the flake gate's load the first walk of a new window has taken 72 seconds.
+# a heavily loaded machine the first walk of a new window has taken 72 seconds.
 FIRST_SLIDE_TIMEOUT_S = 120.0
 
 

@@ -74,11 +74,11 @@ def test_a_killed_funestra_still_holding_its_log_is_waited_for(tmp_path: Path):
     assert not root.exists()
 
 
-THE_SLOWEST_FUNESTRA_GONE_UNDER_THE_FLAKE_GATE_S = 59
+THE_SLOWEST_FUNESTRA_GONE_ON_A_BUSY_MACHINE_S = 59
 
 
 def test_the_wait_outlasts_the_slowest_funestra_measured_on_a_busy_machine():
-    assert integration_support.RELEASE_BUDGET_S >= 2 * THE_SLOWEST_FUNESTRA_GONE_UNDER_THE_FLAKE_GATE_S
+    assert integration_support.RELEASE_BUDGET_S >= 2 * THE_SLOWEST_FUNESTRA_GONE_ON_A_BUSY_MACHINE_S
 
 
 def test_a_failed_run_keeps_each_sessions_logs(tmp_path: Path):
