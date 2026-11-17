@@ -5,7 +5,6 @@ from funestra.file_channel import append_command
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
-from .fun_time_funestras import FunTimeFunestra
 from .gallery import Gallery, star_in_the_gallery, the_gallery_in, unstar_in_the_gallery
 from .media_metadata import a_favorite, mark_favorite, metadata_path_for
 from .random_faves_browser import FavEntry, target_for_fav, with_its_page
@@ -22,16 +21,6 @@ _GO_TO = "GO_TO"
 
 def go_to_line(item: str) -> str:
     return f"{_GO_TO}|{item}"
-
-
-def a_lock_holds_on(holder: str, item: str, state: BridgeState,
-                    config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
-    if holder in _THE_SATELLITES:
-        return a_hosted_lock_holds(item, state, config)
-    return a_lock_holds(item, state, config)
-
-
-_THE_SATELLITES = frozenset(funestra.label for funestra in FunTimeFunestra.SATELLITES)
 
 
 def a_lock_holds(item: str, state: BridgeState,
@@ -56,6 +45,8 @@ def _the_gallery(config: BridgeConfig) -> Gallery:
 
 def a_hosted_lock_holds(item: str, state: BridgeState,
                         config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
+    if not item:
+        return state, []
     if is_ai_video(item):
         record_watch_event(watch_stats_path(config.state_dir), item, "lock")
     elif _has_a_record(item, config):

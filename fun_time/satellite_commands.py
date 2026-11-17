@@ -5,7 +5,7 @@ from functools import partial
 from funestra.file_channel import append_command
 from funestra.hud_placement import HudCorner
 
-from .bridge_records import BridgeConfig, Op, Route, SatelliteHandler, WindowOp
+from .bridge_records import BridgeConfig, Route, SatelliteHandler, WindowOp
 from .command_value import Command
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import slideshows_enhancement
@@ -24,7 +24,7 @@ def _lock_as_said(
     target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
     if locked:
-        return _lock_and_follow_it(funestra, state, config, target_path)
+        return _lock_and_go_where_it_leads(funestra, state, config, target_path)
     return _let_go(funestra, state, config)
 
 
@@ -36,11 +36,13 @@ def _toggle_lock(
         funestra, state, config, target_path)
 
 
-def _lock_and_follow_it(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
-                        target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    lock_on_what_was_meant(funestra, config, target_path)
+def _lock_and_go_where_it_leads(funestra: FunTimeFunestra, state: BridgeState,
+                                config: BridgeConfig,
+                                target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    locked_on = lock_on_what_was_meant(funestra, config, target_path)
+    where_it_leads = a_hosted_lock_holds(locked_on, state, config)
     _tell_the_hosted_app(config, Command.to(funestra, LOCK_ON_LED_BY_THE_SESSION).text)
-    return state, [WindowOp(op=Op.FOLLOW_THE_LOCK, key=funestra.label)]
+    return where_it_leads
 
 
 def _let_go(funestra: FunTimeFunestra, state: BridgeState,
