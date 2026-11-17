@@ -32,22 +32,21 @@ def read_funestra_message(path) -> tuple[float, MessageLevel, str]:
         return 0, "", ""
 
 
-def notice_channels(config: BridgeConfig) -> dict[str, Path]:
-    return {FUNESTRA_SOURCES[funestra]: channel.notice_file
-            for funestra, channel in config.funestras.items() if channel.notice_file is not None}
+def notice_channels(config: BridgeConfig) -> dict[Path, str]:
+    return {path: FUNESTRA_SOURCES[funestra]
+            for funestra, channel in config.funestras.items() for path in channel.notice_files}
 
 
 class FunestraMessages:
     def __init__(self, config: BridgeConfig) -> None:
         self._channels = notice_channels(config)
-        self._last_seq = {source: read_funestra_message(path)[0]
-                          for source, path in self._channels.items()}
+        self._last_seq = {path: read_funestra_message(path)[0] for path in self._channels}
 
     def flash_new(self) -> None:
-        for source, path in self._channels.items():
+        for path, source in self._channels.items():
             seq, level, message = read_funestra_message(path)
-            if seq <= self._last_seq.get(source, 0):
+            if seq <= self._last_seq.get(path, 0):
                 continue
-            self._last_seq[source] = seq
+            self._last_seq[path] = seq
             if message:
                 flash_message(logger, message, source=source, level=_LEVELS.get(level, MESSAGE))

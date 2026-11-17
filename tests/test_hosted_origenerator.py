@@ -12,12 +12,14 @@ from app_support.testing import origenerator_handed_over
 from funestra.file_channel import consume_command_file
 
 from fun_time import load_config
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hosted_contract import CONTRACT_FILE, NO_HOSTED_VOCABULARY
 from fun_time.hosted_origenerator import (
     HAND_OVER,
     TAKE_BACK,
     _adopt_a_kept_origenerator,
     bring_up_the_hosted_app,
+    the_session_it_is_handed,
     what_it_answers_by_voice_in,
 )
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
@@ -38,7 +40,7 @@ _A_PLAN = WindowLayoutPlan(
 _A_DESKTOP_SESSION = OrigeneratorSession(
     layout_plan=_A_PLAN, command_file="c", paused_file="p", status_file="s",
     dashboard_cmd_file="d",
-    funestras={satellite: HandedFunestra("playlist", "cmd", "status", "hud")
+    funestras={satellite: HandedFunestra("playlist", "cmd", "status", "hud", "notice")
                for satellite in ("portrait", "landscape")})
 
 
@@ -365,3 +367,13 @@ class TestWhatTheHostedAppAnswersByVoice:
         _config, manifest = _manifest_for(cfg_factory, tmp_path, {})
 
         assert what_it_answers_by_voice_in(manifest) == NO_HOSTED_VOCABULARY
+
+
+def test_each_satellite_is_handed_its_own_file_for_the_apps_messages(cfg_factory, tmp_path):
+    config, manifest = _manifest_for(cfg_factory, tmp_path, {})
+
+    session = the_session_it_is_handed(manifest, _A_PLAN, in_a_headset=False)
+
+    assert {label: Path(handed.notice_file) for label, handed in session.funestras.items()} == {
+        funestra.label: config.satellite(funestra).origenerator_notice_file
+        for funestra in (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)}

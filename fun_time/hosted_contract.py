@@ -95,8 +95,8 @@ def published_by(checkout: str | Path) -> dict | None:
 
 
 def declared_flags(contract: dict) -> frozenset[str]:
-    by_satellite = (flag for group in ("region_flags", "player_flags")
-               for flags in contract[group].values() for flag in flags)
+    by_satellite = (flag for group in ("region_flags", "player_flags", "message_flags")
+               for flags in contract.get(group, {}).values() for flag in flags)
     return frozenset({*contract["required_flags"], *by_satellite, *contract.get("headset_flags", ())})
 
 

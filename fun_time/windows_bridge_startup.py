@@ -310,6 +310,7 @@ class HandedFunestra:
     cmd_file: str | Path
     status_file: str | Path
     hud_file: str | Path
+    notice_file: str | Path
 
 
 @dataclass(frozen=True)
@@ -363,6 +364,7 @@ def origenerator_session_args(session: OrigeneratorSession) -> list[str]:
             f"--{satellite}-cmd-file", str(funestra.cmd_file),
             f"--{satellite}-status-file", str(funestra.status_file),
             f"--{satellite}-hud-file", str(funestra.hud_file),
+            f"--{satellite}-message-file", str(funestra.notice_file),
         ])
     if session.frames_file is not None and session.input_file is not None:
         args.extend(["--frames-file", str(session.frames_file),

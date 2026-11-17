@@ -82,6 +82,7 @@ def _the_funestras_it_is_handed(m: LaunchManifest) -> dict[str, HandedFunestra]:
             cmd_file=m.satellite(funestra).cmd_file,
             status_file=m.satellite(funestra).status_file,
             hud_file=m.satellite(funestra).origenerator_hud_file,
+            notice_file=m.satellite(funestra).origenerator_notice_file,
         )
         for funestra in FunTimeFunestra.SATELLITES
     }

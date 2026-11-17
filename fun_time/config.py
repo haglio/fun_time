@@ -121,6 +121,10 @@ class FunestraChannel:
     status_file: Path
     notice_file: Path | None = None
 
+    @property
+    def notice_files(self) -> tuple[Path, ...]:
+        return () if self.notice_file is None else (self.notice_file,)
+
 
 @dataclass(frozen=True, kw_only=True)
 class SatelliteChannel(FunestraChannel):
@@ -128,6 +132,11 @@ class SatelliteChannel(FunestraChannel):
     notice_file: Path
     hud_file: Path
     origenerator_hud_file: Path
+    origenerator_notice_file: Path
+
+    @property
+    def notice_files(self) -> tuple[Path, ...]:
+        return self.notice_file, self.origenerator_notice_file
 
     @classmethod
     def in_state_dir(cls, state_dir: Path, funestra: FunTimeFunestra) -> SatelliteChannel:
@@ -140,6 +149,7 @@ class SatelliteChannel(FunestraChannel):
             notice_file=state_dir / f"{label}_notice.txt",
             hud_file=state_dir / f"{label}_hud.json",
             origenerator_hud_file=state_dir / f"origenerator_{label}_hud.json",
+            origenerator_notice_file=state_dir / f"origenerator_{label}_notice.txt",
         )
 
     @classmethod

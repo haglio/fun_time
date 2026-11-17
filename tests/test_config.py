@@ -483,6 +483,15 @@ class TestOrigeneratorPaths:
         assert cfg.satellite(FunTimeFunestra.PORTRAIT).notice_file == state / "portrait_notice.txt"
         assert cfg.satellite(FunTimeFunestra.LANDSCAPE).notice_file == state / "landscape_notice.txt"
 
+    def test_each_satellites_hosted_messages_live_in_a_file_of_their_own(
+            self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        state = (tmp_path / "state").resolve()
+        assert cfg.satellite(FunTimeFunestra.PORTRAIT).origenerator_notice_file == (
+            state / "origenerator_portrait_notice.txt")
+        assert cfg.satellite(FunTimeFunestra.LANDSCAPE).origenerator_notice_file == (
+            state / "origenerator_landscape_notice.txt")
+
 
 class TestTheProjectsOwnPaths:
     def test_the_icon_sits_at_the_root_of_this_checkout(self):

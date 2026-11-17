@@ -1908,6 +1908,7 @@ def _handed_funestras() -> dict[str, HandedFunestra]:
             cmd_file=f"state/{satellite}_cmd.txt",
             status_file=f"state/{satellite}_status.txt",
             hud_file=f"state/origenerator_{satellite}_hud.json",
+            notice_file=f"state/origenerator_{satellite}_notice.txt",
         )
         for satellite in ("portrait", "landscape")
     }
@@ -1952,6 +1953,8 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
         ("--portrait-hud-file", "state/origenerator_portrait_hud.json"),
         ("--landscape-playlist", "state/landscape_playlist.tsv"),
         ("--landscape-hud-file", "state/origenerator_landscape_hud.json"),
+        ("--portrait-message-file", "state/origenerator_portrait_notice.txt"),
+        ("--landscape-message-file", "state/origenerator_landscape_notice.txt"),
         ("--command-file", "state/origenerator_cmd.txt"),
         ("--paused-file", "state/origenerator_paused.txt"),
         ("--status-file", "state/origenerator_status.txt"),

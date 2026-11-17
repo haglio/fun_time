@@ -39,6 +39,7 @@ def test_a_flag_the_checkout_does_not_declare_is_left_off_with_its_value(tmp_pat
     ("region_flags", "--portrait-x"),
     ("player_flags", "--landscape-playlist"),
     ("headset_flags", "--frames-file"),
+    ("message_flags", "--portrait-message-file"),
 ])
 def test_a_flag_it_declares_in_any_group_is_sent(tmp_path, group, flag):
     declared = [flag] if group == "headset_flags" else {"a side": [flag]}
