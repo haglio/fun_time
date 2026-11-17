@@ -2098,7 +2098,8 @@ def test_a_spoken_lock_reaches_a_hosted_satellite_with_no_time_to_go_back_to_aga
     dispatch_command("portrait_lock_on", _handed_over(FunTimeFunestra.PORTRAIT), config,
                      target_path="C:\\pictures\\meant.png", given_at=time.monotonic() - 2.0)
 
-    assert _origenerator_cmds(config) == ["portrait_lock_on_led_by_the_session"]
+    assert _origenerator_cmds(config) == ["GO_TO|C:\\pictures\\meant.png",
+                                          "portrait_lock_on_led_by_the_session"]
 
 
 def _origenerator_cmds(config: BridgeConfig) -> list[str]:
@@ -2345,7 +2346,7 @@ class TestOrigeneratorTransport:
 
 class TestALockOnAHostedSide:
     @pytest.mark.parametrize("funestra_locked", [False, True])
-    def test_a_pressed_lock_locks_the_funestra_and_follows_it_as_a_main_funestra_lock_is(
+    def test_a_pressed_lock_locks_the_funestra_and_sends_core_to_what_it_shows_at_once(
             self, funestra_locked, tmp_path):
         config = replace(_make_config(tmp_path), regen_metadata_root=tmp_path / "metadata")
         image = tmp_path / "scene one.png"
@@ -2355,8 +2356,9 @@ class TestALockOnAHostedSide:
         _state, ops = dispatch_command("portrait_lock", _handed_over(), config)
 
         assert _cmds(config, FunTimeFunestra.PORTRAIT) == ["LOCK_ON"]
-        assert _origenerator_cmds(config) == ["portrait_lock_on_led_by_the_session"]
-        assert ops == [WindowOp(op=Op.FOLLOW_THE_LOCK, key="portrait")]
+        assert _origenerator_cmds(config) == [f"GO_TO|{image}",
+                                              "portrait_lock_on_led_by_the_session"]
+        assert ops == []
         assert not metadata_path_for(image, config.regen_metadata_root).exists()
         assert not (config.state_dir / "watch_stats.json").exists()
 
@@ -2369,7 +2371,8 @@ class TestALockOnAHostedSide:
         dispatch_command("portrait_lock_on", _handed_over(), config, target_path=meant)
 
         assert _cmds(config, FunTimeFunestra.PORTRAIT) == [f"PLAY_FILE {meant}", "LOCK_ON"]
-        assert _origenerator_cmds(config) == ["portrait_lock_on_led_by_the_session"]
+        assert _origenerator_cmds(config) == [f"GO_TO|{meant}",
+                                              "portrait_lock_on_led_by_the_session"]
 
     def _said_to_a_hosted_side(self, command, tmp_path, *, held_by_a_request_or_a_run):
         config = _make_config(tmp_path)
@@ -2385,7 +2388,8 @@ class TestALockOnAHostedSide:
         assert self._said_to_a_hosted_side(
             "portrait_lock_on", tmp_path,
             held_by_a_request_or_a_run=held_by_a_request_or_a_run,
-        ) == ([WindowOp(op=Op.FOLLOW_THE_LOCK, key="portrait")], ["LOCK_ON"], ["portrait_lock_on_led_by_the_session"])
+        ) == ([], ["LOCK_ON"],
+              ["GO_TO|C:\\images\\up.png", "portrait_lock_on_led_by_the_session"])
 
     @pytest.mark.parametrize("held_by_a_request_or_a_run", [False, True])
     def test_a_letting_go_said_is_handed_on_and_never_steps_the_funestra_on(
@@ -2406,7 +2410,9 @@ class TestALockOnAHostedSide:
         dispatch_command("portrait_say_fabricated_order", state, config)
 
         assert _cmds(config, FunTimeFunestra.PORTRAIT) == [f"PLAY_FILE {meant}", "LOCK_ON"]
-        assert _origenerator_cmds(config) == ["portrait_lock_on_led_by_the_session", "PORTRAIT_SAY:fabricated order"]
+        assert _origenerator_cmds(config) == [
+            f"GO_TO|{meant}", "portrait_lock_on_led_by_the_session",
+            "PORTRAIT_SAY:fabricated order"]
 
 class TestOmniPauseWithOrigenerator:
     def test_enter_freezes_the_hosted_app_too(self, tmp_path):

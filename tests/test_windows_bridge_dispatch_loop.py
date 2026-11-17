@@ -2950,7 +2950,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
         assert _what_the_gallery_heard(tmp_path) == []
 
 
-class TestASatelliteLockOpensWhereMoreOfItIsMadeAsAMainFunestraLockDoes:
+class TestASatelliteLockOpensWhereMoreOfItIsMadeAtThePress:
     MADE_HERE = r"C:\library\videos\2D\AI\portrait\gen_00042_.mp4"
 
     def _a_satellite_beside_origenerator(self, tmp_path):
@@ -2966,21 +2966,15 @@ class TestASatelliteLockOpensWhereMoreOfItIsMadeAsAMainFunestraLockDoes:
         satellite.origenerator_hud_file.write_text(
             hud_text(HudModel(funestra="portrait", locked=locked)), encoding="utf-8")
 
-    def test_origenerator_is_asked_to_go_to_the_video_the_moment_the_satellite_holds_it(
+    def test_origenerator_is_asked_to_go_to_the_video_at_the_press_and_before_it_hears_of_the_lock(
             self, tmp_path):
         runner = self._a_satellite_beside_origenerator(tmp_path)
         self._the_satellite_shows(runner, locked=False)
 
         runner.answering.dispatch(parse_command("portrait_lock"))
-        runner.tick()
-        told_at_the_press = _what_the_gallery_heard(tmp_path)
 
-        self._the_satellite_shows(runner, locked=True)
-        runner.tick()
-
-        assert (told_at_the_press, _what_the_gallery_heard(tmp_path)) == (
-            ["portrait_lock_on_led_by_the_session"],
-            ["portrait_lock_on_led_by_the_session", f"GO_TO|{self.MADE_HERE}"])
+        assert _what_the_gallery_heard(tmp_path) == [
+            f"GO_TO|{self.MADE_HERE}", "portrait_lock_on_led_by_the_session"]
 
 
 def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):

@@ -5,15 +5,12 @@ from collections.abc import Callable, Mapping
 from funestra.modes import MainMode
 
 from .bridge_records import BridgeConfig
-from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_genau_status, read_main_funestra_status
-from .hud_transport import the_hosted_slideshow_is_locked
-from .satellite_control import read_satellite_status
 
 Holding = Callable[[], tuple[bool, str]]
 
 
-def what_the_funestras_hold(config: BridgeConfig) -> dict[str, Holding]:
+def what_the_main_funestra_holds(config: BridgeConfig) -> dict[MainMode, Holding]:
     def kino() -> tuple[bool, str]:
         status = read_main_funestra_status(config.main_funestra.status_file)
         return status.locked, status.video
@@ -22,17 +19,7 @@ def what_the_funestras_hold(config: BridgeConfig) -> dict[str, Holding]:
         status = read_genau_status(config.genau.status_file)
         return status.locked, status.flick
 
-    def satellite(funestra: FunTimeFunestra) -> Holding:
-        files = config.satellite(funestra)
-
-        def held() -> tuple[bool, str]:
-            status = read_satellite_status(files.status_file)
-            return (status.locked and the_hosted_slideshow_is_locked(files.origenerator_hud_file),
-                    status.video)
-        return held
-
-    return {MainMode.KINO: kino, MainMode.GENAU: genau,
-            **{funestra.label: satellite(funestra) for funestra in FunTimeFunestra.SATELLITES}}
+    return {MainMode.KINO: kino, MainMode.GENAU: genau}
 
 
 class LockFollower:
@@ -43,12 +30,11 @@ class LockFollower:
     def follow(self, holder: str) -> None:
         self._awaiting_the_lock_of = holder
 
-    def held(self) -> tuple[str, str] | None:
-        holder = self._awaiting_the_lock_of
-        if holder is None:
-            return None
-        locked, item = self._holders[holder]()
+    def held(self) -> str:
+        if self._awaiting_the_lock_of is None:
+            return ""
+        locked, item = self._holders[self._awaiting_the_lock_of]()
         if not (locked and item):
-            return None
+            return ""
         self._awaiting_the_lock_of = None
-        return holder, item
+        return item
