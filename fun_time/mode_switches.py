@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 from dataclasses import replace
 from functools import partial
+from pathlib import Path
 
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import play_file
+from funestra.playlist import PlaylistItem
 
 from .bridge_records import BridgeConfig, Handler, Route, WindowOp
 from .command_value import Command
@@ -74,7 +76,17 @@ def _play_in_kino(command: Command, state: BridgeState, config: BridgeConfig,
     return state, ops
 
 
-VALUED: dict[str, Route] = {PLAY_IN_KINO: _play_in_kino}
+PLAY_IN_GENAU = "genau_play"
+
+
+def _play_in_genau(command: Command, state: BridgeState, config: BridgeConfig,
+                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    state, ops = _dispatch_mode_switch(MAIN_GENAU_MODE, state, config, [])
+    append_command(config.genau.cmd_file, play_file(PlaylistItem(Path(command.argument))))
+    return state, ops
+
+
+VALUED: dict[str, Route] = {PLAY_IN_KINO: _play_in_kino, PLAY_IN_GENAU: _play_in_genau}
 
 HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_mode_switch, target) for cmd, target in _MODE_SWITCH_COMMANDS.items()},
