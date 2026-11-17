@@ -11,7 +11,7 @@ import pytest
 from funestra.drive_layout import MAX_INTENSITY
 from funestra.hud_kinds import HudFacts, HudKind, hud_rows, osr2_button, window_buttons
 from funestra.inclusion_pair import LENGTH, ORIENTATION, PROJECTION
-from funestra.main_hud import osr2_controls
+from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, aim_row, osr2_controls
 from funestra.modes import LengthMode, MainMode
 
 from fun_time import (
@@ -105,7 +105,11 @@ def _console_verbs_in_every_state() -> frozenset[str]:
         for button in row if not button.dim
     )
     brokers = (button.command for broker in (False, True) for button in osr2_controls(broker_running=broker))
-    return frozenset(command for command in (*declared, *brokers) if command)
+    aims = (button.command
+            for learned, off, control in itertools.product(
+                (False, True), (False, True), (OSR2_DRIVING, OSR2_PARKED))
+            for button in aim_row(learned=learned, shape="sine", control=control, off=off))
+    return frozenset(command for command in (*declared, *brokers, *aims) if command)
 
 
 def _satellite_verbs() -> frozenset[str]:

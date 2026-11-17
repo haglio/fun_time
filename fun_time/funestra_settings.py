@@ -75,6 +75,7 @@ def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports)
                         genau_flick_seconds=drive.advance_interval)
     if reports.genau is not None:
         state = replace(state, genau_learned=reports.genau.learned_active,
+                        genau_robot_hand_off=reports.genau.robot_hand_off,
                         genau_locked=reports.genau.locked)
     if reports.headset_layout is not None:
         state = replace(state, headset_layout=reports.headset_layout)

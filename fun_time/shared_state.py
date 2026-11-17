@@ -77,6 +77,7 @@ class BridgeState:
     genau_shape: str = RobotHandState().shape.value
     genau_flick_seconds: int = FlickAdvanceState().interval
     genau_learned: bool = False
+    genau_robot_hand_off: bool = False
     genau_locked: bool = True
     mic_muted: bool = False
     headset_layout: str = ""

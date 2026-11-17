@@ -285,7 +285,8 @@ _EXPECTED_STATE_KEYS = {
     "genau_center": "50", "genau_shape": "sine",
     "mic_muted": "0",
     "headset_layout": "",
-    "genau_flick_seconds": "10", "genau_learned": "0", "genau_locked": "1",
+    "genau_flick_seconds": "10", "genau_learned": "0", "genau_robot_hand_off": "0",
+    "genau_locked": "1",
 }
 
 

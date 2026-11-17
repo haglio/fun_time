@@ -33,6 +33,7 @@ _SENT_TO_THE_HAND_IN_EITHER_MODE = {
     "robot_hand_toggle_learned": "TOGGLE_LEARNED",
     "robot_hand_learned_on": "LEARNED_ON",
     "robot_hand_learned_off": "LEARNED_OFF",
+    "robot_hand_off": "ROBOT_HAND_OFF",
     "genau_flick_seconds_down": "FLICK_SECONDS_DOWN",
     "genau_flick_seconds_up": "FLICK_SECONDS_UP",
     "genau_prev_flick": PREV,

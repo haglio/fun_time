@@ -85,6 +85,14 @@ def test_read_genau_status_parses_the_shape(tmp_path: Path):
     assert read_genau_status(status_file).shape == "triangle"
 
 
+def test_read_genau_status_parses_whether_the_robot_hand_is_off(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("robot_hand_off=1\n", encoding="utf-8")
+
+    assert read_genau_status(status_file).robot_hand_off is True
+    assert read_genau_status(tmp_path / "missing.txt").robot_hand_off is False
+
+
 def test_read_genau_status_parses_the_learned_motion(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("learned=1\n", encoding="utf-8")

@@ -46,6 +46,7 @@ class Osr2PartFacts:
     shape: str
     broker: bool
     max_intensity: int
+    robot_hand_off: bool = False
 
 
 def osr2_part(holder: FunTimeFunestra, facts: Osr2PartFacts) -> MainHudModel:
@@ -53,7 +54,8 @@ def osr2_part(holder: FunTimeFunestra, facts: Osr2PartFacts) -> MainHudModel:
         funestra=holder.label,
         main_mode=facts.main_mode if holder is FunTimeFunestra.MAIN else MainMode.KINO,
         osr2=facts.osr2, osr2_control=facts.control, paused=facts.paused,
-        osr2_rows=(aim_row(learned=facts.learned, shape=facts.shape, control=facts.control),),
+        osr2_rows=(aim_row(learned=facts.learned, shape=facts.shape, control=facts.control,
+                           off=facts.robot_hand_off),),
         osr2_controls=osr2_controls(broker_running=facts.broker),
         max_intensity=facts.max_intensity,
     )

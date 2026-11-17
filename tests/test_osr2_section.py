@@ -35,6 +35,7 @@ class PartSetup:
     learned: bool = False
     shape: str = "sine"
     broker: bool = True
+    robot_hand_off: bool = False
 
 
 def _part(holder: FunTimeFunestra = FunTimeFunestra.MAIN, setup: PartSetup | None = None):
@@ -42,6 +43,7 @@ def _part(holder: FunTimeFunestra = FunTimeFunestra.MAIN, setup: PartSetup | Non
     return osr2_part(holder, Osr2PartFacts(
         main_mode=setup.main_mode, osr2=Osr2State.ROBOT_HAND, control=setup.control, paused=False,
         learned=setup.learned, shape=setup.shape, broker=setup.broker, max_intensity=100,
+        robot_hand_off=setup.robot_hand_off,
     ))
 
 
@@ -71,9 +73,15 @@ class TestTheOsr2Switch:
 
 
 class TestTheRowThatAimsTheDevice:
+    def test_the_robot_hand_off_button_lights_while_genau_says_the_hand_is_off(self):
+        off = _button(_part(setup=PartSetup(robot_hand_off=True)), "robot_hand_off")
+
+        assert off.lit
+        assert not _button(_part(), "robot_hand_off").lit
+
     def test_human_inspired_motion_follows_the_switch_and_wears_the_stick_figure(self):
-        resting = _button(_part(), "robot_hand_toggle_learned")
-        lit = _button(_part(setup=PartSetup(learned=True)), "robot_hand_toggle_learned")
+        resting = _button(_part(), "robot_hand_learned_on")
+        lit = _button(_part(setup=PartSetup(learned=True)), "robot_hand_learned_on")
 
         assert resting.icon == shared_icon("human")
         assert (resting.lit, lit.lit) == (False, True)

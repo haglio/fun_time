@@ -26,6 +26,9 @@ POSTED_OFF_ONE_SURFACE_ALONE = {
         "robot_hand_speed_down",
         "robot_hand_speed_up",
     ),
+    "the OSR2 controls": (
+        "robot_hand_off",
+    ),
     "the VR controllers": (
         "main_scene_next",
         "main_scene_prev",
