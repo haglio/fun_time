@@ -186,6 +186,16 @@ class TestTheFlickOnScreen:
 
         assert world.genau.top_block() == ModeHud(video="beta two")
 
+    def test_while_it_has_the_window_a_step_on_the_funestras_channel_steps_its_flicks(
+            self, tmp_path):
+        world = World(tmp_path)
+        world.genau.set_showing(True)
+
+        assert world.genau.apply_command("NEXT 12.500") is True
+        world.tick()
+
+        assert world.genau.top_block() == ModeHud(video="beta two")
+
     def test_it_publishes_its_own_status_and_adds_no_line_to_the_funestras(self, tmp_path):
         world = World(tmp_path)
 
