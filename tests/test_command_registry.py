@@ -44,7 +44,7 @@ _HUD_POSTED_WITH_A_VALUE = frozenset(form.rstrip("|") for form in PREFIXED_COMMA
 
 _TOLD_BY_THE_HOSTED_APP = frozenset(
     f"{funestra}_{satellite_commands.LOCK_HELD}" for funestra in ("portrait", "landscape")
-) | {mode_switches.PLAY_IN_KINO}
+) | {mode_switches.PLAY_IN_KINO, mode_switches.PLAY_IN_GENAU}
 
 
 def _loop_branch_ids() -> frozenset[str]:
