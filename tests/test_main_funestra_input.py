@@ -22,6 +22,9 @@ class SpyFunestra:
     def release(self) -> None:
         self.calls.append(("release",))
 
+    def right_press(self, x, y, *, viewport) -> None:
+        self.calls.append(("right_press", x, y, viewport))
+
     def motion(self, x, y, *, held, viewport) -> None:
         self.calls.append(("motion", x, y, held, viewport))
 
@@ -62,10 +65,19 @@ class TestTheMouse:
 
         assert funestra.calls == [("release",)]
 
+    def test_a_right_press_lands_at_its_place_and_its_release_ends_nothing(self):
+        window_input, funestra = _input()
+
+        _deal(window_input,
+              SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=3, pos=(120, 480)),
+              SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=3))
+
+        assert funestra.calls == [("right_press", 120, 480, WINDOW)]
+
     def test_the_other_buttons_do_nothing_at_all(self):
         window_input, funestra = _input()
 
-        for button in (2, 3, 4, 5):
+        for button in (2, 4, 5):
             _deal(window_input,
                   SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=button, pos=(1, 2)),
                   SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=button))
