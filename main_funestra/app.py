@@ -7,7 +7,6 @@ from pathlib import Path
 import pygame
 from app_support.cli import preparse_config_path
 from app_support.osr2_slot import Osr2Sender
-from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
 from funestra.funestra_setup import FunestraSetup
@@ -35,9 +34,11 @@ from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
 from .window import (
     before_the_window_exists,
+    claim_the_sessions_taskbar_identity,
     replace_pygames_logo_with,
     run_the_window,
     take_outside_resizes,
+    wear_the_sessions_taskbar_button,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,15 +93,6 @@ def _users(args, *, kino):
     return users
 
 
-def _take_fun_times_taskbar_identity(taskbar_identity: str | None) -> None:
-    if not taskbar_identity:
-        return
-    try:
-        set_app_user_model_id(taskbar_identity)
-    except OSError:
-        logger.debug("No taskbar identity claimed", exc_info=True)
-
-
 def _open_window(args):
     before_the_window_exists()
     pygame.init()
@@ -110,11 +102,12 @@ def _open_window(args):
     screen = pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
     take_outside_resizes(pygame)
     pygame.display.set_caption("Main Funestra")
+    wear_the_sessions_taskbar_button(pygame.display.get_wm_info()['window'], args.taskbar_identity)
     return screen
 
 
 def _run(args) -> int:
-    _take_fun_times_taskbar_identity(args.taskbar_identity)
+    claim_the_sessions_taskbar_identity(args.taskbar_identity)
     screen = _open_window(args)
     wid = pygame.display.get_wm_info()["window"]
     memory = mode_memory(args)

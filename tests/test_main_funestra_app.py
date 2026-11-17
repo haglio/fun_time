@@ -120,6 +120,16 @@ class TestTheWindowsIcon:
         assert _call(opening, "replace_pygames_logo_with").lineno < _call(opening, "pygame.display.set_mode").lineno
 
 
+class TestTheTaskbarButton:
+    def test_the_window_wears_the_sessions_button_once_sdl_has_made_it(self):
+        opening = _function("_open_window")
+        worn = _call(opening, "wear_the_sessions_taskbar_button")
+
+        assert [_said(a) for a in worn.args] == [
+            "pygame.display.get_wm_info()['window']", "args.taskbar_identity"]
+        assert _call(opening, "pygame.display.set_mode").lineno < worn.lineno
+
+
 class TestWhenSomethingCosmeticFails:
     def test_an_icon_it_cannot_read_is_said_rather_than_swallowed(self, tmp_path, caplog):
         not_an_icon = tmp_path / "icon.ico"
