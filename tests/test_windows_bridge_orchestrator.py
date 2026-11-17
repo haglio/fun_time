@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import subprocess
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -3570,7 +3571,7 @@ class TestStartingVoice:
 
         asked.assert_not_called()
 
-    def test_a_session_prepares_voice_before_the_app_comes_up_and_listens_with_it(
+    def test_a_session_prepares_voice_while_the_app_comes_up_and_listens_with_it(
         self, cfg_factory, tmp_path,
     ):
         cfg = load_config(cfg_factory())
@@ -3580,6 +3581,12 @@ class TestStartingVoice:
         ahk_cmd_file = state_dir / "ahk_cmd.txt"
         prepared = object()
         order: list[object] = []
+        the_app_came_up = threading.Event()
+
+        def voice_is_prepared(_config_path, **_asking):
+            order.append("voice prepared" if the_app_came_up.wait(10)
+                         else "the app waited on voice")
+            return prepared
 
         class Hotkeys:
             def poll(self):
@@ -3591,6 +3598,7 @@ class TestStartingVoice:
 
         def the_app_comes_up(**_kwargs):
             order.append("Fun Time comes up")
+            the_app_came_up.set()
             return _fake_startup_result()
 
         def voice_starts(voice, **_kwargs):
@@ -3599,8 +3607,7 @@ class TestStartingVoice:
             return None, None
 
         with patch.object(windows_bridge_orchestrator, "prepare_voice_control",
-                          side_effect=lambda _config_path, **_asking: order.append("voice prepared")
-                          or prepared), \
+                          side_effect=voice_is_prepared), \
              patch.object(windows_bridge_orchestrator, "run_startup_sequence",
                           side_effect=the_app_comes_up), \
              patch.object(windows_bridge_orchestrator.subprocess, "Popen", return_value=Hotkeys()), \
@@ -3617,7 +3624,7 @@ class TestStartingVoice:
                 env=SessionEnvironment(integration=True, show_overlays=False),
             )
 
-        assert order == ["voice prepared", "Fun Time comes up", prepared]
+        assert order == ["Fun Time comes up", "voice prepared", prepared]
 
     def test_an_app_left_with_the_mic_off_opens_with_it_off(self, cfg_factory, tmp_path):
         config_path = cfg_factory({"voice_control": {"enabled": True}})

@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Iterator
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -127,6 +128,7 @@ from fun_time.windows_bridge_orchestrator import (
     PreparedVoice,
     clear_last_sessions_leftovers,
     finish_under_the_loading_screen,
+    in_the_background,
     kill_recorded_child,
     launch_hotkey_script,
     let_go_of_a_kept_origenerator,
@@ -340,7 +342,7 @@ class _Launch:
     bridge_config: BridgeConfig
     pids_file: Path
     ahk_cmd_file: Path
-    prepared_voice: PreparedVoice | None
+    preparing_voice: Future[PreparedVoice | None]
     loading_screen: _LoadingScreen
 
     @property
@@ -380,15 +382,17 @@ def _prepare_the_launch(config, env: SessionEnvironment, *, cancelable: bool) ->
     dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     clear_last_sessions_leftovers(
         state_dir, manifest.commands, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
-    prepared_voice = prepare_voice_control(
+    preparing_voice = in_the_background(partial(
+        prepare_voice_control,
         manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
         hosted_cmd_file=bridge_config.origenerator.cmd_file,
         hosted_when_said=bridge_config.origenerator_when_said,
-        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest), state_dir=state_dir)
+        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest), state_dir=state_dir),
+        thread_name="prepare-voice-control")
     return _Launch(
         state_dir=state_dir, manifest_path=manifest_path, manifest=manifest,
         bridge_config=bridge_config, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file,
-        prepared_voice=prepared_voice, loading_screen=_LoadingScreen(state_dir, cancelable=cancelable),
+        preparing_voice=preparing_voice, loading_screen=_LoadingScreen(state_dir, cancelable=cancelable),
     )
 
 
@@ -534,7 +538,7 @@ def _open_the_room(
         publishing_to_the_dashboard_in_the_room,
     )
     voice_controller, voice_thread = start_voice_control(
-        launch.prepared_voice, dispatch_runner=dispatch_runner)
+        launch.preparing_voice.result(), dispatch_runner=dispatch_runner)
     finish_under_the_loading_screen(dispatch_runner, voice_controller, progress=progress)
     progress.advance("finalizing")
 
