@@ -4,6 +4,7 @@ import configparser
 import logging
 import time
 from collections.abc import Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavesBrowserSettings
 from .mode_plan import STARTUP_MAIN_MODE, kino_shows
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
+from .random_faves_browser_manifest import prepare_random_faves_browser_manifest
 from .rfb_modes import RfbMode
 from .runtime_flow import write_flag_file
 from .satellite_control import SatelliteStatus, read_satellite_status
@@ -340,6 +342,15 @@ def _launch_core_media(
     )
 
 
+def _start_writing_the_browsers_pages(m: LaunchManifest) -> Future:
+    beside_the_launches = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rfb-pages")
+    writing = beside_the_launches.submit(
+        prepare_random_faves_browser_manifest,
+        m.runtime.config_path, m.random_faves_browser.manifest_file)
+    beside_the_launches.shutdown(wait=False)
+    return writing
+
+
 _UNPROVEN_BANDING_DELAY_S = 1.2
 
 
@@ -464,6 +475,7 @@ def _run_startup_phases(
     plan = layout.plan
 
     progress.advance("services")
+    writing_the_browsers_pages = _start_writing_the_browsers_pages(m)
     core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
 
     raise_if_a_funestra_died(launched.funestras)
@@ -475,6 +487,7 @@ def _run_startup_phases(
 
     progress.advance("browser")
     with timed_step(logger, "opening the Random Faves Browser"):
+        writing_the_browsers_pages.result()
         rfb_hwnd = _maybe_launch_random_faves_browser(m.random_faves_browser, plan, env=env)
     launched.rfb_hwnd = rfb_hwnd
     if rfb_hwnd:

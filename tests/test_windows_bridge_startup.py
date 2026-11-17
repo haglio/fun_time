@@ -38,6 +38,7 @@ from fun_time.main_list import MainList, MainListSettings, WrittenList
 from fun_time.media_metadata import mark_favorite
 from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
+from fun_time.random_faves_browser_manifest import prepare_random_faves_browser_manifest
 from fun_time.satellite_launch import SatelliteLaunch
 from fun_time.shared_state import (
     BridgeState,
@@ -63,7 +64,6 @@ from fun_time.windows_bridge_startup import (
     launch_ui_companions,
     origenerator_interpreter,
     origenerator_session_args,
-    prepare_random_faves_browser_manifest,
     reap_orphaned_satellites,
     seed_startup_states,
     start_core_session,
@@ -496,9 +496,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         "fun_time.windows_bridge_startup.ensure_broker"
     ) as ensure, patch(
         "fun_time.windows_bridge_startup.seed_startup_states"
-    ) as seed, patch(
-        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ) as prepare, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
+    ) as seed, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
         _start_core_session(kwargs)
 
     reap.assert_called_once_with(
@@ -512,7 +510,6 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         MAX_VOLUME, False, FULL_INTENSITY, "kino")
     assert MainListSettings.of(carried) == MainListSettings.of(
         read_shared_state(shared_state_path(state_dir)))
-    prepare.assert_called_once_with("fun_time_config.json", str(tmp_path / "browser_manifest.txt"))
     launch.assert_called_once_with(
         _manifest_from(kwargs), kwargs["portrait"], kwargs["landscape"], result_file)
 
@@ -544,8 +541,6 @@ def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
 def _run_start_core_session(kwargs: dict) -> str:
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
-    ), patch(
-        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         return _start_core_session(kwargs)
 
@@ -762,9 +757,6 @@ def test_start_core_session_rebuilds_a_main_list_the_headset_wrote_vr_videos_int
         "fun_time.windows_bridge_startup.ensure_broker"
     ),
         patch("fun_time.windows_bridge_startup.seed_startup_states"),
-        patch(
-        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ),
         patch("fun_time.windows_bridge_startup.launch_core_apps"),
         caplog.at_level("INFO", logger="fun_time"),
     ):
@@ -795,9 +787,6 @@ def test_start_core_session_keeps_the_video_when_it_leaves_the_headset(
         "fun_time.windows_bridge_startup.ensure_broker"
     ),
         patch("fun_time.windows_bridge_startup.seed_startup_states"),
-        patch(
-        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ),
         patch("fun_time.windows_bridge_startup.launch_core_apps"),
         caplog.at_level("INFO", logger="fun_time"),
     ):
@@ -826,9 +815,7 @@ def test_start_core_session_hands_the_main_snippet_back_across_a_crossing(tmp_pa
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
-    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
-        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         _start_core_session(kwargs)
 
     queued = Path(kwargs["main_funestra_cmd_file"]).read_text(encoding="utf-8")
@@ -845,9 +832,7 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
-    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
-        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         _start_core_session(kwargs)
 
     assert portrait_paused.read_text(encoding="utf-8") == "0"
@@ -860,9 +845,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
-    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
-        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         _start_core_session(kwargs)
 
     assert broker_cmd_file.read_text(encoding="utf-8").split() == [osr2_hold.PARK]
