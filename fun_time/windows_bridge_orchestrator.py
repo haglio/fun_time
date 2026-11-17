@@ -678,17 +678,17 @@ def _what_it_answers(answer: Future[HostedVocabulary]) -> HostedVocabulary:
         return NO_HOSTED_VOCABULARY
 
 
-def _asked_in_the_background(ask: Callable[[], HostedVocabulary]) -> Future[HostedVocabulary]:
-    answer: Future[HostedVocabulary] = Future()
+def in_the_background(work: Callable[[], object], *, thread_name: str) -> Future:
+    done: Future = Future()
 
-    def ask_it() -> None:
+    def do_it() -> None:
         try:
-            answer.set_result(ask())
+            done.set_result(work())
         except Exception as error:
-            answer.set_exception(error)
+            done.set_exception(error)
 
-    threading.Thread(target=ask_it, daemon=True, name="ask-the-hosted-app").start()
-    return answer
+    threading.Thread(target=do_it, daemon=True, name=thread_name).start()
+    return done
 
 
 def prepare_voice_control(
@@ -711,7 +711,7 @@ def prepare_voice_control(
         settings = cfg.voice_control
         verifying_listener = WhisperReader()
         verifying_listener.load_ahead()
-        answer = _asked_in_the_background(ask_the_hosted_app)
+        answer = in_the_background(ask_the_hosted_app, thread_name="ask-the-hosted-app")
         controller: Future[VoiceController] = Future()
 
         def listen() -> None:
@@ -995,7 +995,7 @@ def _open_the_session(
     launch: SessionLaunch,
     loading_screen: RaisedLoadingScreen,
     hud_publisher: HudPublisher | None,
-    prepared_voice,
+    preparing_voice: Future[PreparedVoice | None],
     *,
     ahk_cmd_file: Path,
     pids_file: Path,
@@ -1005,7 +1005,7 @@ def _open_the_session(
     dispatch_runner = _build_the_dispatch_loop(
         result, launch, ahk_cmd_file=ahk_cmd_file, hud_publisher=hud_publisher, env=env)
     voice_controller, voice_thread = start_voice_control(
-        prepared_voice, dispatch_runner=dispatch_runner)
+        preparing_voice.result(), dispatch_runner=dispatch_runner)
 
     finish = partial(finish_under_the_loading_screen, dispatch_runner, voice_controller,
                      progress=loading_screen.progress)
@@ -1050,11 +1050,13 @@ def run_session(
     pids_file = state_dir / "bridge_pids.ini"
     clear_last_sessions_leftovers(state_dir, manifest.commands,
                                   pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
-    prepared_voice = prepare_voice_control(
+    preparing_voice = in_the_background(partial(
+        prepare_voice_control,
         manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
         hosted_cmd_file=bridge_config.origenerator.cmd_file,
         hosted_when_said=bridge_config.origenerator_when_said,
-        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest), state_dir=state_dir)
+        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest), state_dir=state_dir),
+        thread_name="prepare-voice-control")
 
     progress = loading_screen.progress
 
@@ -1119,7 +1121,7 @@ def run_session(
 
     try:
         running = _open_the_session(
-            result, launch, loading_screen, hud_publisher, prepared_voice,
+            result, launch, loading_screen, hud_publisher, preparing_voice,
             ahk_cmd_file=ahk_cmd_file, pids_file=pids_file, env=env)
     except OrigeneratorNeverCameUp as never:
         _take_down_the_startup(

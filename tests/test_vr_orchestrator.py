@@ -9,6 +9,7 @@ import logging
 import os
 import subprocess
 import textwrap
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields, replace
@@ -1933,14 +1934,25 @@ class TestOpeningAVrSession:
         start_voice = MagicMock(return_value=(None, None))
         prepared = object()
         order: list[str] = []
-        prepare_voice = MagicMock(side_effect=lambda _path, **_asking: order.append("voice") or prepared)
+        voice_asked = threading.Event()
+
+        def voice_is_asked_for(_path, **_asking):
+            order.append("voice")
+            voice_asked.set()
+            return prepared
+
+        def the_funestras_launch(**_kwargs):
+            voice_asked.wait(10)
+            order.append("funestras")
+            return MagicMock(pid=202)
+
+        prepare_voice = MagicMock(side_effect=voice_is_asked_for)
 
         with _launch_stand_ins(
             orchestrator, [],
             DispatchLoopRunner=runner,
             prepare_voice_control=prepare_voice,
-            launch_vr_funestras=MagicMock(
-                side_effect=lambda **_kwargs: order.append("funestras") or MagicMock(pid=202)),
+            launch_vr_funestras=MagicMock(side_effect=the_funestras_launch),
             start_voice_control=start_voice,
             wait_for_the_session_to_end=MagicMock(return_value=SessionEnd("ahk", 0)),
         ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
@@ -1948,7 +1960,7 @@ class TestOpeningAVrSession:
             orchestrator.run_vr_bridge(config, SessionEnvironment())
 
         manifest = LaunchManifest.read(config.paths.state_dir / "windows_bridge_launch.ini")
-        assert order == ["voice", "funestras"], "voice was prepared after the Funestra launched"
+        assert order == ["voice", "funestras"], "voice was asked for after the Funestra launched"
         [(said, asking)] = [(call.args, call.kwargs) for call in prepare_voice.call_args_list]
         assert said == (manifest.runtime.config_path,)
         assert asking["ask_the_hosted_app"].args == (manifest,)
