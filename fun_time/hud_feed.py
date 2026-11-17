@@ -121,6 +121,7 @@ class HudFeed:
                 main_mode=state.main_mode, osr2=osr2, control=state.osr2_control,
                 paused=state.omni_paused, learned=genau.learned_active, shape=genau.shape,
                 broker=broker_running, max_intensity=state.max_intensity,
+                robot_hand_off=genau.robot_hand_off,
             ))))
 
     def _holders_osr2(self, holder: FunTimeFunestra, main_mode: MainMode,

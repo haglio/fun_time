@@ -38,6 +38,7 @@ HAND_CENTER = "CENTER"
 FLICK_SECONDS = "FLICK_SECONDS"
 CYCLE_SHAPE = "CYCLE_SHAPE"
 LEARNED_ON = "LEARNED_ON"
+ROBOT_HAND_OFF = "ROBOT_HAND_OFF"
 
 _STARTUP_CLEARS_IT_BEFORE_THE_FUNESTRAS_LAUNCH = frozenset({"omni_paused"})
 _A_KEYBOARD_SELECTION_ENDS_WITH_ITS_SESSION = frozenset({"active_funestra", "core_named_last"})
@@ -101,7 +102,9 @@ def resume_genau(genau_cmd_file: Path, carried: BridgeState) -> None:
         (FLICK_SECONDS, carried.genau_flick_seconds, advance.interval),
     ) if value != opens_at]
     verbs += _cycles_to_the_shape_no_verb_names_outright(carried.genau_shape)
-    if carried.genau_learned:
+    if carried.genau_robot_hand_off:
+        verbs.append(ROBOT_HAND_OFF)
+    elif carried.genau_learned:
         verbs.append(LEARNED_ON)
     if not carried.genau_locked:
         verbs.append(LOCK_OFF)

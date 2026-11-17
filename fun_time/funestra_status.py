@@ -105,6 +105,7 @@ def _status_touch(values: dict) -> int | None:
 @dataclass(frozen=True)
 class GenauStatus:
     learned_active: bool = False
+    robot_hand_off: bool = False
     locked: bool = GENAU_OPENS_LOCKED
     shape: str = "sine"
     flick: str = ""
@@ -137,6 +138,7 @@ def published_genau_status(path: Path) -> GenauStatus | None:
 def _genau_status_from(values: dict) -> GenauStatus:
     return GenauStatus(
         learned_active=_status_bool(values, "learned"),
+        robot_hand_off=_status_bool(values, "robot_hand_off"),
         locked=_status_bool(values, "locked", on_at_rest=GENAU_OPENS_LOCKED),
         shape=values.get("shape", "sine").strip(),
         flick=values.get("flick", "").strip(),

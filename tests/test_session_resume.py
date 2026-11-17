@@ -403,6 +403,13 @@ class TestResumeGenau:
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LEARNED_ON"]
 
+    def test_queues_the_robot_hand_off_it_was_left_in(self, tmp_path: Path):
+        genau_cmd = tmp_path / "genau_cmd.txt"
+
+        resume_genau(genau_cmd, BridgeState(genau_robot_hand_off=True))
+
+        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["ROBOT_HAND_OFF"]
+
     def test_queues_the_unlock_genau_was_left_in(self, tmp_path: Path):
         genau_cmd = tmp_path / "genau_cmd.txt"
 
@@ -411,11 +418,13 @@ class TestResumeGenau:
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
 
     _KEPT_IN_THE_APPS_STATE: ClassVar[dict] = {
-        "speed": "genau_speed", "amplitude": "genau_amplitude", "center": "genau_center",
-        "shape": "genau_shape", "flick_seconds": "genau_flick_seconds",
-        "learned": "genau_learned", "lock": "genau_locked", "max_intensity": "max_intensity",
-        "volume": "volume", "browse_order": "genau_latest", "shapes": "genau_plays_vr",
-        "hold": "osr2_control"}
+        "speed": {"genau_speed"}, "amplitude": {"genau_amplitude"},
+        "center": {"genau_center"}, "shape": {"genau_shape"},
+        "flick_seconds": {"genau_flick_seconds"},
+        "learned": {"genau_learned", "genau_robot_hand_off"}, "lock": {"genau_locked"},
+        "max_intensity": {"max_intensity"}, "volume": {"volume"},
+        "browse_order": {"genau_latest"}, "shapes": {"genau_plays_vr"},
+        "hold": {"osr2_control"}}
     _NO_SETTING = frozenset({
         "quit", "flick", "condemn", "play_file", "flip_ends", "pause", "tcode", "hud"})
 
@@ -434,14 +443,15 @@ class TestResumeGenau:
 
         resent = {GENAU_VERBS[line.split()[0]][0].name
                   for line in genau_cmd.read_text(encoding="utf-8").splitlines()}
-        assert {self._KEPT_IN_THE_APPS_STATE[control] for control in resent} == {
+        assert {field for control in resent for field in self._KEPT_IN_THE_APPS_STATE[control]} == {
             name for name in RESUMED_FIELDS if name.startswith("genau_")
             and name not in ("genau_latest", "genau_plays_vr", "genau_plays_flat",
                              "genau_favorites_filter", "genau_plays_portrait",
                              "genau_plays_landscape")}
 
     def test_what_the_apps_state_keeps_for_genau_is_remembered(self):
-        assert set(self._KEPT_IN_THE_APPS_STATE.values()) <= set(RESUMED_FIELDS)
+        assert {field for fields in self._KEPT_IN_THE_APPS_STATE.values() for field in fields} <= set(
+            RESUMED_FIELDS)
 
     _KEPT_FOR_ITS_LAUNCH: ClassVar[dict] = {"f_mode": ("genau_favorites_filter",),
                             "orientations": ("genau_plays_portrait", "genau_plays_landscape")}

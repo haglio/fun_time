@@ -1089,6 +1089,7 @@ def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Pat
     ("robot_hand_toggle_learned", "TOGGLE_LEARNED"),
     ("robot_hand_learned_on", "LEARNED_ON"),
     ("robot_hand_learned_off", "LEARNED_OFF"),
+    ("robot_hand_off", "ROBOT_HAND_OFF"),
 ])
 def test_genau_learned_motion_verbs_write_cmd_file(tmp_path: Path, command, verb):
     config = _make_config(tmp_path)

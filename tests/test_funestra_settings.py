@@ -45,6 +45,12 @@ class TestTheRoomRecordsWhatEachFunestraReports:
                 state.genau_flick_seconds, state.genau_learned, state.genau_locked) == (
             76, 60, 30, "sawtooth", 25, True, False)
 
+    def test_whether_genaus_robot_hand_is_off(self):
+        state = with_what_the_funestras_report(BridgeState(), FunestraReports(
+            genau=GenauStatus(robot_hand_off=True)))
+
+        assert state.genau_robot_hand_off is True
+
     def test_not_the_rate_of_the_show_the_hosted_app_plays_on_a_satellite(self):
         state = with_what_the_funestras_report(BridgeState(), FunestraReports(
             satellites={FunTimeFunestra.PORTRAIT: SatelliteStatus(speed=0.5, read_at=PUBLISHED_AT)}))

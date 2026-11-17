@@ -510,7 +510,7 @@ class TestTheOsr2PartIsOnTheDashboard:
 
         part = _dashboard_osr2(tmp_path)
         assert part.funestra == "portrait"
-        assert {"robot_hand_toggle_learned", "robot_hand_release"} <= set(_dashboard_osr2_commands(tmp_path))
+        assert {"robot_hand_learned_on", "robot_hand_release"} <= set(_dashboard_osr2_commands(tmp_path))
         assert (part.osr2, part.osr2_control) == (Osr2State.OFF, OSR2_PARKED)
         assert [button.command for button in part.osr2_controls] == ["broker_panel"]
 
@@ -520,8 +520,16 @@ class TestTheOsr2PartIsOnTheDashboard:
         make_feed(tmp_path).publish(BridgeState())
 
         rows = {b.command: b for row in _dashboard_osr2(tmp_path).osr2_rows for b in row}
-        assert rows["robot_hand_toggle_learned"].lit is True
-        assert rows["robot_hand_cycle_shape"].tooltip == "Waveform: Sawtooth"
+        assert rows["robot_hand_learned_on"].lit is True
+        assert rows["robot_hand_learned_off"].tooltip == "Waveform: Sawtooth"
+
+    def test_its_robot_hand_off_button_lights_while_genau_says_the_hand_is_off(self, tmp_path):
+        (tmp_path / "genau_status.txt").write_text("robot_hand_off=1\n", encoding="utf-8")
+
+        make_feed(tmp_path).publish(BridgeState())
+
+        rows = {b.command: b for row in _dashboard_osr2(tmp_path).osr2_rows for b in row}
+        assert rows["robot_hand_off"].lit is True
 
     def test_it_is_told_the_app_is_paused(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, omni_paused=True))
