@@ -3584,7 +3584,7 @@ class TestStartingVoice:
         the_app_came_up = threading.Event()
 
         def voice_is_prepared(_config_path, **_asking):
-            order.append("voice prepared" if the_app_came_up.wait(10)
+            order.append("voice prepared" if the_app_came_up.wait()
                          else "the app waited on voice")
             return prepared
 

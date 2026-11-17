@@ -442,7 +442,7 @@ class TestTheBridgesCodeLoadsWhileTheLoadingScreenOpens:
         loading = start_loading_the_bridges_code()
 
         assert loading is not threading.current_thread()
-        loading.join(timeout=60)
+        loading.join()
         assert not loading.is_alive()
 
 

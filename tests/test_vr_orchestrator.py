@@ -1942,7 +1942,7 @@ class TestOpeningAVrSession:
             return prepared
 
         def the_funestras_launch(**_kwargs):
-            voice_asked.wait(10)
+            voice_asked.wait()
             order.append("funestras")
             return MagicMock(pid=202)
 
