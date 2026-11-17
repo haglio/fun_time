@@ -10,8 +10,8 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from itertools import pairwise
 from pathlib import Path
-from time import monotonic
 
+from app_support.changed_tests import changed_test_ids
 from app_support.integration_runs import CHANGED_FLAG, REPEAT_CHANGED_FLAG, runs_dir
 from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
@@ -19,7 +19,6 @@ from app_support.win32 import JobObject
 from app_support.win32_loader import load_dll, win_functype
 
 from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_machine_s_map
-from .flake_gate_install import flake_gate_python
 from .line_record import RUN_RECORD_ENV, RunAsk, Visit
 from .run_clock import WALL, Budget, RunClock, keep_time_by
 from .run_pulse import PULSE_ENV, STOPPED_AFTER_S, PulseWatch
@@ -51,10 +50,8 @@ _USAGE = """.venv/Scripts/python.exe -m tests.integration.hidden_desktop -x
 ... --changed
     the tests that run what this branch changed
 ... --repeat-changed
-    each changed file whole, then each changed test ten times"""
+    each file holding a test this branch added or changed, whole, once"""
 _MODES = frozenset({REPEAT_CHANGED_FLAG, CHANGED_FLAG})
-REPEAT_RUNS = 10
-REPEAT_BUDGET_MINUTES = 45
 
 
 def build_run_argv(extra_args: list[str]) -> list[str]:
@@ -65,24 +62,18 @@ def build_run_argv(extra_args: list[str]) -> list[str]:
     ]
 
 
-def build_gate_argv(base: str, budget_minutes: float) -> list[str]:
-    return [sys._base_executable, "-m", "app_support.flake_gate",
-            "--base", base, "--only", INTEGRATION_DIR, "--runs", str(REPEAT_RUNS),
-            "--budget-minutes", f"{budget_minutes:g}", "--python", sys.executable]
-
-
 def _without_a_stop_beside_a_mode(extra_args: list[str]) -> list[str]:
     if _MODES.isdisjoint(extra_args):
         return extra_args
     return [arg for arg in extra_args if arg != STOP_AT_THE_FIRST_FAILURE]
 
 
-def _is_a_repeat(extra_args: list[str]) -> bool:
+def _runs_the_changed_files_whole(extra_args: list[str]) -> bool:
     return extra_args[:1] == [REPEAT_CHANGED_FLAG]
 
 
-def _base_of(repeat_args: list[str]) -> str:
-    return repeat_args[1] if len(repeat_args) > 1 else "origin/main"
+def _base_of(mode_args: list[str]) -> str:
+    return mode_args[1] if len(mode_args) > 1 else "origin/main"
 
 
 _LEAVES_OUT_THE_TEST_IT_NAMES = frozenset({"--deselect", "--ignore", "--ignore-glob"})
@@ -381,8 +372,8 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
               f"this run was given {extra_args}", file=sys.stderr, flush=True)
         return REFUSED_EXIT_CODE
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
-    if _is_a_repeat(extra_args):
-        return _repeat_what_changed(_base_of(extra_args))
+    if _runs_the_changed_files_whole(extra_args):
+        return _run_each_changed_file_whole(_base_of(extra_args))
     if extra_args[:1] == [CHANGED_FLAG]:
         return _run_what_this_change_needs(_base_of(extra_args))
     with _a_place_in_line(short=_is_short(extra_args), what=extra_args) as visit:
@@ -441,45 +432,21 @@ def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
         visit.leave()
 
 
-def _the_gates_install_downloaded_before_joining_the_line() -> Path:
-    return flake_gate_python(_repo_root() / "state")
-
-
-def _repeat_what_changed(base: str) -> int:
-    gate_python = _the_gates_install_downloaded_before_joining_the_line()
-    files = files_with_a_changed_test(gate_python, base, _repo_root())
+def _run_each_changed_file_whole(base: str) -> int:
+    files = files_with_a_changed_test(base, _repo_root())
+    if not files:
+        print(f"[hidden-desktop] no integration test was added or changed since {base}, "
+              "so there is no file to run", file=sys.stderr, flush=True)
+        return 0
+    print(f"[hidden-desktop] running each file that holds a new or changed test whole, "
+          f"once: {', '.join(files)}", file=sys.stderr, flush=True)
     with _a_place_in_line(short=True, what=[REPEAT_CHANGED_FLAG, base]) as visit:
-        minutes_left = REPEAT_BUDGET_MINUTES
-        if files:
-            started = monotonic()
-            if code := _run_each_file_whole(files):
-                return visit.ended_with(code)
-            minutes_left = max(0.0, minutes_left - (monotonic() - started) / 60)
-        return visit.ended_with(_run_the_suite(build_gate_argv(base, minutes_left), gate_python,
-                                               minutes_left * 60 + RUN_CEILING_S))
+        return visit.ended_with(_run_the_suite(build_run_argv([*files, STOP_AT_THE_FIRST_FAILURE]),
+                                               sys.executable, RUN_CEILING_S))
 
 
-def _run_each_file_whole(files: list[str]) -> int:
-    print(f"[hidden-desktop] before repeating the new and changed tests, running each "
-          f"file that holds one whole, once: {', '.join(files)}", file=sys.stderr, flush=True)
-    code = _run_the_suite(build_run_argv([*files, STOP_AT_THE_FIRST_FAILURE]), sys.executable,
-                          RUN_CEILING_S)
-    if code:
-        print("[hidden-desktop] a test failed with its whole file running, so the "
-              "repeats were not started", file=sys.stderr, flush=True)
-    return code
-
-
-_LIST_THE_CHANGED_TESTS = ("import sys; from pathlib import Path; "
-                           "from app_support.changed_tests import changed_test_ids; "
-                           "print('\\n'.join(changed_test_ids(Path.cwd(), sys.argv[1])))")
-
-
-def files_with_a_changed_test(gate_python: str | Path, base: str, root: Path) -> list[str]:
-    listed = subprocess.run([str(gate_python), "-c", _LIST_THE_CHANGED_TESTS, base], cwd=root,
-                            stdout=subprocess.PIPE, encoding="utf-8", check=True,
-                            **hidden_subprocess_kwargs())
-    return sorted({test.partition("::")[0] for test in listed.stdout.splitlines()
+def files_with_a_changed_test(base: str, root: Path) -> list[str]:
+    return sorted({test.partition("::")[0] for test in changed_test_ids(root, base)
                    if test.startswith(INTEGRATION_DIR)})
 
 

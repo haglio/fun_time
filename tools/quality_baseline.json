@@ -20,7 +20,6 @@
     "tests/child_reports.py": 3,
     "tests/integration/above_the_loading_screen.py": 3,
     "tests/integration/conftest.py": 2,
-    "tests/integration/hidden_desktop.py": 2,
     "tests/integration/integration_support.py": 12,
     "tests/integration/line_record.py": 1,
     "tests/integration/lone_satellite.py": 2,

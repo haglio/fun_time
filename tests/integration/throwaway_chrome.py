@@ -37,7 +37,7 @@ _user32.SendMessageTimeoutW.argtypes = [
     ctypes.wintypes.UINT, ctypes.wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
 _user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
 
-# Measured under the flake gate's load: a new window has taken over 60s to
+# Measured on a heavily loaded machine: a new window has taken over 60s to
 # appear, and a closed Chrome over 30s to exit.
 WINDOW_TIMEOUT_S = 90.0
 TAB_TIMEOUT_S = 30.0
