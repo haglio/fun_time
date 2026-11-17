@@ -14,6 +14,7 @@ from funestra.hud_placement import HudCorner, HudEdge
 from funestra.hud_title import ENHANCED_LABEL, FAVORITES_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import LengthMode, MainMode
+from funestra.playlist import PlaylistItem
 from shared_ui.message_shape import answering_what_he_said
 
 from fun_time import genaumacher_save
@@ -36,7 +37,7 @@ from fun_time.media_metadata import (
     mark_favorite,
     metadata_path_for,
 )
-from fun_time.mode_switches import PLAY_IN_KINO
+from fun_time.mode_switches import PLAY_IN_GENAU, PLAY_IN_KINO
 from fun_time.modes import scripted_item
 from fun_time.rfb_mode import with_the_browser_in_its_place
 from fun_time.rfb_modes import RfbMode
@@ -759,6 +760,35 @@ def test_a_video_the_gallery_hands_over_plays_on_the_main_funestra_which_goes_to
     assert state.main_mode is MainMode.KINO
     assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == [
         "SHOW kino", play_file(scripted_item(str(video), config.regen_metadata_root))]
+    assert ops == [WindowOp(op="show_window", key="main_funestra"),
+                   WindowOp(op="activate_window", key="main_funestra")]
+
+
+def test_a_headset_sessions_main_funestra_is_handed_a_video_from_the_vr_folders_the_same_way(
+        tmp_path: Path):
+    config = _make_config(tmp_path, vr_main_funestra=True)
+    video = tmp_path / "videos" / "VR" / "finished" / "video one_LR_180.mp4"
+
+    state, _ops = dispatch_command(f"{PLAY_IN_KINO}|{video}", _make_state(main_mode=MainMode.GENAU),
+                                   config)
+
+    assert state.main_mode is MainMode.KINO
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines()[-1] == (
+        play_file(scripted_item(str(video), config.regen_metadata_root)))
+
+
+def test_a_flick_the_gallery_hands_over_plays_in_genau_which_the_main_funestra_goes_to_for_it(
+        tmp_path: Path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "genau" / "flicks" / "2D" / "flick one.mp4"
+
+    state, ops = dispatch_command(f"{PLAY_IN_GENAU}|{flick}", _make_state(main_mode=MainMode.KINO),
+                                  config)
+
+    assert state.main_mode is MainMode.GENAU
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW genau"]
+    assert config.genau.cmd_file.read_text(encoding="utf-8").splitlines() == [
+        play_file(PlaylistItem(flick))]
     assert ops == [WindowOp(op="show_window", key="main_funestra"),
                    WindowOp(op="activate_window", key="main_funestra")]
 
