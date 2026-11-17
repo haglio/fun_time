@@ -59,7 +59,7 @@
     "tests/test_integration_conftest_time.py": 2,
     "tests/test_integration_desktop_guard.py": 1,
     "tests/test_integration_failure_evidence.py": 2,
-    "tests/test_integration_session_lock.py": 19,
+    "tests/test_integration_session_lock.py": 10,
     "tests/test_integration_support.py": 8,
     "tests/test_library_browser.py": 5,
     "tests/test_line_record.py": 4,
