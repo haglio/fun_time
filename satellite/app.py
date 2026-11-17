@@ -18,9 +18,11 @@ from funestra.playlist import PlaylistItem, read_playlist
 from main_funestra.input import Input
 from main_funestra.window import (
     before_the_window_exists,
+    claim_the_sessions_taskbar_identity,
     replace_pygames_logo_with,
     run_the_window,
     take_outside_resizes,
+    wear_the_sessions_taskbar_button,
 )
 
 from .cli import audio_muted, build_parser, resolve_playlist
@@ -55,13 +57,8 @@ def _open_window(placement: WindowPlacement, claim_identity) -> int:
     # Also before the window: Windows reads a process's taskbar identity as each
     # window is created, and a satellite that claims none is filed under whatever
     # the shared interpreter's path is registered to — some unrelated program,
-    # wearing its icon.  Cosmetic, so a refusal never costs the Funestra its start.
-    if placement.taskbar_identity:
-        try:
-            claim_identity(placement.taskbar_identity)
-        except OSError:
-            logger.info("Could not take the taskbar identity %s",
-                        placement.taskbar_identity)
+    # wearing its icon.
+    claim_the_sessions_taskbar_identity(placement.taskbar_identity, claim=claim_identity)
     pygame.init()
     if placement.x is not None and placement.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{placement.x},{placement.y}"
@@ -72,7 +69,9 @@ def _open_window(placement: WindowPlacement, claim_identity) -> int:
     pygame.display.set_mode((placement.width, placement.height), pygame.NOFRAME)
     take_outside_resizes(pygame)
     pygame.display.set_caption(placement.title)
-    return pygame.display.get_wm_info()["window"]
+    hwnd = pygame.display.get_wm_info()["window"]
+    wear_the_sessions_taskbar_button(hwnd, placement.taskbar_identity)
+    return hwnd
 
 
 def _the_list_once_it_is_written(channels: SatelliteChannels) -> list[PlaylistItem]:

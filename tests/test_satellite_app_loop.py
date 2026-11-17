@@ -119,11 +119,13 @@ def _videos(tmp_path: Path, *names: str) -> list[Path]:
     return out
 
 
-def _run_loop(tmp_path: Path, args, *, fake=None, passes: int = 1, claim_identity=None):
+def _run_loop(tmp_path: Path, args, *, fake=None, passes: int = 1, claim_identity=None,
+              wear_button=lambda *_worn: None):
     fake = fake or _FakePygame()
     opens = _OpensAFunestra(_FakeFunestra(passes=passes))
     with patch("satellite.app.pygame", fake), \
          patch("satellite.app.before_the_window_exists"), \
+         patch("satellite.app.wear_the_sessions_taskbar_button", wear_button), \
          patch("satellite.app.Funestra", opens):
         code = _run(args, playlist=resolve_playlist(args), claim_identity=claim_identity)
     return code, opens, fake
@@ -303,6 +305,18 @@ def test_a_satellite_takes_its_taskbar_identity_before_its_window_exists(tmp_pat
               fake=fake, claim_identity=order.append)
 
     assert order == ["Made.Up", "window"]
+
+
+def test_a_satellites_window_wears_the_sessions_taskbar_button_once_it_exists(tmp_path):
+    order = []
+    fake = _FakePygame()
+    fake.display.set_mode = lambda *_a, **_kw: order.append("window")
+
+    _run_loop(tmp_path, _loop_args(tmp_path, _videos(tmp_path, "v0"), taskbar_identity="Made.Up"),
+              fake=fake, claim_identity=lambda _identity: None,
+              wear_button=lambda *worn: order.append(worn))
+
+    assert order == ["window", (4242, "Made.Up")]
 
 
 def test_a_refused_taskbar_identity_never_costs_the_funestra_its_start(tmp_path):

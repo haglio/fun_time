@@ -5,6 +5,7 @@ import logging
 import warnings
 from pathlib import Path
 
+from app_support.win32 import described_taskbar_app, dress_window, set_app_user_model_id
 from funestra.sdl_hints import deliver_the_focusing_click
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,25 @@ def before_the_window_exists() -> None:
 
 def _leave_out_the_input_methods_that_stall_band_changes() -> None:
     ctypes.WinDLL("imm32").ImmDisableIME(_ALL_THREADS_OF_THIS_PROCESS)
+
+
+def claim_the_sessions_taskbar_identity(identity: str | None, *, claim=set_app_user_model_id) -> None:
+    if not identity:
+        return
+    try:
+        claim(identity)
+    except OSError:
+        logger.info("Could not take the taskbar identity %s", identity, exc_info=True)
+
+
+def wear_the_sessions_taskbar_button(hwnd: int, identity: str | None, *, dress=dress_window,
+                                     described=described_taskbar_app) -> None:
+    if not identity:
+        return
+    try:
+        dress(hwnd, identity, described(identity))
+    except OSError:
+        logger.info("The taskbar keeps its own idea of window %s", hwnd, exc_info=True)
 
 
 def replace_pygames_logo_with(pygame, icon: Path | None) -> None:
