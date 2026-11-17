@@ -50,6 +50,7 @@ def _funestras(tmp_path: Path) -> dict[str, HandedFunestra]:
             cmd_file=tmp_path / f"{satellite}_cmd.txt",
             status_file=tmp_path / f"{satellite}_status.txt",
             hud_file=tmp_path / f"origenerator_{satellite}_hud.json",
+            notice_file=tmp_path / f"origenerator_{satellite}_notice.txt",
         )
         for satellite in ("portrait", "landscape")
     }

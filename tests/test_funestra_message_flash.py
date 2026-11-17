@@ -94,6 +94,43 @@ class TestFlashFunestraNotices:
         ]
 
 
+class TestFlashOrigeneratorsMessagesOnItsSatellite:
+    def test_a_new_message_of_the_apps_flashes_on_its_satellite_with_its_level(
+            self, tmp_path, caplog):
+        loop = _messages(tmp_path)
+        _write(tmp_path / "origenerator_portrait_notice.txt", 1, "warning", "enhanced only")
+
+        with caplog.at_level(logging.DEBUG):
+            loop.flash_new()
+
+        assert [(r.getMessage(), r.source, r.levelno) for r in caplog.records] == [
+            ("enhanced only", "portrait", logging.WARNING)]
+
+    def test_an_older_message_of_the_apps_does_not_flash_again(self, tmp_path, caplog):
+        loop = _messages(tmp_path)
+        path = tmp_path / "origenerator_landscape_notice.txt"
+        _write(path, 2, "notice", "f-mode on")
+        with caplog.at_level(logging.DEBUG):
+            loop.flash_new()
+            _write(path, 1, "notice", "f-mode off")
+            loop.flash_new()
+
+        assert [r.getMessage() for r in caplog.records] == ["f-mode on"]
+
+    def test_the_funestras_own_message_and_the_apps_each_flash(self, tmp_path, caplog):
+        loop = _messages(tmp_path)
+        _write(tmp_path / "portrait_notice.txt", 7, "warning", "no funscripting ahead")
+        _write(tmp_path / "origenerator_portrait_notice.txt", 3, "favorite", "next funscripted")
+
+        with caplog.at_level(logging.DEBUG):
+            loop.flash_new()
+
+        assert sorted((r.getMessage(), r.source, r.levelno) for r in caplog.records) == [
+            ("next funscripted", "portrait", FAVORITE),
+            ("no funscripting ahead", "portrait", logging.WARNING),
+        ]
+
+
 def test_a_message_from_a_previous_session_does_not_flash_on_open(tmp_path):
     _write(tmp_path / "main_player_notice.txt", 500, "warning", "stale from last time")
     _write(tmp_path / "portrait_notice.txt", 500, "warning", "stale on the side")

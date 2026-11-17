@@ -29,7 +29,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _A_SATELLITES_CHANNEL = {
     "cmd_file", "paused_file", "status_file", "playlist_file", "notice_file", "hud_file",
-    "origenerator_hud_file",
+    "origenerator_hud_file", "origenerator_notice_file",
 }
 
 _KEYS_EVERY_READER_SPELLS_VERBATIM: dict[str, set[str]] = {

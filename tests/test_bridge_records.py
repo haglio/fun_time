@@ -38,6 +38,7 @@ def test_a_satellites_channel_is_spelled_once_from_its_state_dir(tmp_path: Path)
         notice_file=state_dir / "landscape_notice.txt",
         hud_file=state_dir / "landscape_hud.json",
         origenerator_hud_file=state_dir / "origenerator_landscape_hud.json",
+        origenerator_notice_file=state_dir / "origenerator_landscape_notice.txt",
     )
 
 

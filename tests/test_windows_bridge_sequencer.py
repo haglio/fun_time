@@ -1266,7 +1266,8 @@ class TestOrigeneratorLaunch:
             files = cfg.satellite(funestra)
             assert captured["session"].funestras[funestra.label] == HandedFunestra(
                 playlist_file=files.playlist_file, cmd_file=files.cmd_file,
-                status_file=files.status_file, hud_file=files.origenerator_hud_file)
+                status_file=files.status_file, hud_file=files.origenerator_hud_file,
+                notice_file=files.origenerator_notice_file)
         assert captured["stale_at_launch"] is False
 
     def test_an_origenerator_with_no_interpreter_named_runs_from_its_own_install(
