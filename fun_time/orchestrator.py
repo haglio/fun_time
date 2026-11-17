@@ -3,11 +3,13 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import threading
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app_support.logging_utils import configure_logging, install_exception_logging
+from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import stamp_pinned_shortcuts
 
 from .branch_session import describe_the_session_on_the_taskbar
@@ -86,6 +88,14 @@ def no_origenerator_set_up(config, *, log) -> bool:
     log(NO_ORIGENERATOR_SET_UP)
     show_funestra_died_alert(NO_ORIGENERATOR_SET_UP)
     return True
+
+
+def _load_the_bridges_code() -> None:
+    from . import windows_bridge_orchestrator  # noqa: F401, PLC0415
+
+
+def start_loading_the_bridges_code() -> threading.Thread:
+    return start_daemon_thread(target=_load_the_bridges_code, name="loading-the-bridges-code")
 
 
 def run_windows_bridge(config, logger, env: SessionEnvironment, loading_screen: RaisedLoadingScreen) -> SessionOver:
@@ -177,6 +187,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     open_event_log(state_dir, after_an_announcement=partial(wake_the_dashboard, state_dir))
+    start_loading_the_bridges_code()
     with timed_step(logger, "opening the loading screen"):
         loading_screen = open_the_loading_screen(
             state_dir, show_overlays=env.show_overlays,
