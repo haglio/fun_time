@@ -13,6 +13,8 @@ class Input:
                 self._funestra.close_requested()
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 self._funestra.press(*ev.pos, viewport=viewport)
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 3:
+                self._funestra.right_press(*ev.pos, viewport=viewport)
             elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
                 self._funestra.release()
             elif ev.type == pygame.MOUSEMOTION:

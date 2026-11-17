@@ -57,6 +57,7 @@ class _FakeFunestra:
         self._passes_left = passes
         self.ticks: list[tuple[int, int]] = []
         self.presses: list[tuple] = []
+        self.right_presses: list[tuple] = []
         self.motions: list[tuple] = []
         self.closes_requested = 0
         self.closed = False
@@ -71,6 +72,9 @@ class _FakeFunestra:
 
     def press(self, x, y, *, viewport) -> None:
         self.presses.append((x, y, viewport))
+
+    def right_press(self, x, y, *, viewport) -> None:
+        self.right_presses.append((x, y, viewport))
 
     def motion(self, x, y, *, held, viewport) -> None:
         self.motions.append((x, y, held, viewport))
@@ -195,7 +199,7 @@ def _motion(pos, *, held: bool):
     return SimpleNamespace(type=_FakePygame.MOUSEMOTION, pos=pos, buttons=(int(held), 0, 0))
 
 
-def test_a_left_press_and_a_motion_reach_it_placed_in_the_window(tmp_path):
+def test_a_left_press_a_right_press_and_a_motion_reach_it_placed_in_the_window(tmp_path):
     args = _loop_args(tmp_path, _videos(tmp_path, "v0"))
     fake = _FakePygame(event_batches=[[_press((10, 20)), _press((11, 21), button=3),
                                        _motion((30, 40), held=True)]])
@@ -203,6 +207,7 @@ def test_a_left_press_and_a_motion_reach_it_placed_in_the_window(tmp_path):
     _code, opens, _fake = _run_loop(tmp_path, args, fake=fake)
 
     assert opens.funestra.presses == [(10, 20, WINDOW)]
+    assert opens.funestra.right_presses == [(11, 21, WINDOW)]
     assert opens.funestra.motions == [(30, 40, True, WINDOW)]
 
 
