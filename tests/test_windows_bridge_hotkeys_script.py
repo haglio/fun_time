@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from funestra.funestra_verbs import NEXT, PREV
+
 from fun_time.overlay_progress import CANCEL_FILENAME
 from fun_time.session_handoff import CROSSING_PROGRESS_NAME, LOADING_SCREEN_STALE_S
 from tests.ahk_script import (
@@ -137,6 +139,25 @@ class TestStartupPhase:
         assert held < body.index("AppendWithRetry"), (
             "QueueCommand writes before it checks the startup hold"
         )
+
+    def test_next_and_previous_go_straight_into_their_funestras_own_command_file(self):
+        straight = re.findall(
+            r'"(\w+)", \[ManifestValueOr\("(\w+)", "(\w+)"\), "(\w+)"\]',
+            function_source("StepsStraightToTheirFunestras"))
+
+        assert straight == [
+            ("portrait_next", "portrait", "cmd_file", NEXT),
+            ("portrait_prev", "portrait", "cmd_file", PREV),
+            ("landscape_next", "landscape", "cmd_file", NEXT),
+            ("landscape_prev", "landscape", "cmd_file", PREV),
+            ("main_next", "commands", "main_funestra_cmd_file", NEXT),
+            ("main_prev", "commands", "main_funestra_cmd_file", PREV),
+        ]
+
+    def test_a_step_that_reached_its_funestra_tells_fun_time_it_already_did(self):
+        body = function_source("QueueCommand")
+        assert body.index("if (StartupPhase)") < body.index("STRAIGHT_TO_ITS_FUNESTRA.Has")
+        assert '" !" . pressed' in body
 
     def test_the_hold_lifts_when_the_session_is_up(self):
         body = function_source("WatchStartup")
