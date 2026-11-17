@@ -151,6 +151,7 @@ def build_genau_engine(
         notifier=host.notifier,
         condemn_flick=lambda flick: _condemn(
             _Condemning(flick, host.condemned_to(flick), host.tell_where_it_went, log), start_thread),
+        clock=clock,
     ))
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     learned = LearnedMotionState(model=load_default_model())

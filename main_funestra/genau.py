@@ -8,6 +8,8 @@ from typing import Any
 from app_support import favorites
 from funestra.flick_folder import flat_flicks_in, scan_flicks, trash_folder_for
 from funestra.flick_overlay import FlickFrame
+from funestra.funestra_verbs import NEXT, PREV
+from funestra.genau_controls import apply_runtime_command
 from funestra.inclusion_pair import BOTH, ORIENTATION, Included
 from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
@@ -62,6 +64,10 @@ class GenauOutputs:
 
 
 STANDARD_SEAMS = EngineSeams(log=logger)
+
+
+def _a_step(command: str) -> bool:
+    return command.split(None, 1)[0].upper() in (NEXT, PREV) if command.strip() else False
 
 
 class Genau:
@@ -122,6 +128,9 @@ class Genau:
         self._next_look = clock() + LOOK_EVERY_S
 
     def apply_command(self, command: str) -> bool:
+        if self._showing and _a_step(command):
+            apply_runtime_command(command, self._engine.controls)
+            return True
         return answer_genaus_verb(command, self)
 
     def keep_favorites(self, on: bool) -> None:
