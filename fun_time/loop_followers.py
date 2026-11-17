@@ -18,6 +18,7 @@ from .funestra_settings import FunestraReporting
 from .hud_feed import HudFeed
 from .latest_arrivals import LatestArrivals
 from .lock import a_lock_holds
+from .mode_plan import kino_shows
 from .origenerator_opening import OrigeneratorOpening
 from .rfb_mode import switch_the_rfb_mode
 from .rfb_modes import RfbMode
@@ -172,7 +173,8 @@ def the_followers(parts: LoopParts) -> tuple[Follower, ...]:
         EachTick(lambda now, answering: parts.latest_arrivals.deliver(answering.state)),
         LocksWhatTheMainFunestraHolds(),
         EachTick(lambda now, answering: answering.watch.sample_due(
-            now=now, omni_paused=answering.state.omni_paused)),
+            now=now, omni_paused=answering.state.omni_paused,
+            genau_on_screen=not kino_shows(answering.state.main_mode))),
         EachTick(lambda now, answering: parts.hud.publish_due(answering.state, now=now)),
         *((TheBrowsersSlideshow(parts.rfb_slideshow),) if parts.rfb_slideshow is not None else ()),
     )

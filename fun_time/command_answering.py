@@ -85,7 +85,7 @@ class CommandAnswering:
         self.dashboard_enabled = dashboard_enabled
         self.env = env
         self.voice = AppVoice()
-        self.watch = WatchSampler(funestras=config.funestras,
+        self.watch = WatchSampler(funestras=config.funestras, genau=config.genau,
                                   stats_file=watch_stats_path(config.state_dir))
         self.arbiter = DeviceArbiter(
             funestras=config.funestras, genau=config.genau,
@@ -144,12 +144,13 @@ class CommandAnswering:
     def dispatch(self, command: Command, spoken_at: float | None = None, *,
                  pressed_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command.text)
-        target_path = self.watch.video_at(command, spoken_at if spoken_at is not None else pressed_at)
+        given_at = spoken_at if spoken_at is not None else pressed_at
+        target_path = self.watch.video_at(command, given_at)
         self.watch.note_command(command.text)
         self.take(*dispatch_command(
             command, self.state, self.config,
             target_path=target_path,
-            spoken_at=spoken_at,
+            given_at=given_at,
         ))
 
     def take(self, new_state: BridgeState, ops: list[WindowOp]) -> None:

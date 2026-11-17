@@ -269,6 +269,20 @@ def test_a_vr_only_verb_reaches_the_vr_main_funestra(command, verb, tmp_path: Pa
     assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
 
 
+@pytest.mark.parametrize(("command", "verb"), [
+    ("projection_cycle", "CYCLE_PROJECTION"),
+    ("projection_cycle_back", "CYCLE_PROJECTION_BACK"),
+])
+def test_a_projection_change_names_the_video_it_was_aimed_at(command, verb, tmp_path: Path):
+    config = _make_config(tmp_path, vr_main_funestra=True)
+
+    dispatch_command(command, _make_state(main_mode=MainMode.KINO), config,
+                     target_path="C:/videos/VR/scene one.mp4")
+
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == (
+        f"{verb} C:/videos/VR/scene one.mp4\n")
+
+
 @pytest.mark.parametrize(
     "command",
     ["projection_cycle", "projection_cycle_back", "recenter_view", "tilt_up", "tilt_down",
@@ -2068,7 +2082,7 @@ def test_a_spoken_trash_reaches_a_hosted_satellite_with_when_it_was_said(tmp_pat
     on_the_wall, said_two_seconds_ago = time.time() - 2.0, time.monotonic() - 2.0
 
     dispatch_command("portrait_trash", _handed_over(FunTimeFunestra.PORTRAIT), config,
-                     spoken_at=said_two_seconds_ago)
+                     given_at=said_two_seconds_ago)
 
     [line] = _origenerator_cmds(config)
     command, _, stamp = line.partition(" @")
@@ -2082,7 +2096,7 @@ def test_a_spoken_lock_reaches_a_hosted_satellite_with_no_time_to_go_back_to_aga
     _set_current(config, FunTimeFunestra.PORTRAIT, "C:\\pictures\\moved on to.png")
 
     dispatch_command("portrait_lock_on", _handed_over(FunTimeFunestra.PORTRAIT), config,
-                     target_path="C:\\pictures\\meant.png", spoken_at=time.monotonic() - 2.0)
+                     target_path="C:\\pictures\\meant.png", given_at=time.monotonic() - 2.0)
 
     assert _origenerator_cmds(config) == ["portrait_lock_on"]
 
@@ -2905,9 +2919,49 @@ def test_kinos_trash_on_a_video_that_is_no_favorite_sends_it_to_origenerators_tr
 
     _state, ops = dispatch_command("main_trash", _make_state(), config)
 
-    assert _lines(config.main_funestra.cmd_file) == ["TRASH"]
+    assert _lines(config.main_funestra.cmd_file) == [f"TRASH {video}"]
     assert _lines(config.origenerator.cmd_file) == [f"TRASH_FILE|{video}"]
     assert [(op.op, op.key) for op in ops] == [("message", "Sent to Trash")]
+
+
+def test_kinos_trash_on_a_favorite_already_gone_from_the_screen_unfavorites_it_and_leaves_the_screen_be(
+        tmp_path):
+    config = _make_config(tmp_path)
+    config.regen_metadata_root = tmp_path / "metadata"
+    meant = tmp_path / "videos" / "video one.mp4"
+    _on_screen(config, str(tmp_path / "videos" / "video two.mp4"), locked="1")
+    mark_favorite(meant, config.regen_metadata_root, True)
+
+    _state, ops = dispatch_command("main_trash", _make_state(), config, target_path=str(meant))
+
+    assert not is_favorite(meant, config.regen_metadata_root)
+    assert _lines(config.main_funestra.cmd_file) == []
+    assert [(op.op, op.key) for op in ops] == [("message", "Unfavorited")]
+
+
+def test_kinos_unlock_aimed_at_a_video_already_gone_from_the_screen_leaves_the_screen_be(tmp_path):
+    config = _make_config(tmp_path)
+    _on_screen(config, str(tmp_path / "videos" / "video two.mp4"), locked="1")
+
+    _state, ops = dispatch_command("main_lock_off", _make_state(), config,
+                                   target_path=str(tmp_path / "videos" / "video one.mp4"))
+
+    assert (_lines(config.main_funestra.cmd_file), ops) == ([], [])
+
+
+def test_genaus_trash_on_a_favorite_already_gone_from_the_screen_unfavorites_it_and_leaves_the_screen_be(
+        tmp_path):
+    config = _make_config(tmp_path)
+    config.regen_metadata_root = tmp_path / "metadata"
+    meant = tmp_path / "flicks" / "made up flick.mp4"
+    _show_on_genau(config, tmp_path / "flicks" / "another made up flick.mp4", locked=True)
+    mark_favorite(meant, config.regen_metadata_root, True)
+
+    dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config,
+                     target_path=str(meant))
+
+    assert not is_favorite(meant, config.regen_metadata_root)
+    assert _lines(config.genau.cmd_file) == []
 
 
 @pytest.mark.parametrize("favorite", [False, True])

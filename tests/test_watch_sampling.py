@@ -12,7 +12,8 @@ from tests.bridge_configs import made_up_bridge_config
 
 
 def make_sampler(tmp_path: Path) -> WatchSampler:
-    return WatchSampler(funestras=made_up_bridge_config(tmp_path).funestras,
+    config = made_up_bridge_config(tmp_path)
+    return WatchSampler(funestras=config.funestras, genau=config.genau,
                         stats_file=tmp_path / "watch_stats.json")
 
 
@@ -260,6 +261,40 @@ class TestBackDating:
         sampler.sample_due(now=104.0, omni_paused=False)
 
         assert sampler.video_at(parse_command("portrait_lock"), 100.5) == "C:\\clips\\moved_to.mp4"
+
+    @pytest.mark.parametrize("command", ["main_trash", "main_lock", "projection_cycle"])
+    def test_a_command_on_the_main_funestra_is_about_the_kino_video_showing_when_it_was_given(
+            self, tmp_path, command):
+        sampler = make_sampler(tmp_path)
+        status = tmp_path / "main_player_status.txt"
+        _publish_main_funestra(status, "C:\\videos\\meant.mp4", position_ms=2000, duration_ms=60000)
+        sampler.sample_due(now=100.0, omni_paused=False)
+        _publish_main_funestra(status, "C:\\videos\\next.mp4", position_ms=300, duration_ms=60000)
+        sampler.sample_due(now=104.0, omni_paused=False)
+
+        assert sampler.video_at(parse_command(command), 103.0) == "C:\\videos\\meant.mp4"
+
+    def test_a_trash_on_genau_is_about_the_flick_up_when_it_was_given(self, tmp_path):
+        sampler = make_sampler(tmp_path)
+        status = tmp_path / "genau_status.txt"
+        status.write_text("flick=C:\\flicks\\meant.mp4\nup_at=90.000\n", encoding="utf-8")
+        sampler.sample_due(now=100.0, omni_paused=False, genau_on_screen=True)
+        status.write_text("flick=C:\\flicks\\next.mp4\nup_at=103.700\n", encoding="utf-8")
+        sampler.sample_due(now=104.0, omni_paused=False, genau_on_screen=True)
+
+        assert sampler.video_at(parse_command("genau_trash_flick"), 103.0) == "C:\\flicks\\meant.mp4"
+        assert sampler.video_at(parse_command("genau_trash_flick"), 103.8) == "C:\\flicks\\next.mp4"
+
+    def test_a_flick_he_moved_to_is_kept_however_late_it_went_up(self, tmp_path):
+        sampler = make_sampler(tmp_path)
+        status = tmp_path / "genau_status.txt"
+        status.write_text("flick=C:\\flicks\\left.mp4\nup_at=90.000\n", encoding="utf-8")
+        sampler.sample_due(now=100.0, omni_paused=False, genau_on_screen=True)
+        sampler.note_command("genau_next_flick")
+        status.write_text("flick=C:\\flicks\\moved_to.mp4\nup_at=103.700\n", encoding="utf-8")
+        sampler.sample_due(now=104.0, omni_paused=False, genau_on_screen=True)
+
+        assert sampler.video_at(parse_command("genau_trash_flick"), 100.5) == "C:\\flicks\\moved_to.mp4"
 
 
 

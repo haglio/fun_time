@@ -16,6 +16,7 @@ from funestra.funestra_verbs import (
     SEEK_FWD,
     TOGGLE_LOCK,
     TRASH,
+    play_file,
 )
 from funestra.hud_controls import why_it_cannot_step
 from funestra.hud_kinds import VIDEO
@@ -27,11 +28,12 @@ from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_genau_status, read_main_funestra_status
 from .lock import SENT_TO_TRASH, UNFAVORITED, unfavorited
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
+from .modes import same_file_to_windows, scripted_item
 from .origenerator_trash import trash_file_line
 from .osr2_commands import FUNSCRIPT_MOVES, skip_ahead_refused
 from .satellite_control import read_scripted_status
 from .shared_state import BridgeState
-from .vr_main_funestra_verbs import VR_MAIN_FUNESTRA_VERBS
+from .vr_main_funestra_verbs import AIMED_AT_A_VIDEO, VR_MAIN_FUNESTRA_VERBS
 
 logger = logging.getLogger(__name__)
 
@@ -135,20 +137,32 @@ def _skip_ahead_on_the_main_funestra(state: BridgeState, config: BridgeConfig,
 
 
 def _forward_to_the_vr_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
-                                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+                                   target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if not config.vr_main_funestra:
         return ignored(state, OUTSIDE_VR)
-    append_command(config.main_funestra.cmd_file, verb)
+    aimed = verb in AIMED_AT_A_VIDEO and target_path
+    append_command(config.main_funestra.cmd_file, f"{verb} {target_path}" if aimed else verb)
     return state, []
 
 
 def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
-               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+               target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if kino_shows(state.main_mode) and _gone_from_kinos_screen(target_path, config):
+        if verb == LOCK_OFF:
+            return state, []
+        append_command(config.main_funestra.cmd_file,
+                       play_file(scripted_item(target_path, config.regen_metadata_root)))
+        verb = LOCK_ON
     locked = _locked_as_whatever_is_on_the_main_screen_reports(state, config)
     append_command(_cmd_file_of_whatever_is_on_the_main_screen(state, config), verb)
     if verb == LOCK_ON or (verb == TOGGLE_LOCK and not locked):
         return state, [WindowOp(op=Op.FOLLOW_THE_LOCK, key=state.main_mode)]
     return state, []
+
+
+def _gone_from_kinos_screen(target_path: str, config: BridgeConfig) -> bool:
+    on_screen = read_main_funestra_status(config.main_funestra.status_file).video
+    return bool(target_path) and bool(on_screen) and not same_file_to_windows(target_path, on_screen)
 
 
 def _save_video(state: BridgeState, _config: BridgeConfig,
@@ -159,19 +173,22 @@ def _save_video(state: BridgeState, _config: BridgeConfig,
 
 
 def _trash_kinos_video(state: BridgeState, config: BridgeConfig,
-                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+                       target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if not kino_shows(state.main_mode):
         return ignored(state, IN_GENAU_MODE)
     status = read_main_funestra_status(config.main_funestra.status_file)
-    if not status.video:
+    video = target_path or status.video
+    if not video:
         return state, []
-    if status.locked:
+    on_screen = same_file_to_windows(video, status.video)
+    if on_screen and status.locked:
         append_command(config.main_funestra.cmd_file, LOCK_OFF)
-    if unfavorited(status.video, config):
-        append_command(config.main_funestra.cmd_file, NEXT)
+    if unfavorited(video, config):
+        if on_screen:
+            append_command(config.main_funestra.cmd_file, NEXT)
         return state, [WindowOp(op="message", key=UNFAVORITED, source=SOURCE_MAIN)]
-    append_command(config.main_funestra.cmd_file, TRASH)
-    append_command(config.origenerator.cmd_file, trash_file_line(status.video))
+    append_command(config.main_funestra.cmd_file, f"{TRASH} {video}")
+    append_command(config.origenerator.cmd_file, trash_file_line(video))
     return state, [WindowOp(op="message", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
 

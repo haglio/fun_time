@@ -166,7 +166,7 @@ def build_genau_engine(
         engine=BeatEngine(last_tick=clock()),
         paused=Flag(),
         step_flick=selection.step,
-        condemn_flick=selection.condemn_current,
+        condemn_flick=selection.condemn,
         robot_hand=robot_hand,
         learned_motion_state=learned,
         flick_advance_state=FlickAdvanceState(),

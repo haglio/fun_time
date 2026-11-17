@@ -110,6 +110,7 @@ class GenauStatus:
     flick: str = ""
     flipped: bool = False
     portrait: bool | None = None
+    up_at: float | None = None
 
 
 def _status_bool(values: dict[str, str], key: str, *, on_at_rest: bool = False) -> bool:
@@ -141,7 +142,15 @@ def _genau_status_from(values: dict) -> GenauStatus:
         flick=values.get("flick", "").strip(),
         flipped=_status_bool(values, "flipped"),
         portrait=_status_flag_or_none(values, "portrait"),
+        up_at=_status_seconds_or_none(values, "up_at"),
     )
+
+
+def _status_seconds_or_none(values: dict[str, str], key: str) -> float | None:
+    try:
+        return float(values.get(key, ""))
+    except ValueError:
+        return None
 
 
 def origenerator_has_published(path: Path) -> bool:

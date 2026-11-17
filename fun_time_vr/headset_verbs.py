@@ -192,16 +192,19 @@ class HeadsetVerbs:
         else:
             flash_message(logger, "No scenes are marked in this video yet", source=SOURCE_MAIN)
 
-    def cycle_projection(self) -> None:
-        self.watch_in(next_projection(self.projection))
+    def cycle_projection(self, video: Path | None = None) -> None:
+        video = video or self._video
+        self.watch_in(next_projection(self.projection_of(str(video))), video=video)
 
-    def cycle_projection_back(self) -> None:
-        self.watch_in(previous_projection(self.projection))
+    def cycle_projection_back(self, video: Path | None = None) -> None:
+        video = video or self._video
+        self.watch_in(previous_projection(self.projection_of(str(video))), video=video)
 
-    def watch_in(self, projection: str) -> None:
-        self._projections[str(self._video)] = projection
-        self._remembered.save(str(self._video), projection)
-        logger.info("Projection: %s (%s)", projection, self._video.name)
+    def watch_in(self, projection: str, *, video: Path | None = None) -> None:
+        video = video or self._video
+        self._projections[str(video)] = projection
+        self._remembered.save(str(video), projection)
+        logger.info("Projection: %s (%s)", projection, video.name)
 
     def set_fov(self, degrees: float) -> None:
         self._fovs[str(self._video)] = degrees
@@ -242,11 +245,21 @@ def _moves(move: Callable[[HeadsetVerbs], object]) -> Act:
     return act
 
 
+def _moves_the_video_it_names(move: Callable[[HeadsetVerbs, Path | None], object]) -> Act:
+    def act(verbs: HeadsetVerbs, value: str) -> bool:
+        move(verbs, Path(value.strip()) if value.strip() else None)
+        return True
+    return act
+
+
 CONTROLS: tuple[Control, ...] = (
     Control(
         name="projection",
-        verbs=(Verb(CYCLE_PROJECTION, _moves(HeadsetVerbs.cycle_projection)),
-               Verb(CYCLE_PROJECTION_BACK, _moves(HeadsetVerbs.cycle_projection_back))),
+        verbs=(Verb(CYCLE_PROJECTION, _moves_the_video_it_names(HeadsetVerbs.cycle_projection),
+                    may_name_its_item=True),
+               Verb(CYCLE_PROJECTION_BACK,
+                    _moves_the_video_it_names(HeadsetVerbs.cycle_projection_back),
+                    may_name_its_item=True)),
     ),
     Control(name="heading", verbs=(Verb(RECENTER, _moves(lambda verbs: verbs.recenter.ask())),)),
     Control(name="layout", verbs=(Verb(LAYOUT_RESET, _moves(HeadsetVerbs.reset_layout)),)),

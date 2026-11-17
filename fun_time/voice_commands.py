@@ -34,6 +34,10 @@ def format_spoken_command(command: str, *, spoken_at: float, said: str) -> str:
     return f"{command}{_SPOKEN_AT_SEP}{spoken_at:.3f}{_SAID_SEP}{said}"
 
 
+def format_pressed_command(command: str, pressed_at: float) -> str:
+    return f"{command}{_PRESSED_AT_SEP}{pressed_at:.3f}"
+
+
 def parse_command_line(line: str) -> CommandLine:
     stamped, _, said = line.partition(_SAID_SEP)
     command, spoken_at = _stamp_off(stamped, _SPOKEN_AT_SEP)
