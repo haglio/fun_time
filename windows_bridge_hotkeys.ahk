@@ -34,6 +34,10 @@ ORCHESTRATOR := DllCall("OpenProcess", "UInt", 0x00100000, "Int", false, "UInt",
 DASHBOARD_CMD_FILE := RequireManifestValue("commands", "dashboard_cmd_file")
 WINDOWS_BRIDGE_LOG_FILE := RequireManifestValue("runtime", "windows_bridge_log_file")
 STATE_DIR := GetParentDir(WINDOWS_BRIDGE_LOG_FILE)
+; Next and Previous go straight into the command file of the Funestra they
+; step, so a busy Fun Time or Origenerator never holds the step up; Fun Time
+; is told afterwards (" !" in place of " #") and only keeps its books.
+STRAIGHT_TO_ITS_FUNESTRA := StepsStraightToTheirFunestras()
 
 AHK_CMD_FILE := STATE_DIR . "\ahk_cmd.txt"
 ; Dropping this flag is how a launch gets called off: the orchestrator's next
@@ -337,20 +341,42 @@ WatchStartup() {
     Log("Session up; startup hold released")
 }
 
+StepsStraightToTheirFunestras() {
+    steps := Map(
+        "portrait_next", [ManifestValueOr("portrait", "cmd_file"), "NEXT"],
+        "portrait_prev", [ManifestValueOr("portrait", "cmd_file"), "PREV"],
+        "landscape_next", [ManifestValueOr("landscape", "cmd_file"), "NEXT"],
+        "landscape_prev", [ManifestValueOr("landscape", "cmd_file"), "PREV"],
+        "main_next", [ManifestValueOr("commands", "main_funestra_cmd_file"), "NEXT"],
+        "main_prev", [ManifestValueOr("commands", "main_funestra_cmd_file"), "PREV"])
+    for cmd, straight in steps.Clone()
+        if (straight[1] = "")
+            steps.Delete(cmd)
+    return steps
+}
+
 QueueCommand(cmd) {
-    global DASHBOARD_CMD_FILE, StartupPhase
-    pressed := " #" . SecondsOnFunTimesClock()
+    global DASHBOARD_CMD_FILE, StartupPhase, STRAIGHT_TO_ITS_FUNESTRA
+    pressed := SecondsOnFunTimesClock()
     if (StartupPhase) {
         ; No session to drive yet, and no dispatch loop draining the file this
         ; would go in.  The keys that mean "stop" never come through here.
         Log("Dropped while starting up: " . cmd)
         return
     }
+    stamp := " #" . pressed
+    if STRAIGHT_TO_ITS_FUNESTRA.Has(cmd) {
+        straight := STRAIGHT_TO_ITS_FUNESTRA[cmd]
+        if AppendWithRetry(straight[2] . " " . pressed . "`n", straight[1], 320, 5, "append-only")
+            stamp := " !" . pressed
+        else
+            Log("Could not reach its Funestra, so Fun Time passes it on: " . cmd)
+    }
     ; The Python dispatch loop drains this file by renaming it (~20 Hz). A held
     ; key appends fast enough to overlap that rename, and Windows then refuses
     ; the open with "(32) ... being used by another process". Wait it out, about
     ; five seconds at most, so a collision on a starved machine costs no keypress.
-    if !AppendWithRetry(cmd . pressed . "`n", DASHBOARD_CMD_FILE)
+    if !AppendWithRetry(cmd . stamp . "`n", DASHBOARD_CMD_FILE)
         Log("QueueCommand dropped (file busy): " . cmd)
 }
 
@@ -445,6 +471,11 @@ Heartbeat() {
 GetParentDir(path) {
     SplitPath(path, , &dirPath)
     return dirPath
+}
+
+ManifestValueOr(section, key) {
+    global WINDOWS_BRIDGE_MANIFEST_PATH
+    return IniRead(WINDOWS_BRIDGE_MANIFEST_PATH, section, key, "")
 }
 
 RequireManifestValue(section, key) {
