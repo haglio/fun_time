@@ -37,6 +37,10 @@ class TestCommandLineFormat:
         assert parse_command_line("portrait_lock #1234.500") == CommandLine(
             "portrait_lock", pressed_at=1234.5)
 
+    def test_a_key_that_already_reached_its_funestra_reads_back_as_already_sent(self):
+        assert parse_command_line("portrait_next !1234.500") == CommandLine(
+            "portrait_next", pressed_at=1234.5, already_sent=True)
+
     def test_an_unstamped_line_is_a_bare_command(self):
         assert parse_command_line("portrait_next") == CommandLine("portrait_next")
 

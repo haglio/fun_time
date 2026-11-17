@@ -2547,6 +2547,32 @@ class TestALockPressedWhileFunTimeIsSlow:
 
         assert "portrait_next" in (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
 
+    @pytest.mark.parametrize("pressed", ["portrait_next", "landscape_prev", "main_next"])
+    def test_a_step_the_key_already_sent_its_funestra_is_not_sent_again(self, tmp_path, pressed):
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+        write_shared_state(tmp_path / "shared_state.ini", _handed_over(BridgeState()))
+        (tmp_path / "dashboard_cmd.txt").write_text(f"{pressed} !100.000\n", encoding="utf-8")
+
+        runner.tick()
+
+        config = runner.answering.config
+        written = [path.read_text(encoding="utf-8") for path in (
+            tmp_path / "origenerator_cmd.txt", config.main_funestra.cmd_file,
+            config.genau.cmd_file, config.portrait.cmd_file, config.landscape.cmd_file)
+            if path.exists()]
+        assert not any(("NEXT" in text or "PREV" in text or "_next" in text or "_prev" in text)
+                       for text in written)
+
+    def test_a_step_the_key_already_sent_still_makes_that_satellite_the_one_a_bare_word_reaches(
+            self, tmp_path):
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
+        (tmp_path / "dashboard_cmd.txt").write_text("landscape_next !100.000\n", encoding="utf-8")
+
+        runner.tick()
+
+        assert runner.answering.state.active_funestra == FunTimeFunestra.LANDSCAPE.value
+
     def test_kinos_next_pressed_on_a_video_it_has_since_moved_off_by_itself_is_already_done(
             self, tmp_path):
         clock = HandDrivenClock()

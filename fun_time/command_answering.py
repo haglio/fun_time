@@ -36,7 +36,7 @@ from .event_log import MESSAGE, SOURCE_SYSTEM, answering_what_he_said, flash_mes
 from .funestra_status import read_main_funestra_status
 from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
-from .hosted_words import aimed_at_the_tracked_target
+from .hosted_words import aimed_at_the_tracked_target, with_the_target_it_names
 from .lock import core_goes_ahead_to
 from .lock_follower import LockFollower, what_the_main_funestra_holds
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
@@ -111,6 +111,9 @@ class CommandAnswering:
 
     def _answer_the_line(self, line: CommandLine) -> None:
         said = parse_command(line.command)
+        if line.already_sent:
+            self._what_its_funestra_already_did(said)
+            return
         source = said.message_source(self.state.active_funestra)
         answers_before = self._answers
         self._ignored_because = ""
@@ -123,6 +126,12 @@ class CommandAnswering:
                        level=logging.WARNING)
         elif self._answers == answers_before:
             self.flash(line.said, source=source)
+
+    def _what_its_funestra_already_did(self, command: Command) -> None:
+        logger.info("Its Funestra already took %s", command.text)
+        self.echo_the_press_best_effort(command.text)
+        self.watch.note_command(command.text)
+        self.keep(with_the_target_it_names(command, self.state))
 
     def flash(self, message: str, *, source: str, level: int = MESSAGE) -> None:
         self.an_answer_was_given()

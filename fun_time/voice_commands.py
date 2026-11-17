@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 _SPOKEN_AT_SEP = " @"
 _PRESSED_AT_SEP = " #"
+_SENT_AT_SEP = " !"
 _SAID_SEP = "\t"
 _MOST_SECONDS = 60
 
@@ -27,6 +28,7 @@ class CommandLine:
     spoken_at: float | None = None
     said: str = ""
     pressed_at: float | None = None
+    already_sent: bool = False
 
 
 def format_spoken_command(command: str, *, spoken_at: float, said: str) -> str:
@@ -42,6 +44,9 @@ def parse_command_line(line: str) -> CommandLine:
     command, spoken_at = _stamp_off(stamped, _SPOKEN_AT_SEP)
     if spoken_at is not None:
         return CommandLine(command, spoken_at, said)
+    command, sent_at = _stamp_off(line, _SENT_AT_SEP)
+    if sent_at is not None:
+        return CommandLine(command, pressed_at=sent_at, already_sent=True)
     command, pressed_at = _stamp_off(line, _PRESSED_AT_SEP)
     return CommandLine(command, pressed_at=pressed_at)
 
