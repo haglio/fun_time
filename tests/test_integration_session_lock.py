@@ -40,54 +40,6 @@ def _seen(look: Callable[[], object], *, while_running: threading.Thread) -> boo
     return True
 
 
-def test_held_lock_blocks_a_second_caller():
-    name = _unique_name()
-    holder = SingleInstanceLock(name)
-    assert holder.acquire(timeout=1.0) is True
-    try:
-        result: dict[str, bool] = {}
-
-        def worker() -> None:
-            other = SingleInstanceLock(name)
-            try:
-                result["acquired"] = other.acquire(timeout=0.3)
-            finally:
-                other.close()
-
-        thread = threading.Thread(target=worker)
-        thread.start()
-        thread.join()
-        assert result.get("acquired") is False
-    finally:
-        holder.close()
-
-
-LONG_ENOUGH_FOR_THE_WORKER_TO_BE_WAITING_S = 0.2
-
-
-def test_release_lets_the_next_caller_acquire():
-    name = _unique_name()
-    holder = SingleInstanceLock(name)
-    assert holder.acquire(timeout=1.0) is True
-
-    result: dict[str, bool] = {}
-
-    def worker() -> None:
-        other = SingleInstanceLock(name)
-        try:
-            result["acquired"] = other.acquire(timeout=3.0)
-        finally:
-            other.close()
-
-    thread = threading.Thread(target=worker)
-    thread.start()
-    time.sleep(LONG_ENOUGH_FOR_THE_WORKER_TO_BE_WAITING_S)
-    holder.release()
-    thread.join()
-    holder.close()
-    assert result.get("acquired") is True
-
-
 _HOLD_UNTIL_KILLED = """
 import pathlib, sys, time
 sys.path.insert(0, {root!r})
@@ -97,29 +49,6 @@ lock.acquire()
 pathlib.Path({sentinel!r}).write_text("held")
 time.sleep(120)
 """
-
-
-def test_windows_hands_a_dead_holders_mutex_to_the_next_waiter(tmp_path):
-    name = _unique_name()
-    sentinel = tmp_path / "held.flag"
-    root = str(Path(__file__).resolve().parents[1])
-    code = _HOLD_UNTIL_KILLED.format(root=root, name=name, sentinel=str(sentinel))
-    holder_proc = a_child_of_this_venv(code, cwd=root)
-    try:
-        text_written_to(sentinel, by=holder_proc)
-
-        contender = SingleInstanceLock(name)
-        try:
-            assert contender.acquire(timeout=0.3) is False
-            holder_proc.kill()
-            holder_proc.wait(timeout=10)
-            assert contender.acquire(timeout=5.0) is True
-        finally:
-            contender.close()
-    finally:
-        if holder_proc.poll() is None:
-            holder_proc.kill()
-            holder_proc.wait(timeout=10)
 
 
 def test_a_run_waiting_its_turn_gets_the_lock_when_the_run_holding_it_dies(tmp_path):
@@ -152,20 +81,6 @@ def test_a_run_waiting_its_turn_gets_the_lock_when_the_run_holding_it_dies(tmp_p
             holder_proc.wait(timeout=10)
         if waiter.ident is not None:
             waiter.join()
-
-
-def test_a_lane_numbers_from_0_again_once_every_run_has_left_it():
-    name = _unique_name()
-    first, second = session_lock._Numbers(name), session_lock._Numbers(name)
-    assert (first.take(), second.take()) == (0, 1)
-    first.close()
-    second.close()
-
-    after = session_lock._Numbers(name)
-    try:
-        assert after.take() == 0
-    finally:
-        after.close()
 
 
 def test_a_run_is_never_starved_by_runs_that_joined_the_line_after_it():
@@ -328,7 +243,7 @@ def test_a_run_keeps_its_place_in_line_while_something_suspends_it(short):
 
 @pytest.mark.parametrize("short", [False, True], ids=["full runs", "short runs"])
 def test_a_run_says_it_is_waiting_only_once_it_has_its_place_in_line(monkeypatch, short):
-    joining = session_lock._Lane.join
+    joining = session_lock.Lane.join
     slowed = threading.Event()
 
     def slow_to_join_the_first_time(lane) -> None:
@@ -337,7 +252,7 @@ def test_a_run_says_it_is_waiting_only_once_it_has_its_place_in_line(monkeypatch
             time.sleep(0.3)
         joining(lane)
 
-    monkeypatch.setattr(session_lock._Lane, "join", slow_to_join_the_first_time)
+    monkeypatch.setattr(session_lock.Lane, "join", slow_to_join_the_first_time)
     name = _unique_name()
     blocker = _held_by_the_test(name)
     order: list[str] = []
