@@ -468,7 +468,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=_every_funestra("reset"),
                 ),
                 _Row(
-                    "cycle enhancement — the upscale, the original it was made "
+                    "cycle enhancement — the Evolved version, the original it was made "
                     "from, or an enhancement",
                     commands=("portrait_cycle_version_back", "portrait_cycle_version",
                               "landscape_cycle_version_back", "landscape_cycle_version",
