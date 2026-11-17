@@ -49,6 +49,7 @@ from fun_time.fun_time_windows import (
     ChildPids,
     FunTimeWindows,
 )
+from fun_time.hosted_contract import SAID_AT_FIELD
 from fun_time.hud_transport import HudPublisher
 from fun_time.library_browser import BrowseOpening
 from fun_time.manifest import (
@@ -367,7 +368,7 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.answering.state, [])
             runner.tick()
 
-        assert mock_dispatch.call_args.kwargs["spoken_at"] == 100.2
+        assert mock_dispatch.call_args.kwargs["given_at"] == 100.2
 
     def test_the_tick_samples_every_funestra_on_the_watch_cadence(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -1360,7 +1361,7 @@ class TestOpenRfbTab:
         runner.answering.state = BridgeState()
         (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_on", encoding="utf-8")
 
-        def fake_dispatch(cmd, state, config, target_path="", spoken_at=None, hosted=None):
+        def fake_dispatch(cmd, state, config, target_path="", given_at=None, hosted=None):
             if cmd.text == "portrait_lock_on":
                 return state, [WindowOp(op="open_rfb_tab", key="http://p")]
             if cmd.text == "landscape_lock_on":
@@ -2446,6 +2447,75 @@ class TestALockPressedWhileFunTimeIsSlow:
         assert portrait.cmd_file.read_text(encoding="utf-8").split("\n")[:2] == [
             f"PLAY_FILE {meant}", "LOCK_ON"]
 
+    @staticmethod
+    def _main_funestra_moves_on(runner, clock, tmp_path, *, pressed: str) -> Path:
+        status = runner.answering.config.main_funestra.status_file
+        meant = tmp_path / "meant.mp4"
+        clock.now = 100.0
+        status.write_text(f"video={meant}\nposition_ms=2000\nduration_ms=60000\nlocked=0\n",
+                          encoding="utf-8")
+        runner.tick()
+        clock.now = 104.0
+        status.write_text(f"video={tmp_path / 'next.mp4'}\nposition_ms=300\nduration_ms=60000\n"
+                          "locked=0\n", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text(f"{pressed} #103.000\n", encoding="utf-8")
+        runner.tick()
+        return meant
+
+    def test_kinos_trash_trashes_the_video_that_was_showing_when_the_key_went_down(self, tmp_path):
+        clock = HandDrivenClock()
+        runner = make_runner(tmp_path, loop_clock=clock)
+
+        meant = self._main_funestra_moves_on(runner, clock, tmp_path, pressed="main_trash")
+
+        assert runner.answering.config.main_funestra.cmd_file.read_text(
+            encoding="utf-8").splitlines()[-1:] == [f"TRASH {meant}"]
+        assert runner.answering.config.origenerator.cmd_file.read_text(
+            encoding="utf-8").splitlines() == [f"TRASH_FILE|{meant}"]
+
+    def test_kinos_lock_locks_the_video_that_was_showing_when_the_key_went_down(self, tmp_path):
+        clock = HandDrivenClock()
+        runner = make_runner(tmp_path, loop_clock=clock)
+
+        meant = self._main_funestra_moves_on(runner, clock, tmp_path, pressed="main_lock")
+
+        assert runner.answering.config.main_funestra.cmd_file.read_text(
+            encoding="utf-8").splitlines()[-2:] == [f"PLAY_FILE {meant}", "LOCK_ON"]
+
+    def test_genaus_trash_trashes_the_flick_that_was_up_when_the_key_went_down(self, tmp_path):
+        clock = HandDrivenClock()
+        runner = make_runner(tmp_path, loop_clock=clock)
+        runner.answering.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
+        status = runner.answering.config.genau.status_file
+        meant = tmp_path / "meant.mp4"
+        clock.now = 100.0
+        status.write_text(f"flick={meant}\nup_at=90.000\nlocked=1\n", encoding="utf-8")
+        runner.tick()
+        clock.now = 104.0
+        status.write_text(f"flick={tmp_path / 'next.mp4'}\nup_at=103.700\nlocked=1\n",
+                          encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("genau_trash_flick #103.000\n", encoding="utf-8")
+        runner.tick()
+
+        assert runner.answering.config.genau.cmd_file.read_text(
+            encoding="utf-8").splitlines()[-1:] == [f"TRASH {meant}"]
+
+    def test_a_satellite_key_the_hosted_app_answers_carries_the_moment_it_went_down(self, tmp_path):
+        config = replace(make_config(tmp_path),
+                         origenerator_said_at_suffix=" @{" + SAID_AT_FIELD + "}")
+        runner = make_runner(tmp_path, config=config)
+        _the_hosted_app_answers(tmp_path)
+        write_shared_state(tmp_path / "shared_state.ini", _handed_over(BridgeState()))
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            "portrait_trash #100.000\n", encoding="utf-8")
+
+        runner.tick()
+
+        [line] = (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").splitlines()
+        told, _, when = line.partition(" @")
+        assert told == "portrait_trash"
+        assert float(when), "the press's moment rides along in the hosted app's own clock"
+
 
 class TestWatchTracking:
     def _run_samples(self, runner, clock, timeline):
@@ -2647,7 +2717,7 @@ class TestSatellitesCommands:
         (tmp_path / "dashboard_cmd.txt").write_text("satellites_next", encoding="utf-8")
 
         with patch("fun_time.command_answering.dispatch_command") as mock_dispatch:
-            mock_dispatch.side_effect = lambda cmd, state, config, target_path="", spoken_at=None, hosted=None: (state, [])
+            mock_dispatch.side_effect = lambda cmd, state, config, target_path="", given_at=None, hosted=None: (state, [])
             runner.tick()
 
         commands = [c[0][0].text for c in mock_dispatch.call_args_list]

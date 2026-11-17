@@ -55,7 +55,7 @@ def dispatch_command(
     config: BridgeConfig,
     *,
     target_path: str = "",
-    spoken_at: float | None = None,
+    given_at: float | None = None,
     hosted: bool | None = None,
 ) -> Result:
     if isinstance(command, str):
@@ -63,7 +63,7 @@ def dispatch_command(
     state = with_the_target_it_names(command, state)
     if (aimed := the_satellite_a_bare_line_reaches(command, state)) is not None:
         return dispatch_command(aimed, state, config, target_path=target_path,
-                                spoken_at=spoken_at, hosted=hosted)
+                                given_at=given_at, hosted=hosted)
     reworded = a_lock_said_in_the_hosted_apps_words(command, config)
     if reworded is not command:
         command, hosted = reworded, None
@@ -72,20 +72,20 @@ def dispatch_command(
     if hosted is None:
         hosted = routes_to_origenerator(command)
     if hosted:
-        return state, told_to_the_hosted_app(command, state, config, spoken_at)
+        return state, told_to_the_hosted_app(command, state, config, given_at)
 
     if len(command.halves()) > 1:
-        return _half_by_half(command, state, config, target_path, spoken_at)
+        return _half_by_half(command, state, config, target_path, given_at)
     route = ROUTES.get(command.key, _unanswered)
     return route(command, state, config, target_path)
 
 
 def _half_by_half(command: Command, state: BridgeState, config: BridgeConfig,
-                  target_path: str, spoken_at: float | None) -> Result:
+                  target_path: str, given_at: float | None) -> Result:
     ops = []
     for half in command.halves():
         state, more = dispatch_command(half, state, config, target_path=target_path,
-                                       spoken_at=spoken_at)
+                                       given_at=given_at)
         ops.extend(more)
     return state, ops
 

@@ -193,6 +193,18 @@ class TestProjectionCycling:
 
         assert verbs.projection == FISHEYE_180_SBS
 
+    def test_a_cycle_aimed_at_a_video_already_gone_from_the_screen_changes_that_ones_and_leaves_the_screen_be(
+            self, headset):
+        meant = headset.playback.current_video
+        _step(headset)
+        on_screen = headset.verbs.projection
+
+        assert headset.verbs.apply(f"CYCLE_PROJECTION {meant}") is True
+
+        assert headset.verbs.projection == on_screen
+        sidecar = headset.metadata / "VR" / "finished" / "scene one.json"
+        assert json.loads(sidecar.read_text(encoding="utf-8"))["vr"]["projection"] == "fisheye_180_sbs"
+
     def test_cycling_back_steps_the_other_way_and_persists_too(self, headset):
         assert headset.verbs.apply("CYCLE_PROJECTION_BACK") is True
 

@@ -74,6 +74,7 @@ from fun_time.shared_state import (
     shared_state_path,
     write_shared_state,
 )
+from fun_time.voice_commands import CommandLine, parse_command_line
 from fun_time_vr import app, frame_loop, funestras, room
 from fun_time_vr.app import build_parser
 from fun_time_vr.dash_panel import (
@@ -1026,6 +1027,11 @@ class TestTheLayoutKeeper:
         assert reported_layout(path) == Layout()
 
 
+def _posted(command_file: Path) -> list[CommandLine]:
+    return [parse_command_line(line)
+            for line in command_file.read_text(encoding="utf-8").splitlines()]
+
+
 class TestWhatTheControllersPost:
     def test_a_press_the_render_thread_hands_over_is_posted_on_the_worker(self, tmp_path):
         command_file = tmp_path / "dashboard_cmd.txt"
@@ -1036,8 +1042,19 @@ class TestWhatTheControllersPost:
 
         posts.pump(threading.Event(), 0.0)
 
-        assert command_file.read_text(encoding="utf-8").split() == [
+        assert [line.command for line in _posted(command_file)] == [
             "main_nudge_next", "main_scene_prev"]
+
+    def test_a_press_carries_the_moment_it_was_handed_over_however_late_it_is_posted(
+            self, tmp_path):
+        command_file = tmp_path / "dashboard_cmd.txt"
+        clock = iter([12.5, 99.0])
+        posts = _ControllerPosts(command_file, clock=lambda: next(clock))
+
+        posts.post(("projection_cycle",))
+        posts.pump(threading.Event(), 0.0)
+
+        assert _posted(command_file) == [CommandLine("projection_cycle", pressed_at=12.5)]
 
     def test_a_press_made_as_the_session_ends_is_still_posted(self, tmp_path):
         command_file = tmp_path / "dashboard_cmd.txt"
@@ -1046,7 +1063,7 @@ class TestWhatTheControllersPost:
         posts.post(("main_scene_next",))
         posts.close()
 
-        assert command_file.read_text(encoding="utf-8").split() == ["main_scene_next"]
+        assert [line.command for line in _posted(command_file)] == ["main_scene_next"]
 
 
 _THE_DASHS_SHAPE = DASH_WIDTH_PX / dash_height()

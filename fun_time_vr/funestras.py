@@ -56,6 +56,7 @@ from fun_time.modes import scripted_item, source_roots
 from fun_time.session_handoff import headset_hold_asked
 from fun_time.shared_state import BridgeState, read_shared_state, shared_state_path
 from fun_time.unlogged_messages import UnloggedMessages
+from fun_time.voice_commands import format_pressed_command
 from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
 from main_funestra.contract import MainChannels
@@ -1521,21 +1522,22 @@ class _LayoutKeeper:
 
 
 class _ControllerPosts:
-    def __init__(self, command_file: Path) -> None:
+    def __init__(self, command_file: Path, *, clock: Callable[[], float] = time.monotonic) -> None:
         self._command_file = command_file
-        self._queue: queue.SimpleQueue[str] = queue.SimpleQueue()
+        self._clock = clock
+        self._queue: queue.SimpleQueue[tuple[str, float]] = queue.SimpleQueue()
 
     def post(self, commands: Sequence[str]) -> None:
         for command in commands:
-            self._queue.put(command)
+            self._queue.put((command, self._clock()))
 
     def pump(self, stop: threading.Event | None, now: float) -> None:
         while True:
             try:
-                command = self._queue.get_nowait()
+                command, pressed_at = self._queue.get_nowait()
             except queue.Empty:
                 return
-            append_command(self._command_file, command)
+            append_command(self._command_file, format_pressed_command(command, pressed_at))
 
     def close(self) -> None:
         self.pump(None, 0.0)

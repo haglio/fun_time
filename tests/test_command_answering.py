@@ -48,7 +48,7 @@ def test_any_other_command_is_dispatched_and_what_comes_back_is_taken(tmp_path):
     command, state_before, config = dispatch.call_args.args
     assert (command, state_before, config) == (
         parse_command("portrait_next"), BridgeState(), answering.config)
-    assert dispatch.call_args.kwargs["spoken_at"] == 12.5
+    assert dispatch.call_args.kwargs["given_at"] == 12.5
     assert answering.state == changed
     assert read_shared_state(tmp_path / "shared_state.ini") == changed
     assert windows.asked == [("show", "portrait")]

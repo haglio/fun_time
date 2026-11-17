@@ -23,3 +23,5 @@ VR_MAIN_FUNESTRA_VERBS = MappingProxyType({
     "main_scene_next": NEXT_SCENE,
     "vr_reset": LAYOUT_RESET,
 })
+
+AIMED_AT_A_VIDEO = frozenset({CYCLE_PROJECTION, CYCLE_PROJECTION_BACK})
