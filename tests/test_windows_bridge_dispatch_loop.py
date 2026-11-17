@@ -2500,6 +2500,50 @@ class TestALockPressedWhileFunTimeIsSlow:
         assert runner.answering.config.genau.cmd_file.read_text(
             encoding="utf-8").splitlines()[-1:] == [f"TRASH {meant}"]
 
+    @staticmethod
+    def _satellite_moves_on(runner, clock, tmp_path, *, pressed: str, he_moved: bool = False) -> None:
+        portrait = runner.answering.config.portrait
+        clock.now = 100.0
+        _write_satellite_status(portrait.status_file, str(tmp_path / "pressed on.mp4"), fraction=0.2)
+        runner.tick()
+        if he_moved:
+            runner.answering.watch.note_command("portrait_next")
+        clock.now = 104.0
+        _write_satellite_status(portrait.status_file, str(tmp_path / "moved on to.mp4"), fraction=0.3)
+        (tmp_path / "dashboard_cmd.txt").write_text(f"{pressed} #103.000\n", encoding="utf-8")
+        runner.tick()
+
+    @pytest.mark.parametrize("pressed", ["portrait_next", "portrait_prev"])
+    def test_a_step_pressed_on_a_video_the_satellite_has_since_moved_off_by_itself_is_already_done(
+            self, tmp_path, pressed):
+        clock = HandDrivenClock()
+        runner = make_runner(tmp_path, config=make_config(tmp_path), loop_clock=clock)
+        _the_hosted_app_answers(tmp_path)
+
+        self._satellite_moves_on(runner, clock, tmp_path, pressed=pressed)
+
+        told = tmp_path / "origenerator_cmd.txt"
+        assert pressed not in (told.read_text(encoding="utf-8") if told.exists() else "")
+
+    def test_a_second_next_after_one_he_pressed_still_steps(self, tmp_path):
+        clock = HandDrivenClock()
+        runner = make_runner(tmp_path, config=make_config(tmp_path), loop_clock=clock)
+        _the_hosted_app_answers(tmp_path)
+
+        self._satellite_moves_on(runner, clock, tmp_path, pressed="portrait_next", he_moved=True)
+
+        assert "portrait_next" in (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
+
+    def test_kinos_next_pressed_on_a_video_it_has_since_moved_off_by_itself_is_already_done(
+            self, tmp_path):
+        clock = HandDrivenClock()
+        runner = make_runner(tmp_path, loop_clock=clock)
+
+        self._main_funestra_moves_on(runner, clock, tmp_path, pressed="main_next")
+
+        assert "NEXT" not in runner.answering.config.main_funestra.cmd_file.read_text(
+            encoding="utf-8").splitlines()
+
     def test_a_satellite_key_the_hosted_app_answers_carries_the_moment_it_went_down(self, tmp_path):
         config = replace(make_config(tmp_path),
                          origenerator_said_at_suffix=" @{" + SAID_AT_FIELD + "}")
