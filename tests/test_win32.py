@@ -14,7 +14,7 @@ from unittest.mock import call, patch
 
 from app_support.threading_utils import wait_until
 
-from fun_time import library_browser, loading_screen, preview_marker, win32, win32_process
+from fun_time import loading_screen, preview_marker, win32, win32_process
 from fun_time.dashboard_layout import Rect
 from fun_time.fun_time_windows import find_origenerators_window
 from fun_time.win32 import (
@@ -679,7 +679,7 @@ class TestWindowTitle:
 class TestFindWindowByTitle:
     DASHBOARD = preview_marker.APP_TITLE
     THE_SESSIONS_FUN_TIME_WINDOWS = (
-        (11, loading_screen.WINDOW_TITLE), (12, library_browser.WINDOW_TITLE), (13, DASHBOARD))
+        (11, loading_screen.WINDOW_TITLE), (12, f"{DASHBOARD} – made-up window"), (13, DASHBOARD))
 
     @staticmethod
     def _enumerating(mock, windows, *, visible=True):
@@ -706,7 +706,6 @@ class TestFindWindowByTitle:
 
     def test_only_its_whole_caption_tells_the_dashboard_from_the_sessions_other_windows(self):
         assert loading_screen.WINDOW_TITLE.startswith(self.DASHBOARD)
-        assert library_browser.WINDOW_TITLE.startswith(self.DASHBOARD)
         with _user32_mocked() as mock:
             self._enumerating(mock, self.THE_SESSIONS_FUN_TIME_WINDOWS)
             assert win32.find_window_by_title(self.DASHBOARD, exact=True) == 13
@@ -899,7 +898,7 @@ class TestFindWindowForProcess:
         with _user32_mocked() as mock:
             a_hidden_captioned_window_qt_gives_every_process = (11, 500, "_q_titlebar", False)
             self._enumerating(mock, [a_hidden_captioned_window_qt_gives_every_process,
-                                     (12, 500, library_browser.WINDOW_TITLE, True)])
+                                     (12, 500, "made-up window", True)])
             assert win32.find_window_for_process(500) == 12
 
     def test_the_hosted_origenerator_starting_hidden_is_still_found(self, monkeypatch):

@@ -16,7 +16,12 @@ _.hide  # the Funestra takes a User's own frame down off the headset's surface
 _.pick  # the Funestra hands them the projection picked off the list
 _.set_bar  # the Funestra hands them the angle the Angle bar is set to
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
-_.decorationPosition  # Qt's item view reads it off the style option, to put a letter's mark after it
+_.mousePressEvent  # Qt calls it when the dashboard bar is pressed
+_.closeEvent  # Qt calls it when the Dashboard is closed
+_.show  # the Genau engine (funestra) hands the headset's surface each frame it decodes
+_.release  # the headset's dash panel lets go of whichever pressed part it holds
+_.handles  # the registry and expectation tests ask it whether a command is answered
+_.downloaded_set_number_of  # main_funestra.library tells the videos of one downloaded set apart with it
 _.ERROR_CHECKING  # PyOpenGL reads it once, when OpenGL.GL is first imported
 _.tick  # the Funestra (funestra) ticks main_funestra's Genau and Kino each pass
 _.optionxform  # ConfigParser hook, set to keep key case

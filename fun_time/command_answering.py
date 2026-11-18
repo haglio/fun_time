@@ -20,13 +20,11 @@ from .command_bell import ring as ring_the_bell
 from .command_dispatch import app_at_defaults, dispatch_command
 from .command_value import Command, parse_command
 from .dashboard_actions import (
-    BROWSE_LIBRARY_CLOSE,
     ENTER_OMNIPAUSE,
     HEADSET_OFF,
     HEADSET_SIGNALS,
     HELP_REFERENCE,
     HELP_REFERENCE_COMMANDS,
-    LIBRARY_OPEN_FILENAME,
     ORIGENERATOR_ACTIVATE,
     REFERENCE_OPEN_FILENAME,
     RFB_ACTIVATE,
@@ -190,7 +188,6 @@ class CommandAnswering:
                 logger.error("unhandled window op %r", op.op)
                 continue
             handler(self, op)
-        self.window_work.raise_a_browse_the_restack_left_underneath()
         write_shared_state(self.shared_state_file, self.state)
         self.window_work.flush_rfb_tabs_unless_a_tick_holds_them(self.state)
         self.update_dashboard_if_there_is_one()
@@ -317,22 +314,6 @@ def _play(answering: CommandAnswering, spoken_at: float | None) -> None:
         _toggle_omnipause(answering, spoken_at)
 
 
-def _browse_the_library(answering: CommandAnswering, _spoken_at: float | None) -> None:
-    if answering.config.vr_main_funestra:
-        answering.flag_the_panel_for_the_headset(LIBRARY_OPEN_FILENAME, toggling=True)
-    else:
-        threading.Thread(
-            target=answering.window_work.browse_library,
-            args=(lambda: answering.state,),
-            daemon=True,
-            name="library-browser",
-        ).start()
-
-
-def _close_the_browse(answering: CommandAnswering, _spoken_at: float | None) -> None:
-    answering.flag_the_panel_for_the_headset(LIBRARY_OPEN_FILENAME, toggling=False)
-
-
 def _press_the_broker(answering: CommandAnswering, _spoken_at: float | None) -> None:
     broker.press(answering.config.broker_state, answering.config.broker_tray_launcher)
 
@@ -387,8 +368,6 @@ LOOP_COMMANDS: dict[str, Callable[[CommandAnswering, float | None], None]] = {
     "omnipause_toggle": _toggle_omnipause,
     ENTER_OMNIPAUSE: _enter_omnipause_unless_paused,
     "relief_omnipause": _relieve_even_under_a_pause,
-    "browse_library": _browse_the_library,
-    BROWSE_LIBRARY_CLOSE: _close_the_browse,
     BROKER_PRESS: _press_the_broker,
     "pause": _pause,
     "play": _play,

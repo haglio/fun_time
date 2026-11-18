@@ -17,7 +17,6 @@ THE_HEADSETS_OWN_WORDS = {
     ("layout", "PORTRAIT"): "the headset's name for a screen, kept in its layout file",
     ("layout", "LANDSCAPE"): "the headset's name for a screen, kept in its layout file",
     ("layout", "DASH"): "the headset's name for a screen, kept in its layout file",
-    ("library_listing_cache", "_VIDEOS"): "a key of the headset's own listing file",
 }
 
 

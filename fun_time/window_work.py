@@ -2,48 +2,22 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import subprocess
-import threading
 import time
 from collections.abc import Callable, Iterator, Mapping
-from pathlib import Path
 from types import MappingProxyType
 
 from app_support.win32 import force_foreground_window, window_exists
-from funestra.file_channel import append_command
-from funestra.funestra_verbs import play_file
-from funestra.playlist import PlaylistItem
 
 from .bridge_records import BridgeConfig, Op, WindowOp
-from .child_launch import no_child_log
 from .dispatch_loop_setup import SessionFiles, SessionStart
-from .funestra_status import read_genau_status, read_main_funestra_status
-from .library_browser import BrowseOpening, browse_library
-from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from .mode_plan import kino_shows
-from .modes import scripted_item
 from .rfb_modes import RfbMode
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import BridgeState
 from .shortcuts import Shortcut
-from .win32 import find_window_for_process, set_always_on_top, window_rect
-from .window_names import name_in_the_record, visible_windows
+from .window_names import visible_windows
 from .windows_bridge_random_faves_browser import open_rfb_tab
 
 logger = logging.getLogger(__name__)
-
-
-def raise_a_browse_the_restack_left_underneath(browsing: subprocess.Popen | None) -> int:
-    if browsing is None:
-        return 0
-    its_pid_may_be_another_programs_by_now = browsing.poll() is not None
-    if its_pid_may_be_another_programs_by_now:
-        return 0
-    hwnd = find_window_for_process(browsing.pid)
-    if hwnd:
-        name_in_the_record("library", hwnd)
-        set_always_on_top(hwnd, True)
-    return hwnd
 
 
 class WindowWork:
@@ -52,15 +26,11 @@ class WindowWork:
         self.windows = start.windows
         self.rfb_shortcut = start.rfb_shortcut or Shortcut()
         self.pending_rfb_urls: list[str] = []
-        self.browser_process: subprocess.Popen | None = None
         self._config = config
         self._ahk_cmd_file = files.ahk_cmd
-        self._manifest_path = files.manifest or (
-            config.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME)
         self._rfb_slideshow = start.rfb_slideshow
         self.env = env
         self._a_tick_holds_its_tabs_for_one_chrome_launch = False
-        self._browse_lock = threading.Lock()
 
     def run(self, op: WindowOp, state: BridgeState) -> None:
         WINDOW_OPS[op.op](self, op, state)
@@ -109,71 +79,13 @@ class WindowWork:
             return
         self.windows.converge_origenerator_window(state.rfb_mode)
 
-    def raise_a_browse_the_restack_left_underneath(self) -> None:
-        browsing = self.browser_process
-        if browsing is not None:
-            self.windows.in_turn("raise_a_browse_the_restack_left_underneath",
-                                 lambda: raise_a_browse_the_restack_left_underneath(browsing))
-
     def log_topmost_state(self, label: str, state: BridgeState) -> None:
         self.windows.in_turn("log_topmost_state", lambda: logger.info(
             "Topmost [%s] mode=%s: %s", label, state.main_mode, self.windows.topmost_report()))
 
-    def browse_library(self, state_now: Callable[[], BridgeState]) -> None:
-        if not self._browse_lock.acquire(blocking=False):
-            return
-        try:
-            self._browse_library_with_the_lock_held(state_now)
-        finally:
-            self._browse_lock.release()
-
-    def _browse_library_with_the_lock_held(self, state_now: Callable[[], BridgeState]) -> None:
-        state = state_now()
-        config = self._config
-        omnipause_already_holds_them_down = state.omni_paused
-
-        if not omnipause_already_holds_them_down:
-            self.windows.remove_all_topmost().wait()
-            append_command(self._ahk_cmd_file, Op.SUSPEND_HOTKEYS)
-
-        try:
-            genau = not kino_shows(state_now().main_mode)
-            where_the_pick_will_play = self.windows.hwnd("main_funestra")
-            selected = browse_library(
-                self._manifest_path,
-                config.python_exe,
-                BrowseOpening(
-                    over=window_rect(where_the_pick_will_play) if where_the_pick_will_play else None,
-                    playing=(read_genau_status(config.genau.status_file).flick if genau
-                             else read_main_funestra_status(config.main_funestra.status_file).video),
-                    flicks=genau,
-                ),
-                runner=self.run_browser,
-            )
-            if selected and genau:
-                append_command(config.genau.cmd_file, play_file(PlaylistItem(Path(selected))))
-            elif selected:
-                append_command(config.main_funestra.cmd_file,
-                               play_file(scripted_item(selected, config.regen_metadata_root)))
-        finally:
-            if not omnipause_already_holds_them_down:
-                self.windows.restore_all_topmost(state_now().rfb_mode).wait()
-                append_command(self._ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
-
-    def run_browser(self, command, **kwargs) -> None:
-        process = subprocess.Popen(command, **no_child_log(), **kwargs)
-        self.browser_process = process
-        try:
-            process.wait()
-        finally:
-            self.browser_process = None
-
     def close(self) -> None:
         if self._rfb_slideshow is not None:
             self._rfb_slideshow.stop()
-        browsing = self.browser_process
-        if browsing is not None:
-            browsing.terminate()
 
 
 def _show(work: WindowWork, op: WindowOp, _state: BridgeState) -> None:

@@ -138,7 +138,6 @@ class TestVoiceCommands:
             "version": "main_funestra_cycle_version",
             "clips only": "main_funestra_length_clips",
             "full only": "main_funestra_length_full",
-            "browse": "browse_library",
             "save snippet": "genaumacher_save",
             "cycle projection": "projection_cycle",
             "vr and two d": "main_projection_both",
@@ -221,9 +220,6 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["un mute main"] == "audio_unmute"
         assert VOICE_COMMANDS["main louder"] == "audio_volume_up"
 
-    def test_the_browser_opens_by_its_other_names_too(self):
-        for phrase in ("browse", "open browser", "open file browser", "file browser", "file browse"):
-            assert VOICE_COMMANDS[phrase] == "browse_library", phrase
 
     def test_human_inspired_motion_answers_to_its_initials(self):
         assert VOICE_COMMANDS["hi on"] == "robot_hand_learned_on"

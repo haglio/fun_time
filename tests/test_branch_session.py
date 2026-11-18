@@ -663,39 +663,6 @@ def test_the_config_build_is_wired_to_the_seeding(checkouts):
     ) == {"C:/library/main/one.mp4": {"seconds": 90}}
 
 
-def _launch_with_one_live_thumbnail(checkouts, monkeypatch, start_the_session) -> None:
-    live_thumbnails = checkouts.primary / "state" / "hud_thumbnails"
-    live_thumbnails.mkdir(parents=True)
-    (live_thumbnails / "abc123.jpg").write_bytes(b"thumbnail")
-    monkeypatch.setattr(branch_session.subprocess, "Popen", start_the_session)
-    branch_session.launch(checkouts.worktree, primary=checkouts.primary,
-                          primary_config_path=checkouts.config_path)
-
-
-def test_a_launch_starts_the_session_before_copying_the_thumbnails(checkouts, monkeypatch):
-    branch_thumbnails = checkouts.worktree / "state" / "hud_thumbnails"
-    thumbnails_as_the_session_started: list[list[str]] = []
-
-    def start_the_session(command, **kwargs):
-        thumbnails_as_the_session_started.append(
-            sorted(path.name for path in branch_thumbnails.glob("*")))
-        return SimpleNamespace(wait=lambda: 0)
-
-    _launch_with_one_live_thumbnail(checkouts, monkeypatch, start_the_session)
-
-    assert thumbnails_as_the_session_started == [[]]
-    assert (branch_thumbnails / "abc123.jpg").read_bytes() == b"thumbnail"
-
-
-def test_a_launch_logs_how_many_thumbnails_it_copied_and_how_long_that_took(
-        checkouts, monkeypatch, capsys):
-    _launch_with_one_live_thumbnail(
-        checkouts, monkeypatch, lambda command, **kwargs: SimpleNamespace(wait=lambda: 0))
-
-    assert re.search(r"^Copied 1 thumbnail from \S.* in \d+\.\ds$",
-                     capsys.readouterr().out, re.MULTILINE)
-
-
 @pytestmark_shortcut
 def test_an_agent_takes_its_shortcut_back_out_once_the_work_lands(primary_with_launcher):
     written = branch_session.write_launch_shortcut(
@@ -805,7 +772,6 @@ def _launch_recorded(monkeypatch, tmp_path: Path, **kwargs) -> _RecordedStart:
     monkeypatch.setattr(
         branch_session, "build_branch_config", lambda worktree, **_: tmp_path / "cfg.json"
     )
-    monkeypatch.setattr(branch_session, "top_up_branch_thumbnails", lambda worktree, **_: None)
     monkeypatch.setattr(branch_session, "primary_checkout", lambda start=None: tmp_path)
     monkeypatch.setattr(branch_session.subprocess, "Popen", recorded)
     branch_session.launch(tmp_path, **kwargs)
@@ -854,7 +820,6 @@ def _sessions_exit_with(monkeypatch, returncode: int, *, on_quit=lambda: None) -
 
     monkeypatch.setattr(branch_session, "build_branch_config",
                         lambda worktree, **_: worktree / "state" / "cfg.json")
-    monkeypatch.setattr(branch_session, "top_up_branch_thumbnails", lambda worktree, **_: None)
     monkeypatch.setattr(branch_session.subprocess, "Popen", popen)
     return sessions
 

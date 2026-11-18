@@ -93,7 +93,7 @@ def test_every_key_the_ahk_shell_demands_is_written(cfg_path):
         )
 
 
-_READERS_THAT_SPELL_KEYS_THEMSELVES = ("fun_time/dashboard_app.py", "fun_time/library_browser.py")
+_READERS_THAT_SPELL_KEYS_THEMSELVES = ("fun_time/dashboard_app.py",)
 
 
 @pytest.mark.parametrize("reader", _READERS_THAT_SPELL_KEYS_THEMSELVES)
