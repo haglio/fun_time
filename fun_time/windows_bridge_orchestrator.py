@@ -970,6 +970,9 @@ class _TheDesktopsEnding:
             let_go_of_a_kept_origenerator(
                 self._state_dir, self.launch.bridge_config.origenerator.cmd_file)
 
+    def origenerator_stays_open(self) -> bool:
+        return self.result.origenerator_taken_over
+
 
 def _open_the_session(
     result: StartupResult,

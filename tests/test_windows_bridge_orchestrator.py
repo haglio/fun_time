@@ -1287,6 +1287,19 @@ class TestKeepingTheHostedApp:
         assert channel.read_text(encoding="utf-8").splitlines()[-1] == "RELEASE"
         assert "kill:800" not in events
 
+    @pytest.mark.parametrize(("taken_over", "reminded"), [
+        (False, ["Fun Time"]), (True, [])], ids=["closing everything", "handing it back"])
+    def test_closing_fun_time_asks_for_the_turn_off_reminder_unless_origenerator_stays_open(
+        self, cfg_factory, tmp_path, taken_over, reminded,
+    ):
+        asked: list[str] = []
+        with patch("fun_time.session_ending.broker.remind_to_turn_off",
+                   side_effect=lambda _state, _launcher, *, closed: asked.append(closed)):
+            _run_a_session(cfg_factory, tmp_path, SessionRun(events=[], result=replace(
+                _fake_startup_result(), origenerator_taken_over=taken_over)))
+
+        assert asked == reminded
+
     def test_a_crossing_keeps_a_taken_over_app_as_one_to_hand_back(self, tmp_path):
         channel = tmp_path / "origenerator_cmd.txt"
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \

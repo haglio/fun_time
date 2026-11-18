@@ -595,7 +595,8 @@ def _close_the_session(
     end_the_session(
         SessionEnding(
             state_dir=launch.state_dir, manifest=launch.manifest, controls=controls,
-            quit_hint=CANCEL_CLOSING_FUN_TIME_VR, esc_over_a_crossing=True),
+            quit_hint=CANCEL_CLOSING_FUN_TIME_VR, esc_over_a_crossing=True,
+            closed_app="Fun Time VR"),
         _TheHeadsetsEnding(launch, launched, ahk_proc),
         asked=asked)
 
@@ -653,6 +654,9 @@ class _TheHeadsetsEnding:
     def last_of_all(self, crossing: HandoffTarget | None, hint: str) -> None:
         if not self.held and not self.turned_back:
             _release_vr_runtime(self.launched.runtime_was_up, self.launch.state_dir)
+
+    def origenerator_stays_open(self) -> bool:
+        return self.launched.hosted_taken_over
 
 
 def _wait_for_the_headset_hold(state_dir: Path, funestra: subprocess.Popen) -> bool:
