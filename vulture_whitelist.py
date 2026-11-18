@@ -40,6 +40,7 @@ _.take_it_down  # fun_time.session_ending's closing screen hands the headset's p
 _.end_the_children  # fun_time.session_ending ends the headset's children with it
 _.stop_the_keys  # fun_time.session_ending stops the headset's hotkey script with it
 _.last_of_all  # fun_time.session_ending lets the headset release its runtime with it
+_.origenerator_stays_open  # fun_time.session_ending asks the headset whether Origenerator outlives it
 from_channel  # satellite.contract; fun_time_vr's Funestra and the sequencer
 from_manifest  # genau_config and main_funestra.contract; fun_time_vr's Funestras
 top_block  # main_funestra.kino; funestra's Funestra heads its HUD with it

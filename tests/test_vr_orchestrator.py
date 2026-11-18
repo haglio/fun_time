@@ -1902,6 +1902,22 @@ class TestOpeningAVrSession:
 
         assert parked == [True], "the app was not left for the session coming back"
 
+    @pytest.mark.parametrize(("taken_over", "reminded"), [
+        (False, ["Fun Time VR"]), (True, [])], ids=["closing everything", "handing it back"])
+    def test_closing_fun_time_vr_asks_for_the_turn_off_reminder_unless_origenerator_stays_open(
+            self, config, taken_over, reminded):
+        asked: list[str] = []
+        with patch("fun_time.session_ending.broker.remind_to_turn_off",
+                   side_effect=lambda _state, _launcher, *, closed: asked.append(closed)):
+            _end_a_vr_session(
+                orchestrator, config, ended_by=lambda *_a, **_k: "asked",
+                bring_up_the_hosted_app=MagicMock(
+                    return_value=HostedApp(6060, already_open=taken_over, taken_over=taken_over,
+                                           showing_a_slideshow=False)),
+                see_the_hosted_app_out=MagicMock(return_value=True))
+
+        assert asked == reminded
+
     def test_voice_starts_the_way_a_desktop_session_starts_it(self, config):
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
         runner = MagicMock()

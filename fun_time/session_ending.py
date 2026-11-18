@@ -13,6 +13,7 @@ from typing import Protocol
 
 from app_support import osr2_hold
 from app_support.threading_utils import wait_until
+from funestra import broker
 from funestra.file_channel import append_command
 from funestra.main_hud import HOLD_VERB
 
@@ -91,6 +92,8 @@ class ItsOwnEnding(Protocol):
 
     def last_of_all(self, crossing: HandoffTarget | None, hint: str) -> None: ...
 
+    def origenerator_stays_open(self) -> bool: ...
+
 
 @dataclass(frozen=True)
 class SessionEnding:
@@ -99,11 +102,18 @@ class SessionEnding:
     controls: TheControls
     quit_hint: str
     esc_over_a_crossing: bool
+    closed_app: str = "Fun Time"
 
     def what_esc_cancels(self, crossing: HandoffTarget | None, *, asked: bool) -> str:
         if crossing is not None:
             return crossing.crossing_hint if self.esc_over_a_crossing else ""
         return self.quit_hint if asked else ""
+
+    def ask_for_the_turn_off_reminder(self) -> None:
+        commands = self.manifest.commands
+        launcher = commands.broker_tray_launcher.strip()
+        broker.remind_to_turn_off(Path(commands.broker_state_dir),
+                                  Path(launcher) if launcher else None, closed=self.closed_app)
 
 
 def silence_the_funestras(manifest: LaunchManifest) -> None:
@@ -140,6 +150,9 @@ def end_the_session(ending: SessionEnding, own: ItsOwnEnding, *, asked: bool) ->
         if crossing is None:
             own.stop_the_keys()
         own.last_of_all(crossing, hint)
+    if (crossing is None and not esc_called_the_quit_off(ending.state_dir, crossing, hint)
+            and not own.origenerator_stays_open()):
+        ending.ask_for_the_turn_off_reminder()
 
 
 def esc_called_the_quit_off(state_dir: Path, crossing: HandoffTarget | None, hint: str) -> bool:

@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from fun_time import session_ending
 from fun_time.config import load_config
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
+    CANCEL_WORD,
     SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
     NullProgress,
@@ -70,6 +72,9 @@ class _ItsOwn:
 
     def last_of_all(self, crossing, hint) -> None:
         self.heard.said.append("last of all")
+
+    def origenerator_stays_open(self) -> bool:
+        return False
 
 
 @pytest.fixture
@@ -142,6 +147,66 @@ class TestTheOneEnding:
         end_the_session(_an_ending(manifest, tmp_path, heard), Watching(heard), asked=True)
 
         assert heard.said[1:3] == ["1", "PAUSE"]
+
+
+@dataclass
+class _LeavingOrigeneratorOpen(_ItsOwn):
+    def origenerator_stays_open(self) -> bool:
+        return True
+
+
+class TestTheTurnOffReminder:
+    @pytest.fixture
+    def asked(self, monkeypatch):
+        asked = []
+        monkeypatch.setattr(session_ending.broker, "remind_to_turn_off",
+                            lambda state_dir, launcher, *, closed: asked.append(
+                                (Path(state_dir), launcher, closed)))
+        return asked
+
+    @pytest.fixture
+    def manifest(self, cfg_factory, tmp_path) -> LaunchManifest:
+        launcher = tmp_path / "broker" / "launch_the_tray.vbs"
+        return LaunchManifest.read(write_windows_bridge_manifest(
+            load_config(cfg_factory({"paths": {"broker_tray_launcher": str(launcher)}})),
+            tmp_path / "launch.ini"))
+
+    def test_closing_fun_time_asks_the_broker_to_remind_him_to_turn_the_osr2_off_naming_the_app(
+            self, manifest, tmp_path, asked):
+        heard = _Heard()
+
+        end_the_session(_an_ending(manifest, tmp_path, heard, closed_app="Fun Time VR"),
+                        _ItsOwn(heard), asked=True)
+
+        commands = manifest.commands
+        assert asked == [(Path(commands.broker_state_dir), Path(commands.broker_tray_launcher),
+                          "Fun Time VR")]
+        assert commands.broker_tray_launcher.endswith("launch_the_tray.vbs")
+
+    def test_a_crossing_is_no_closing_so_it_asks_for_no_reminder(self, manifest, tmp_path, asked):
+        heard = _Heard()
+        request_handoff(tmp_path, VR)
+
+        end_the_session(_an_ending(manifest, tmp_path, heard), _ItsOwn(heard), asked=True)
+
+        assert asked == []
+
+    def test_a_close_esc_called_off_asks_for_no_reminder(self, manifest, tmp_path, asked):
+        heard = _Heard()
+        (tmp_path / CANCEL_FILENAME).write_text(CANCEL_WORD, encoding="utf-8")
+
+        end_the_session(_an_ending(manifest, tmp_path, heard), _ItsOwn(heard), asked=True)
+
+        assert asked == []
+
+    def test_a_close_that_leaves_origenerator_open_asks_for_no_reminder_origenerator_asks_when_it_closes(
+            self, manifest, tmp_path, asked):
+        heard = _Heard()
+
+        end_the_session(_an_ending(manifest, tmp_path, heard),
+                        _LeavingOrigeneratorOpen(heard), asked=True)
+
+        assert asked == []
 
 
 @pytest.mark.real_startup_waits
