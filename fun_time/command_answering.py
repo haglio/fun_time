@@ -227,7 +227,13 @@ class CommandAnswering:
         self.window_work.log_topmost_state("post-enter", self.state)
 
 
+def _the_dashboard_asks_first(answering: CommandAnswering) -> bool:
+    return answering.dashboard_enabled and not answering.config.vr_main_funestra
+
+
 def _quit(answering: CommandAnswering, spoken_at: float | None) -> None:
+    if _the_dashboard_asks_first(answering):
+        return
     _begin_an_ending_esc_can_call_off(
         answering,
         "the quit command, spoken" if spoken_at is not None else "the quit command, pressed",
