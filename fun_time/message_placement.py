@@ -4,8 +4,6 @@ from dataclasses import dataclass
 
 from fun_time.dashboard_layout import Rect, Size
 
-MESSAGE_LINGER_MS = 2200
-
 
 @dataclass(frozen=True)
 class FunestraRects:
