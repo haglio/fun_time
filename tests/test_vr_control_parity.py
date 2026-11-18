@@ -27,7 +27,7 @@ from shared_ui.orientation import PORTRAIT
 from fun_time.bridge_records import Op
 from fun_time.command_answering import AHK_PASSTHROUGH_OPS, HANDOFF_COMMANDS
 from fun_time.command_dispatch import dispatch_command
-from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMMANDS
+from fun_time.dashboard_actions import HELP_REFERENCE_COMMANDS
 from fun_time.genau_config import GenauSettings
 from fun_time.mode_plan import MAIN_KINO_MODE
 from fun_time.shared_state import BridgeState
@@ -281,7 +281,7 @@ class TestTheHostedOrigenerator:
 _THE_LOOPS_OWN = frozenset({
     "quit", *HANDOFF_COMMANDS, *HELP_REFERENCE_COMMANDS,
     "omniminimize", "omnirestore", "omnipause_toggle", "enter_omnipause",
-    "relief_omnipause", "pause", "play", "browse_library", BROWSE_LIBRARY_CLOSE,
+    "relief_omnipause", "pause", "play",
     "broker_panel", "broker_start", "broker_stop", "voice_off", "voice_toggle",
     "voice_accept",
 })

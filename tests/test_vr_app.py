@@ -207,7 +207,6 @@ class TestEnteringVR:
         _enter_vr(tmp_path, headset)
 
         assert headset.given_to_the_room["contexts"] is headset.scene.contexts
-        assert headset.given_to_the_room["manifest_path"] == tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         assert isinstance(headset.given_to_the_room["loading_screen"], _ALoadingScreenAlwaysShowing)
 
 

@@ -23,7 +23,6 @@ LANDSCAPE = "landscape"
 MAIN_HUD = "panel"
 DASH = "dash"
 REFERENCE = "reference"
-LIBRARY = "library"
 MESSAGE_SCREEN = "banner"
 GALLERY = "gallery"
 LAYOUT_FILENAME = HEADSET_LAYOUT_FILENAME

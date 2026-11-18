@@ -16,7 +16,7 @@ from fun_time.windows_bridge_startup import reap_orphaned_satellites
 from tests.made_up_machine import running
 
 ROLES = (
-    "Orchestrator", "Dashboard", "AudioCompanion", "LibraryBrowser",
+    "Orchestrator", "Dashboard", "AudioCompanion",
     "MainFunestra", "Genau", "Origenerator", "Portrait", "Landscape",
     "ClosingScreen", "LoadingScreen", "Reference",
 )
@@ -67,7 +67,7 @@ class TestTheRolesThisRepoLaunches:
     def test_a_role_one_word_for_its_file_name_is_english_in_its_row(self):
         assert NAMER.exe_name("pythonw.exe", "AudioCompanion") == "FunTime-AudioCompanion.exe"
         assert NAMER.description("AudioCompanion") == "Fun Time \u2013 Audio Companion"
-        assert NAMER.description("LibraryBrowser") == "Fun Time \u2013 Library Browser"
+        assert NAMER.description("ClosingScreen") == "Fun Time \u2013 Closing Screen"
         for role in ROLES:
             assert NAMER.description(role).startswith("Fun Time"), role
 

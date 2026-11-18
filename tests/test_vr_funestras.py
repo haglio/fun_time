@@ -46,10 +46,8 @@ from shared_ui.palette import BLUE
 
 from fun_time.config import load_config
 from fun_time.dashboard_actions import (
-    BROWSE_LIBRARY_CLOSE,
     HEADSET_ON,
     HELP_REFERENCE,
-    LIBRARY_OPEN_FILENAME,
     QUIT_BUTTON,
     REFERENCE_OPEN_FILENAME,
     VOICE_TOGGLE,
@@ -62,7 +60,6 @@ from fun_time.hosted_contract import gallery_names_file
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
-    RegenSettings,
     write_manifest_data,
 )
 from fun_time.osr2_section import osr2_readout_path
@@ -112,7 +109,6 @@ from fun_time_vr.funestras import (
     _hands_for_the_funestras,
     _HangingScreen,
     _LayoutKeeper,
-    _LibraryUnit,
     _MainHudUnit,
     _MainUnit,
     _MessageUnit,
@@ -132,7 +128,6 @@ from fun_time_vr.layout import (
     DASH,
     GALLERY,
     LANDSCAPE,
-    LIBRARY,
     MAIN,
     MAIN_HUD,
     MESSAGE_SCREEN,
@@ -143,7 +138,6 @@ from fun_time_vr.layout import (
     shown_at,
     write_layout,
 )
-from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_line
 from fun_time_vr.loading_screen import (
     VR_SHUTDOWN_PHASES,
     VR_STARTUP_PHASES,
@@ -199,7 +193,7 @@ from fun_time_vr.scene import (
     widened,
 )
 from fun_time_vr.stacking import Stacking
-from fun_time_vr.stick_scrolling import WHEEL_NOTCH, scroll_from_stick
+from fun_time_vr.stick_scrolling import WHEEL_NOTCH
 from fun_time_vr.surfaces import HudBitmap, LatestFrame
 from fun_time_vr.texture_rows import Picture, Rows
 from fun_time_vr.thumbs import NUDGE_FORWARD
@@ -1632,11 +1626,10 @@ def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records(
 
 def _hang_a_room(tmp_path, *, present_the_loading_screen=lambda: None, loading_screen=None):
     manifest = _manifest_for_a_vr_session(tmp_path)
-    with patch("fun_time_vr.funestras.LibraryHost"), \
-            patch("fun_time_vr.funestras.UnloggedMessages"), \
+    with patch("fun_time_vr.funestras.UnloggedMessages"), \
             patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
         return hang_the_room(
-            RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), manifest_path=tmp_path / "launch.ini",
+            RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS),
             loading_screen=loading_screen or LoadingScreenUnit(tmp_path), present_the_loading_screen=present_the_loading_screen)
 
 
@@ -1670,7 +1663,7 @@ class TestHangingTheRoom:
 
         assert all(isinstance(unit, Scrolls) for unit in the_room.scrollable)
         assert {type(unit).__name__ for unit in the_room.scrollable} == {
-            "_LibraryUnit", "_GalleryUnit", "_ReferenceUnit"}
+            "_GalleryUnit", "_ReferenceUnit"}
 
     def test_the_loading_screen_it_is_handed_hangs_in_it(self, tmp_path, faked_collaborators):
         loading_screen = LoadingScreenUnit(tmp_path)
@@ -1783,14 +1776,6 @@ class TestHangingTheRoom:
         assert (
             2 * _SatelliteUnit.SPOTS[PORTRAIT].width_deg * a_headsets_pixels_per_degree) <= SATELLITE_VIDEO_CAP_PX
 
-    def test_the_browse_asks_whether_genau_has_the_main_funestra(self, tmp_path, faked_collaborators):
-        (library,) = [unit for unit in _hang_a_room(tmp_path).units
-                      if isinstance(unit, funestras._LibraryUnit)]
-
-        faked_collaborators["Funestra"].return_value.showing = MainMode.KINO
-        assert library._genau_has_the_slot() is False
-        faked_collaborators["Funestra"].return_value.showing = MainMode.GENAU
-        assert library._genau_has_the_slot() is True
 
     def test_a_cold_library_read_of_seconds_keeps_presenting_the_loading_screen(
             self, tmp_path, faked_collaborators):
@@ -2558,7 +2543,7 @@ class TestEveryHangingScreenIsDrawn:
         )
         return [SimpleNamespace(fov=fov, pose=pose)]
 
-    def _draw(self, *, showing: bool = False, browsing: bool = False, projection=None,
+    def _draw(self, *, showing: bool = False, projection=None,
               stacking=None, pointing=None):
         renderer = _FakeRenderer()
         session = SimpleNamespace(
@@ -2573,9 +2558,7 @@ class TestEveryHangingScreenIsDrawn:
         dash = _like(_DashUnit, _hanging(DASH, 2.5))
         reference = _like(_ReferenceUnit, _hanging(REFERENCE, 1.7))
         reference.showing = showing
-        library = _like(_LibraryUnit, _hanging(LIBRARY, 16 / 9))
-        library.showing = browsing
-        hangings = room.what_hangs([main_unit, main_hud_unit, dash, reference, library])
+        hangings = room.what_hangs([main_unit, main_hud_unit, dash, reference])
         screens = room.arranged(stacking or Stacking(), hangings)
         draw_eyes(
             Headset(session, renderer, None),
@@ -2597,20 +2580,6 @@ class TestEveryHangingScreenIsDrawn:
     def test_and_stays_out_of_them_while_it_is_down(self):
         assert "reference" not in self._draw(showing=False).screens
 
-    def test_the_browse_reaches_them_while_it_is_up(self):
-        assert LIBRARY in self._draw(browsing=True).screens
-
-    def test_the_browse_stays_out_of_them_while_it_is_put_away(self):
-        assert LIBRARY not in self._draw(browsing=False).screens
-
-    def test_the_browse_is_drawn_in_front_of_whatever_was_taken_last(self):
-        stacking = Stacking()
-        stacking.take(MAIN_HUD)
-
-        drawn = self._draw(projection=FLAT, browsing=True, stacking=stacking).screens
-
-        assert drawn[-1] == LIBRARY
-
     def test_they_are_drawn_back_to_front_as_they_stand(self):
         stacking = Stacking()
         stacking.take(MAIN_HUD)
@@ -2622,7 +2591,7 @@ class TestEveryHangingScreenIsDrawn:
     def test_the_pointer_is_drawn_over_every_screen(self):
         pointing = SimpleNamespace(draw=lambda renderer, _view_proj: renderer.screens.append("pointer"))
 
-        drawn = self._draw(projection=FLAT, browsing=True, pointing=pointing).screens
+        drawn = self._draw(projection=FLAT, showing=True, pointing=pointing).screens
 
         assert drawn[-1] == "pointer"
         assert drawn.count("pointer") == 1
@@ -2963,73 +2932,6 @@ class TestTheOsr2PartOnTheDash:
         assert not np.array_equal(lit[y - 4:y + 4, x - 4:x + 4], unlit[y - 4:y + 4, x - 4:x + 4])
 
 
-class _FakeLibraryHost:
-    def __init__(self):
-        self.sent: list[str] = []
-        self.said: list[str] = []
-        self.frames: dict[int, tuple[int, int, bytes]] = {}
-        self.closed = False
-
-    def send(self, line):
-        self.sent.append(line)
-
-    def answers(self):
-        said, self.said = self.said, []
-        return said
-
-    def frame(self, token):
-        return self.frames.pop(token, None)
-
-    def close(self):
-        self.closed = True
-
-
-@dataclass
-class _LibraryCommands:
-    main_funestra_cmd_file: Path
-    main_funestra_status_file: Path
-    genau_cmd_file: Path
-    genau_status_file: Path
-    dashboard_cmd_file: Path
-
-
-@dataclass
-class _LibraryManifest:
-    commands: _LibraryCommands
-    regen: RegenSettings
-
-
-def _a_library(tmp_path, host, remembered=None, metadata_root=None, genau_has_the_slot=False):
-    with patch("fun_time_vr.funestras.FrameTexture"):
-        manifest = _LibraryManifest(
-            commands=_LibraryCommands(
-                main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
-                main_funestra_status_file=tmp_path / "main_player_status.txt",
-                genau_cmd_file=tmp_path / "genau_cmd.txt",
-                genau_status_file=tmp_path / "genau_status.txt",
-                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            ),
-            regen=RegenSettings(metadata_root="" if metadata_root is None else str(metadata_root)),
-        )
-        return _LibraryUnit(
-            manifest,
-            remembered=remembered or {},
-            flag=tmp_path / LIBRARY_OPEN_FILENAME,
-            host=host,
-            genau_has_the_slot=lambda: genau_has_the_slot,
-        )
-
-
-def _a_frame(value: int = 7) -> tuple[int, int, bytes]:
-    width, height = LIBRARY_SIZE_PX
-    return width, height, bytes([value]) * (width * height * 4)
-
-
-def _uv(x: int, y: int) -> tuple[float, float]:
-    width, height = LIBRARY_SIZE_PX
-    return (x + 0.5) / width, 1 - (y + 0.5) / height
-
-
 def _no_gallery():
     return SimpleNamespace(takes_the_stick=False)
 
@@ -3052,218 +2954,6 @@ class _FakeReferenceHost:
 
     def close(self) -> None:
         self.closed = True
-
-
-class TestTheLibraryUnderThePointer:
-    def test_it_opens_where_the_last_session_left_it(self, tmp_path):
-        moved = Placement(azimuth_deg=-25.0, elevation_deg=18.0, width_deg=60.0)
-
-        unit = _a_library(tmp_path, _FakeLibraryHost(), remembered={LIBRARY: moved})
-
-        assert unit.screen.placement == moved
-
-    def test_opening_it_asks_the_browser_to_open_on_the_video_playing(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        (tmp_path / "main_player_status.txt").write_text(
-            "video=C:/videos/Scene One.mp4\n", encoding="utf-8")
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-
-        unit.pump(threading.Event(), 0.0)
-        unit.pump(threading.Event(), 0.0)
-
-        assert host.sent == ["open 1 C:/videos/Scene One.mp4"]
-
-    def test_a_press_on_it_reaches_the_browser_at_the_point_pressed(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-        host.sent.clear()
-
-        unit.point(Frame(events=(PressEvent(PRESS, LIBRARY, *_uv(100, 200)),)))
-        unit.point(Frame(events=(PressEvent(DRAG, LIBRARY, *_uv(110, 260)),)))
-        unit.point(Frame(events=(PressEvent(RELEASE, LIBRARY),)))
-        unit.pump(threading.Event(), 0.0)
-
-        assert host.sent == ["press 100 200", "drag 110 260", "release"]
-
-    def test_a_video_picked_plays_on_the_main_funestra_and_puts_the_browse_away(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-
-        host.said.append("picked C:/videos/Scene One.mp4")
-        unit.pump(threading.Event(), 0.0)
-
-        assert (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").strip() == (
-            f"PLAY_FILE {Path('C:/videos/Scene One.mp4')}")
-        assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").strip() == (
-            BROWSE_LIBRARY_CLOSE)
-        assert not unit.showing
-
-    def test_with_genau_in_the_main_funestra_it_opens_genaus_flicks_on_the_flick_up(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host, genau_has_the_slot=True)
-        (tmp_path / "genau_status.txt").write_text(
-            "flick=C:/flicks/Loop One.mp4\n", encoding="utf-8")
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-
-        unit.pump(threading.Event(), 0.0)
-
-        assert host.sent == ["flicks 1 C:/flicks/Loop One.mp4"]
-
-    def test_a_flick_picked_plays_on_genau_and_puts_the_browse_away(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host, genau_has_the_slot=True)
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-
-        host.said.append("picked C:/flicks/Loop Two.mp4")
-        unit.pump(threading.Event(), 0.0)
-
-        assert (tmp_path / "genau_cmd.txt").read_text(encoding="utf-8").strip() == (
-            f"PLAY_FILE {Path('C:/flicks/Loop Two.mp4')}")
-        assert not (tmp_path / "main_player_cmd.txt").exists()
-        assert not unit.showing
-
-    def test_a_vr_video_picked_plays_with_the_script_in_the_librarys_own_tree(self, tmp_path):
-        library = tmp_path / "library" / "videos"
-        kept = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished" / "Scene One.mp4"
-        script = library / "scripts" / "scripts" / "VR" / "finished" / "Scene One.funscript"
-        script.parent.mkdir(parents=True)
-        script.write_text("{}", encoding="utf-8")
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host, metadata_root=library / "metadata")
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-
-        host.said.append(f"picked {kept}")
-        unit.pump(threading.Event(), 0.0)
-
-        assert str(script) in (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8")
-
-    def test_its_own_close_puts_it_away_playing_nothing(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-
-        host.said.append("dismissed")
-        unit.pump(threading.Event(), 0.0)
-
-        assert not (tmp_path / "main_player_cmd.txt").exists()
-        assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").strip() == (
-            BROWSE_LIBRARY_CLOSE)
-        assert not unit.showing
-
-    def test_the_browse_reaches_the_headset_only_while_it_is_up(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        unit.texture = _FakeMainHudTexture()
-        host.frames[1] = _a_frame()
-        unit.pump(threading.Event(), 0.0)
-        with patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
-            unit.render_latest_frame()
-        assert not hasattr(unit.texture, "uploaded")
-
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-        with patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
-            unit.render_latest_frame()
-
-        assert unit.showing
-        assert unit.texture.uploaded.shape == (LIBRARY_SIZE_PX[1], LIBRARY_SIZE_PX[0], 4)
-        assert unit.texture.uploaded.max() == 7
-
-    def test_a_browse_just_opened_shows_nothing_left_from_the_last_until_it_draws(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-
-        unit.pump(threading.Event(), 0.0)
-        assert not unit.showing
-
-        unit.pump(threading.Event(), 1.0)
-        assert unit.showing
-
-    def test_the_stick_scrolls_it_while_the_pointer_is_on_it(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        host.frames[1] = _a_frame()
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-        unit.point(Frame(hover=Hover(LIBRARY, SURFACE, *_uv(300, 400))))
-        host.sent.clear()
-
-        assert unit.takes_the_stick
-        unit.scroll(90.0)
-        unit.scroll(90.0)
-        unit.pump(threading.Event(), 0.0)
-
-        assert host.sent == ["hover 300 400", "scroll 180"]
-
-    def test_the_stick_is_left_alone_while_the_pointer_is_elsewhere(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        host.frames[1] = _a_frame()
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-        assert unit.showing
-
-        unit.point(Frame(hover=Hover(MAIN, SURFACE, 0.5, 0.5)))
-
-        assert not unit.takes_the_stick
-
-    def test_the_stick_on_it_scrolls_it_and_sizes_no_funestra(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        host.frames[1] = _a_frame()
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-        unit.point(Frame(hover=Hover(LIBRARY, SURFACE, *_uv(300, 400))))
-        host.sent.clear()
-
-        hands = _hands_for_the_funestras(
-            (unit, _no_gallery()),
-            {"left": HandInput(stick_y=0.2),
-             "right": HandInput(stick_y=-1.0, forward=True)},
-            elapsed_s=0.5)
-        unit.pump(threading.Event(), 0.0)
-
-        assert hands == {"left": HandInput(), "right": HandInput(forward=True)}
-        assert host.sent[-1] == scroll_line(int(scroll_from_stick(-1.0, 0.5)))
-
-    def test_the_stick_on_it_steps_no_projection_either(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        host.frames[1] = _a_frame()
-        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        unit.pump(threading.Event(), 0.0)
-        unit.point(Frame(hover=Hover(LIBRARY, SURFACE, *_uv(300, 400))))
-
-        hands = _hands_for_the_funestras(
-            (unit, _no_gallery()), {"right": HandInput(stick_x=0.9)}, elapsed_s=0.5)
-
-        assert hands == {"right": HandInput()}
-
-    def test_the_stick_elsewhere_is_the_funestras_to_size(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-        hands = {"right": HandInput(stick_y=-1.0)}
-
-        assert _hands_for_the_funestras(
-            (unit, _no_gallery()), hands, elapsed_s=0.5) == hands
-        assert host.sent == []
-
-    def test_closing_the_session_ends_its_browser(self, tmp_path):
-        host = _FakeLibraryHost()
-        unit = _a_library(tmp_path, host)
-
-        unit.close()
-
-        assert host.closed
 
 
 class TestWhatThePointerCanReach:
@@ -3636,12 +3326,9 @@ class TestEachUnitKeepsTheSpotItsOwnScreenOpensIn:
         assert (gallery.azimuth_deg + gallery.width_deg / 2
                 < landscape.azimuth_deg - landscape.width_deg / 2)
 
-    def test_the_gallery_opens_as_wide_as_the_browse(self):
-        assert (_GalleryUnit.SPOTS[GALLERY].width_deg
-                >= _LibraryUnit.SPOTS[LIBRARY].width_deg)
 
     def test_only_the_screens_a_controller_places_keep_one(self):
-        assert set(SPOTS) == {MAIN, PORTRAIT, LANDSCAPE, MAIN_HUD, DASH, LIBRARY, GALLERY}
+        assert set(SPOTS) == {MAIN, PORTRAIT, LANDSCAPE, MAIN_HUD, DASH, GALLERY}
 
     def test_every_opening_spot_comes_back_from_the_layout_file_where_it_opened(self, tmp_path):
         write_layout(tmp_path / "layout.json", Layout(placements=SPOTS))
@@ -3740,13 +3427,6 @@ class TestPuttingTheRoomBack:
 
         assert unit.screen.placement == _GalleryUnit.SPOTS[GALLERY]
 
-    def test_the_browse_goes_back_to_its_own_spot(self, tmp_path):
-        unit = _a_library(tmp_path, _FakeLibraryHost())
-        unit.screen.placement = _DRAGGED_OFF
-
-        unit.put_back()
-
-        assert unit.screen.placement == _LibraryUnit.SPOTS[LIBRARY]
 
     @pytest.mark.parametrize("kind", [_MainHudUnit, _ReferenceUnit, LoadingScreenUnit])
     def test_what_rides_on_another_screen_keeps_no_spot_and_is_left_riding(self, kind):

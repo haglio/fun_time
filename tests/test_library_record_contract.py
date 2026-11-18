@@ -60,7 +60,7 @@ def test_every_field_an_ai_videos_identity_is_built_from_is_in_the_record_the_ga
 def test_what_a_video_is_called_and_what_it_was_cut_from_are_promised():
     record = _record()
 
-    assert media_metadata.TITLE_FIELD in record["top_level_keys"]
+    assert "title" in record["top_level_keys"]
     assert {"performer", "source"} <= _fields("clip")
     assert "group" in _fields("version")
 

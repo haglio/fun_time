@@ -393,7 +393,7 @@
     },
     {
       "id": "headset_panels",
-      "thing": "what hangs in the headset: the Dashboard, the library, the gallery and the reference",
+      "thing": "what hangs in the headset: the Dashboard, the gallery and the reference",
       "screen": null,
       "his_word": "the Dashboard in VR (2026-09-13)",
       "code_today": [
@@ -416,7 +416,7 @@
     },
     {
       "id": "tile",
-      "thing": "a square in the library's grid",
+      "thing": "a square in a grid of items, as in Origenerator's gallery",
       "screen": null,
       "his_word": "tile (2026-10-09)",
       "code_today": [
@@ -465,17 +465,6 @@
         "tray"
       ],
       "code_word": "tray",
-      "status": "kept"
-    },
-    {
-      "id": "sidebar",
-      "thing": "the alphabet down the side of the library",
-      "screen": null,
-      "his_word": null,
-      "code_today": [
-        "sidebar"
-      ],
-      "code_word": "sidebar",
       "status": "kept"
     },
     {

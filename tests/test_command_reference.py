@@ -621,7 +621,6 @@ def test_the_genau_groups_rows_take_the_overlays_word():
         "flip the Genau bloop half a loop")
 
 
-
 def test_genaus_flick_commands_are_the_main_funestras_genau_group_or_ride_a_shared_funestras_row():
     genau = _group("Main Funestra", "Genau")
     mode, *flick_rows = genau.rows
@@ -964,11 +963,8 @@ def test_the_maps_rows_the_loops_and_the_filters_follow_navigation_and_other_com
     assert crown.voice == ("crown main", "crown portrait")
 
 
-def test_the_main_funestras_own_rows_are_what_it_browses_then_kino_then_genau():
-    main = _section("Main Funestra")
-
-    assert [group.title for group in main.groups] == ["", "Kino", "Genau"]
-    assert [row.description for row in main.groups[0].rows] == ["open the browser"]
+def test_the_main_funestras_own_rows_are_kinos_then_genaus():
+    assert [group.title for group in _section("Main Funestra").groups] == ["Kino", "Genau"]
 
 
 def test_the_included_lengths_and_shapes_are_said_as_what_they_include():
@@ -1130,14 +1126,13 @@ def test_the_controller_column_says_what_the_headsets_controllers_do_on_each_row
         HOLD_TRIGGER_AND_A_OR_X: ["next scene in the video"],
         STICK_SIDEWAYS: ["cycle the video's VR projection"],
         ANGLE_BAR: ["narrow / widen the angle a wrapped VR video spans"],
-        STICK_UP_DOWN: ["move or resize a VR screen", "open the browser"],
+        STICK_UP_DOWN: ["move or resize a VR screen"],
         HOLD_TRIGGER_AND_STICK_UP_DOWN: ["move or resize a VR screen"],
         HOLD_TRIGGER_AND_MOVE: ["tilt the VR screens up / down and level them again"],
     }
     assert not [row for row in _all_rows() if "trigger" in row.controller]
     assert "handle" in next(row for row in _section("VR").rows
                             if row.description == "move or resize a VR screen").detail
-    assert "squeeze" in _the_row_of("browse_library").detail
 
 
 def test_the_controller_column_is_headed_vr_controller_and_says_one_input_per_phrase():
@@ -1188,9 +1183,7 @@ def test_the_funestras_note_aims_a_phrase_and_says_genaus_word_for_a_video():
 def test_an_untitled_group_renders_no_heading_and_a_flat_section_is_its_table():
     for title in ("VR", "Origenerator"):
         assert "<h4" not in _section_html(title), title
-    main = _section_html("Main Funestra")
-    assert main.index("<table") < main.index("<h4")
-    assert set(_group_htmls("Main Funestra")) == {"", "Kino", "Genau"}
+    assert set(_group_htmls("Main Funestra")) == {"Kino", "Genau"}
 
 
 def test_a_sections_note_is_the_tooltip_on_its_title():
@@ -1342,13 +1335,6 @@ def test_every_filter_voice_command_is_represented():
     covered = {cmd for row in _filter_rows(_ACTIONS) for cmd in row.commands}
     missing = {cmd for cmd in filter_voice_commands(_ACTIONS).values() if cmd not in covered}
     assert not missing, f"filter commands missing from reference: {sorted(missing)}"
-
-
-def test_the_browser_opens_by_voice_alone():
-    browser = [r for r in _section("Main Funestra").rows if "browse_library" in r.commands]
-    assert len(browser) == 1
-    assert _keys(browser[0]) == ()
-    assert "browse" in browser[0].voice
 
 
 def test_the_reference_calls_a_funestras_hud_its_hud_and_never_its_panel():

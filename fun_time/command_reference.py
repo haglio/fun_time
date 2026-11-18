@@ -495,17 +495,6 @@ _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "Main Funestra",
         (
-            _Group("", (
-                _Row(
-                    "open the browser — the library's videos in Kino mode, Genau's "
-                    f"{_FLICK.many} in Genau mode; the pick plays here.  In the headset "
-                    "a squeeze opens a tile and the stick scrolls the list the pointer "
-                    "is over",
-                    (),
-                    ("browse_library",),
-                    controller=(STICK_UP_DOWN,),
-                ),
-            )),
             _Group("Kino", (
                 _Row(
                     "Kino mode",

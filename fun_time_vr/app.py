@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None, *,
         reaches.say_why(vr_runtime.explain(ready))
         return 1
     with reaches.ahead_of_background_work():
-        return _run(manifest, vr, args.manifest, reaches)
+        return _run(manifest, vr, reaches)
 
 
 def _announce_into_the_event_log(state_dir: Path) -> None:
@@ -117,8 +117,7 @@ def _announce_into_the_event_log(state_dir: Path) -> None:
     logging.getLogger("fun_time_vr").addHandler(handler)
 
 
-def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path,
-         reaches: WhatTheHeadsetReaches) -> int:
+def _run(manifest: LaunchManifest, vr: VrSettings, reaches: WhatTheHeadsetReaches) -> int:
     opened = reaches.open_session()
     if opened.session is None:
         reaches.say_why(opened.message)
@@ -130,7 +129,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path,
     raise_the_loading_screen(headset, loading_screen)
     the_room = reaches.hang_the_room(
         RoomLaunch(manifest, vr, session.shared_contexts(), headset.perf),
-        manifest_path=manifest_path, loading_screen=loading_screen,
+        loading_screen=loading_screen,
         present_the_loading_screen=lambda: present_the_loading_screen(headset, loading_screen))
     the_room.start_pumping(headset.perf)
     logger.info(

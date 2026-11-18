@@ -27,7 +27,7 @@ from fun_time import closing_screen, session_ending, windows_bridge_orchestrator
 from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
 from fun_time.crown import Crown
-from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
+from fun_time.dashboard_actions import REFERENCE_OPEN_FILENAME
 from fun_time.dashboard_app import load_dashboard_app_config
 from fun_time.event_log import QueuedEventLog, event_log_path, open_event_log, read_events
 from fun_time.funestra_deaths import (
@@ -43,7 +43,6 @@ from fun_time.hosted_contract import (
     WhenSaid,
     published_actions_heard_as,
 )
-from fun_time.library_browser import BrowserConfig
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME
@@ -125,7 +124,6 @@ from fun_time.windows_bridge_orchestrator import (
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
-from tests.disk_looks import DiskLooks
 from tests.fun_time_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_hosted
 from tests.hosted_shows import an_app_that_opens_each_slideshow_asked_of_it
 from tests.loading_screen_beats import heard_from_again_once_stale
@@ -664,25 +662,6 @@ class TestRunPythonOrchestratedBridge:
         assert 500 in killed_pids
         assert 700 in killed_pids
 
-
-    def test_a_session_without_the_dashboard_scans_no_library_and_grabs_no_frames(
-            self, cfg_factory, tmp_path):
-        manifest_path = write_windows_bridge_manifest(
-            load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME,
-            dashboard_enabled=False)
-
-        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   side_effect=lambda **kwargs: _fake_startup_result()), \
-             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
-             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-\
-             patch("fun_time.windows_bridge_orchestrator.prewarm_thumbnails") as grabbed:
-            _a_session(
-                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
-                state_dir=tmp_path / "state", project_dir=tmp_path,
-            )
-
-        grabbed.assert_not_called()
 
     def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
@@ -2261,7 +2240,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=killed.append), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
+             patch("fun_time.windows_bridge_orchestrator.hud_publisher_for",
                    return_value=None) as mock_priming, \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
             ended = _a_session(
@@ -2301,7 +2280,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                    side_effect=killed.append), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
+             patch("fun_time.windows_bridge_orchestrator.hud_publisher_for",
                    return_value=None), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
             _a_session(
@@ -2341,7 +2320,7 @@ class TestStartupCancellation:
                    side_effect=lambda child: closed.append(child.pid)), \
              patch("fun_time.windows_bridge_orchestrator.kill_recorded_child",
                    side_effect=lambda child: killed.append(child.pid)), \
-             patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
+             patch("fun_time.windows_bridge_orchestrator.hud_publisher_for",
                    return_value=None), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
             _a_session(
@@ -2411,7 +2390,7 @@ class TestStartupCancellation:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
+             patch("fun_time.windows_bridge_orchestrator.hud_publisher_for",
                    return_value=None), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
             ended = _a_session(
@@ -2488,7 +2467,7 @@ class TestStartupCancellation:
         commands = LaunchManifest.read(manifest_path).commands
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
-        for name in (REFERENCE_OPEN_FILENAME, LIBRARY_OPEN_FILENAME):
+        for name in (REFERENCE_OPEN_FILENAME,):
             write_flag(state_dir / name, True)
 
         clear_last_sessions_leftovers(
@@ -2496,7 +2475,7 @@ class TestStartupCancellation:
             pids_file=state_dir / "bridge_pids.ini", ahk_cmd_file=state_dir / "ahk_cmd.txt",
         )
 
-        for name in (REFERENCE_OPEN_FILENAME, LIBRARY_OPEN_FILENAME):
+        for name in (REFERENCE_OPEN_FILENAME,):
             assert not read_flag(state_dir / name, default=False), name
 
 
@@ -3658,66 +3637,19 @@ class TestStartingVoice:
 
 class TestTheHudPublisherASessionStarts:
     @staticmethod
-    def _started(cfg_factory, tmp_path) -> tuple[MagicMock, Path]:
+    def _started(cfg_factory) -> tuple[MagicMock, Path]:
         manifest_path = write_windows_bridge_manifest(load_config(cfg_factory({})))
-        bridge_config = SimpleNamespace(state_dir=tmp_path)
 
-        with patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
-            windows_bridge_orchestrator.start_hud_priming(
-                bridge_config, LaunchManifest.read(manifest_path), dashboard_enabled=True)
+        with patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher:
+            windows_bridge_orchestrator.hud_publisher_for(
+                LaunchManifest.read(manifest_path), dashboard_enabled=True)
         return publisher, manifest_path
 
     def test_it_publishes_the_osr2_part_where_the_dashboard_reads_it(self, cfg_factory, tmp_path):
-        publisher, manifest_path = self._started(cfg_factory, tmp_path)
+        publisher, manifest_path = self._started(cfg_factory)
 
         assert publisher.call_args.args[0][DASHBOARD_OSR2_PART] == osr2_part_path(
             load_dashboard_app_config(manifest_path).state_dir)
-
-    def test_the_records_the_warm_up_reads_are_kept_for_the_browser_to_open_without_reading(
-        self, tmp_path: Path, monkeypatch,
-    ):
-        library, metadata = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        metadata.mkdir(parents=True)
-        for number in range(5):
-            video = library / "room" / f"video {number}.mp4"
-            video.parent.mkdir(parents=True, exist_ok=True)
-            video.write_bytes(b"x")
-            (metadata / "room").mkdir(exist_ok=True)
-            (metadata / "room" / f"video {number}.json").write_text("{}", encoding="utf-8")
-        bridge_config = SimpleNamespace(main_sources=str(library), vr_library_dirs="",
-                                        regen_metadata_root=metadata, state_dir=tmp_path / "state")
-        warmed = windows_bridge_orchestrator._main_browse_stills(bridge_config)
-        looks = DiskLooks(monkeypatch, under=metadata)
-
-        browsed = BrowserConfig(sources=str(library), vr_sources="", metadata_root=metadata,
-                                thumbnail_cache=tmp_path / "stills",
-                                kept_records_in=tmp_path / "state").handles()
-
-        assert (len(warmed), len(browsed), looks.made["open"]) == (5, 5, 0)
-
-    def test_genaus_videos_are_warmed_for_its_browser_as_the_library_is_for_the_videos(
-        self, cfg_factory, tmp_path: Path,
-    ):
-        config = load_config(cfg_factory({}))
-        video = config.paths.flicks_dir / "2D" / "non_AI" / "scene one.mp4"
-        video.parent.mkdir(parents=True)
-        video.touch()
-        manifest = LaunchManifest.read(write_windows_bridge_manifest(
-            config, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
-        bridge_config = SimpleNamespace(main_sources="", vr_library_dirs="", regen_metadata_root=None,
-                                        state_dir=tmp_path)
-        warmed: list[str] = []
-
-        with patch("fun_time.windows_bridge_orchestrator.HudPublisher"), \
-\
-             patch("fun_time.windows_bridge_orchestrator.prewarm_thumbnails",
-                   side_effect=lambda videos, _cache: warmed.extend(videos)), \
-             patch("fun_time.windows_bridge_orchestrator.threading.Thread") as thread:
-            windows_bridge_orchestrator.start_hud_priming(
-                bridge_config, manifest, dashboard_enabled=True)
-            thread.call_args.kwargs["target"]()
-
-        assert str(video) in warmed
 
 
 def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_app_came_back_with(
