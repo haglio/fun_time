@@ -5,12 +5,14 @@ import logging
 from pathlib import Path
 
 import pytest
+from shared_ui.message_shape import HEARD_MARK
 
 from fun_time.event_log import (
     LEVEL_NAMES,
     MESSAGE,
     SOURCES,
     EventLogHandler,
+    answering_what_he_said,
     event_log_path,
     flash_message,
     is_announcement,
@@ -109,6 +111,32 @@ class TestNotice:
 
         [record], _offset = read_events(log_path)
         assert record.spoken_at == 12.5
+
+    def test_a_message_given_a_drawing_carries_it(self, log_path: Path):
+        logger = _logger(log_path, "test.event_log.marked")
+
+        flash_message(logger, "couldn't delete that one", source="portrait", mark="trash")
+
+        [record], _offset = read_events(log_path)
+        assert record.mark == "trash"
+
+    def test_a_message_said_while_answering_what_he_said_starts_with_the_microphone(
+            self, log_path: Path):
+        logger = _logger(log_path, "test.event_log.answering")
+
+        with answering_what_he_said():
+            flash_message(logger, "next", source="portrait")
+        flash_message(logger, "Clip saved", source="main")
+
+        answered, pressed = read_events(log_path)[0]
+        assert (answered.mark, pressed.mark) == (HEARD_MARK, "")
+
+    def test_a_message_with_no_drawing_writes_no_mark_at_all(self, log_path: Path):
+        logger = _logger(log_path, "test.event_log.unmarked")
+
+        flash_message(logger, "Clip saved", source="main")
+
+        assert "mark" not in json.loads(log_path.read_text(encoding="utf-8"))
 
 
 class TestReadEvents:
