@@ -4,8 +4,12 @@ import logging
 from dataclasses import replace
 from pathlib import Path
 
-from fun_time.event_log import FAVORITE, MESSAGE
-from fun_time.funestra_messages import FunestraMessages, read_funestra_message
+from funestra.messages import MessageWriter
+from funestra.modes import MessageLevel
+from shared_ui.message_shape import HEARD_MARK
+
+from fun_time.event_log import FAVORITE, MESSAGE, EventLogHandler, read_events
+from fun_time.funestra_messages import FunestraMessages
 from tests.bridge_configs import made_up_bridge_config
 
 
@@ -17,23 +21,6 @@ def _messages(tmp_path: Path) -> FunestraMessages:
 
 def _write(path: Path, seq: int, level: str, message: str) -> None:
     path.write_text(f"seq={seq}\nlevel={level}\nmessage={message}\n", encoding="utf-8")
-
-
-class TestReadFunestraNotice:
-    def test_reads_a_published_message(self, tmp_path):
-        path = tmp_path / "main_player_notice.txt"
-        _write(path, 3, "warning", "full video not available")
-
-        assert read_funestra_message(path) == (3.0, "warning", "full video not available")
-
-    def test_missing_file_is_empty(self, tmp_path):
-        assert read_funestra_message(tmp_path / "nope.txt") == (0, "", "")
-
-    def test_malformed_sequence_is_empty(self, tmp_path):
-        path = tmp_path / "main_player_notice.txt"
-        path.write_text("seq=nonsense\nmessage=hi\n", encoding="utf-8")
-
-        assert read_funestra_message(path) == (0, "", "")
 
 
 class TestFlashFunestraNotices:
@@ -105,6 +92,35 @@ class TestFlashOrigeneratorsMessagesOnItsSatellite:
 
         assert [(r.getMessage(), r.source, r.levelno) for r in caplog.records] == [
             ("enhanced only", "portrait", logging.WARNING)]
+
+    def test_an_error_of_the_apps_flashes_as_an_error(self, tmp_path, caplog):
+        loop = _messages(tmp_path)
+        _write(tmp_path / "origenerator_portrait_notice.txt", 1, "error", "could not reach it")
+
+        with caplog.at_level(logging.DEBUG):
+            loop.flash_new()
+
+        assert [r.levelno for r in caplog.records] == [logging.ERROR]
+
+    def test_what_the_apps_slideshow_writes_reaches_the_event_log_with_its_mark(
+            self, tmp_path, caplog):
+        loop = _messages(tmp_path)
+        events = tmp_path / "event_log.jsonl"
+        handler = EventLogHandler(events)
+        logger = logging.getLogger("fun_time.funestra_messages")
+        logger.addHandler(handler)
+        try:
+            with caplog.at_level(logging.DEBUG, logger=logger.name):
+                MessageWriter(tmp_path / "origenerator_portrait_notice.txt",
+                              clock=lambda: 9.0).say("slideshow paused",
+                                                     level=MessageLevel.NORMAL, mark=HEARD_MARK)
+                loop.flash_new()
+        finally:
+            logger.removeHandler(handler)
+
+        [record], _offset = read_events(events)
+        assert (record.message, record.source, record.level, record.mark) == (
+            "slideshow paused", "portrait", MESSAGE, HEARD_MARK)
 
     def test_an_older_message_of_the_apps_does_not_flash_again(self, tmp_path, caplog):
         loop = _messages(tmp_path)
