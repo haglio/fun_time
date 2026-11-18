@@ -267,6 +267,26 @@ class TestRegenConfig:
         assert len(cfg.paths.main_funestra_library_dirs) == 2
 
 
+class TestTheVrVideosFolder:
+    def test_the_folder_all_of_haglio_shares_is_where_the_vr_videos_are(
+            self, cfg_factory, tmp_path: Path, monkeypatch):
+        shared = tmp_path / "videos" / "VR" / "finished"
+        settings = tmp_path / "vr_settings.json"
+        settings.write_text(json.dumps({**haglio_settings.load(), "vr_videos_dir": str(shared)}),
+                            encoding="utf-8")
+        monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))
+
+        cfg = load_config(cfg_factory({"vr": {"library_dirs": [str(tmp_path / "old vr")]}}))
+
+        assert cfg.vr.library_dirs == (shared,)
+
+    def test_settings_that_name_no_vr_folder_leave_the_config_files_folders(
+            self, cfg_factory, tmp_path: Path):
+        cfg = load_config(cfg_factory({"vr": {"library_dirs": [str(tmp_path / "old vr")]}}))
+
+        assert cfg.vr.library_dirs == (tmp_path / "old vr",)
+
+
 class TestKinosFolder:
     def test_the_satellites_play_and_trash_into_the_kino_folder_all_of_haglio_shares(
             self, cfg_path: Path, tmp_path: Path, monkeypatch):
