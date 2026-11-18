@@ -353,6 +353,13 @@ def _load_voice_control_config(voice_raw: dict[str, Any] | None) -> VoiceControl
     )
 
 
+def _the_vr_folder_all_of_haglio_shares() -> tuple[Path, ...]:
+    try:
+        return (Path(haglio_settings.value("vr_videos_dir")),)
+    except haglio_settings.MissingSetting:
+        return ()
+
+
 def _load_vr_config(raw: dict[str, Any] | None, project_dir: Path) -> VrConfig:
     values = raw or {}
     library_dirs_raw = values.get("library_dirs", [])
@@ -360,7 +367,8 @@ def _load_vr_config(raw: dict[str, Any] | None, project_dir: Path) -> VrConfig:
         raise TypeError("vr.library_dirs must be a list of folder paths")
     audio_device = values.get("audio_device")
     return VrConfig(
-        library_dirs=tuple(resolve_path(project_dir, str(value)) for value in library_dirs_raw),
+        library_dirs=_the_vr_folder_all_of_haglio_shares() or tuple(
+            resolve_path(project_dir, str(value)) for value in library_dirs_raw),
         audio_device=str(audio_device) if audio_device else None,
         compositor_layers=bool(values.get("compositor_layers", False)),
     )
