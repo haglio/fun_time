@@ -338,10 +338,12 @@ class TestWhatARestartBringsBackOfEachFunestra:
         "PREV_VERSION", "FORGET_VERSIONS", "LET_GO", "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED"})
     _RESENT_EVERY_SECOND_BY_THE_DEVICE_ARBITER = frozenset({"SET_TCODE_ENABLED"})
     _ANSWERED_FROM_THE_NEXT_FUNESTRA_ON = frozenset({"FORGET_VERSIONS"})
+    _KEPT_IN_FUNESTRA_FOR_AN_APP_STILL_ON_F_MODE = frozenset({"SET_F_MODE"})
 
     def test_every_verb_a_funestra_answers_comes_back_after_a_restart_or_is_no_setting(self):
         named = (set(self._KEPT_IN_THE_APPS_STATE) | self._NO_SETTING
-                 | self._RESENT_EVERY_SECOND_BY_THE_DEVICE_ARBITER)
+                 | self._RESENT_EVERY_SECOND_BY_THE_DEVICE_ARBITER
+                 | self._KEPT_IN_FUNESTRA_FOR_AN_APP_STILL_ON_F_MODE)
         verbs = {name for name, spelled in vars(funestra_verbs).items() if spelled == name}
 
         assert verbs - named == set(), f"say how a restart brings back {sorted(verbs - named)}"
