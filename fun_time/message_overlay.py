@@ -1,24 +1,16 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QLabel
-from shared_ui.colors import BG_SECONDARY
-from shared_ui.fonts import FONT_UI, make_font
-from shared_ui.message_shape import (
-    MESSAGE_PAD_H,
-    MESSAGE_PAD_V,
-    MESSAGE_RADIUS,
-    MESSAGE_TOP_MARGIN,
-    MESSAGE_TYPE_SIZE,
-)
+from shared_ui.message_label import MessageLabel
+from shared_ui.message_shape import MESSAGE_TOP_MARGIN, time_to_read_ms
 
 from fun_time.dashboard_layout import Rect, Size
 from fun_time.event_log import EventRecord
-from fun_time.log_panel import level_color
-from fun_time.message_placement import MESSAGE_LINGER_MS, top_center_position
+from fun_time.level_colors import message_kind
+from fun_time.message_placement import top_center_position
 
 
-class MessageOverlay(QLabel):
+class MessageOverlay(MessageLabel):
     def __init__(self) -> None:
         super().__init__(None)
         self.setWindowFlags(
@@ -28,8 +20,6 @@ class MessageOverlay(QLabel):
             | Qt.WindowType.WindowDoesNotAcceptFocus
         )
         self._leave_focus_and_clicks_to_the_funestra_beneath()
-        self.setFont(make_font(FONT_UI, MESSAGE_TYPE_SIZE, bold=True))
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self.hide)
@@ -39,21 +29,15 @@ class MessageOverlay(QLabel):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
     def flash(self, record: EventRecord, target: Rect) -> None:
-        self.setText(record.message)
-        self.setStyleSheet(
-            f"background-color: {BG_SECONDARY.name()};"
-            f" color: {level_color(record.level).name()};"
-            f" border: 1px solid {level_color(record.level).name()};"
-            f" padding: {MESSAGE_PAD_V}px {MESSAGE_PAD_H}px; border-radius: {MESSAGE_RADIUS}px;"
-        )
-        self.adjustSize()
+        self.say(record.message, kind=message_kind(record.level), mark=record.mark)
+        self.fit_into(target.width - 2 * MESSAGE_TOP_MARGIN)
         x, y = top_center_position(
             target, Size(self.width(), self.height()), margin=MESSAGE_TOP_MARGIN,
         )
         self.move(x, y)
         self.show()
         self.raise_()
-        self._hide_timer.start(MESSAGE_LINGER_MS)
+        self._hide_timer.start(time_to_read_ms(record.message))
 
     def shutdown(self) -> None:
         self._hide_timer.stop()

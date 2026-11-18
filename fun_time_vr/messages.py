@@ -4,6 +4,8 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
+from shared_ui.message_shape import time_to_read_ms
+
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,
@@ -11,12 +13,9 @@ from fun_time.event_log import (
     read_events,
 )
 from fun_time.log_panel_model import remember_what_was_heard, with_what_was_heard
-from fun_time.message_placement import MESSAGE_LINGER_MS
 from fun_time.unlogged_messages import UnloggedMessages
 
 from .layout import LANDSCAPE, MAIN, PORTRAIT
-
-MESSAGE_SECONDS = MESSAGE_LINGER_MS / 1000
 
 KEPT_RECORDS = 400
 
@@ -34,14 +33,15 @@ class FlashedMessage:
     screen: str
     seen_at_on_the_pumps_clock: float
 
+    def still_up_at(self, now: float) -> bool:
+        return now - self.seen_at_on_the_pumps_clock < time_to_read_ms(self.message) / 1000
+
 
 class MessageBoard:
     def __init__(self, event_log: Path | str, *, unlogged: UnloggedMessages | None = None,
-                 message_seconds: float = MESSAGE_SECONDS,
                  kept_records: int = KEPT_RECORDS) -> None:
         self._path = Path(event_log)
         self._unlogged = unlogged
-        self._banner_seconds = message_seconds
         self._kept_records = kept_records
         self._flashed_messages: dict[str, FlashedMessage] = {}
         self._lock = threading.Lock()
@@ -61,7 +61,7 @@ class MessageBoard:
                 self._flashed_messages[flashed.screen] = flashed
             self._flashed_messages = {
                 screen: flashed for screen, flashed in self._flashed_messages.items()
-                if now - flashed.seen_at_on_the_pumps_clock < self._banner_seconds
+                if flashed.still_up_at(now)
             }
 
     def flash(self, message: str, *, level: int, screen: str, now: float) -> None:

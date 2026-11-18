@@ -4,6 +4,8 @@ import logging
 import time
 from pathlib import Path
 
+import pytest
+from shared_ui.message_shape import time_to_read_ms
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -20,7 +22,6 @@ from fun_time.event_log import (
     EventRecord,
     event_line,
 )
-from fun_time.message_placement import MESSAGE_LINGER_MS
 from fun_time.unlogged_messages import UnloggedMessages
 from fun_time.voice_control import VoiceController
 from fun_time_vr.messages import MAIN, MessageBoard, screen_for
@@ -67,24 +68,30 @@ class TestWhichScreenALineBelongsTo:
 
 class TestWhatItPicksUp:
     def test_a_flash_from_inside_the_process_shows_at_once_and_fades_like_the_rest(self, tmp_path):
-        board = MessageBoard(_log(tmp_path), message_seconds=2.0)
+        board = MessageBoard(_log(tmp_path))
+        said = "Fisheye · 158° · height 1.20"
+        lasts_s = time_to_read_ms(said) / 1000
 
-        board.flash("Fisheye · 158° · height 1.20", level=MESSAGE, screen=MAIN, now=1.0)
+        board.flash(said, level=MESSAGE, screen=MAIN, now=1.0)
 
-        assert board.flashed(MAIN).message == "Fisheye · 158° · height 1.20"
-        board.pump(None, now=2.5)
-        assert board.flashed(MAIN).message == "Fisheye · 158° · height 1.20"
-        board.pump(None, now=3.1)
+        assert board.flashed(MAIN).message == said
+        board.pump(None, now=1.0 + lasts_s - 0.01)
+        assert board.flashed(MAIN).message == said
+        board.pump(None, now=1.0 + lasts_s)
         assert board.flashed(MAIN) is None
 
-    def test_a_flash_stays_up_as_long_as_one_on_the_desktop(self, tmp_path):
-        board = MessageBoard(_log(tmp_path))
-        lingers_s = MESSAGE_LINGER_MS / 1000
+    @pytest.mark.parametrize("said", ["Saved", "Including no other items, so this one stays up "
+                                               "a while longer than a word or two would"])
+    def test_a_flash_stays_up_as_long_as_one_on_the_desktop(self, tmp_path, said):
+        path = _log(tmp_path)
+        board = MessageBoard(path)
+        lasts_s = time_to_read_ms(said) / 1000
+        _write(path, _event(said))
 
-        board.flash("Saved", level=MESSAGE, screen=MAIN, now=0.0)
-        board.pump(None, now=lingers_s - 0.01)
+        board.pump(None, now=0.0)
+        board.pump(None, now=lasts_s - 0.01)
         still_up = board.flashed(MAIN)
-        board.pump(None, now=lingers_s)
+        board.pump(None, now=lasts_s)
 
         assert still_up is not None
         assert board.flashed(MAIN) is None
@@ -162,16 +169,17 @@ class TestTheBannerOverEachFunestra:
 
 
 class TestWhatItDrops:
-    def test_a_banner_fades_after_its_seconds(self, tmp_path):
+    def test_a_banner_fades_once_its_words_have_had_their_time_to_read(self, tmp_path):
         path = _log(tmp_path)
-        board = MessageBoard(path, message_seconds=2.0)
+        board = MessageBoard(path)
+        lasts_s = time_to_read_ms("skip") / 1000
         _write(path, _event("skip", source=SOURCE_MAIN))
         board.pump(None, now=100.0)
 
-        board.pump(None, now=101.9)
+        board.pump(None, now=100.0 + lasts_s - 0.1)
         assert board.flashed(MAIN).message == "skip"
 
-        board.pump(None, now=102.1)
+        board.pump(None, now=100.0 + lasts_s + 0.1)
         assert board.flashed(MAIN) is None
 
 
@@ -261,7 +269,7 @@ class TestWordsFlashedWithNoLogLine:
 
     def test_a_banner_is_timed_on_the_pumps_clock_not_by_the_records_wall_stamp(self, tmp_path):
         path = _log(tmp_path)
-        board = MessageBoard(path, message_seconds=5.0)
+        board = MessageBoard(path)
         _write(path, _event("landscape next"))
         a_monotonic_now_far_from_the_writers_wall_time = 9_999.0
 
