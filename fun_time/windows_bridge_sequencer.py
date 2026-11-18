@@ -137,11 +137,13 @@ class _LaunchedChildren:
     funestras: list[LaunchedFunestra] = field(default_factory=list)
     rfb_hwnd: int = 0
     dashboard_pid: int = 0
+    origenerator_pid: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
     origenerator_showing_a_slideshow: bool = False
 
     def hosts(self, app: HostedApp) -> int:
+        self.origenerator_pid = app.pid
         self.origenerator_already_open = app.already_open
         self.origenerator_taken_over = app.taken_over
         self.origenerator_showing_a_slideshow = app.showing_a_slideshow
@@ -177,6 +179,7 @@ def run_startup_sequence(
         stopped.launched_pids = launched.pids
         stopped.rfb_hwnd = launched.rfb_hwnd
         stopped.origenerator_taken_over = launched.origenerator_taken_over
+        stopped.origenerator_pid = launched.origenerator_pid
         raise
 
 

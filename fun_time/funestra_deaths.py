@@ -59,6 +59,7 @@ class FunestraDied(Exception):
         self.launched_pids: list[int] = launched_pids if launched_pids is not None else []
         self.rfb_hwnd = rfb_hwnd
         self.origenerator_taken_over = False
+        self.origenerator_pid = 0
 
 
 def the_last_words(logs: Iterable[LogFromLaunch], *, lines: int = LAST_WORDS_LINES) -> str:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 from .bridge_records import BridgeConfig
 from .manifest import LaunchManifest
@@ -27,8 +28,17 @@ class SessionLaunch:
     state_dir: Path
 
 
-def release_of(launch: SessionLaunch, taken_over: bool) -> Path | None:
-    return launch.bridge_config.origenerator.cmd_file if taken_over else None
+class TakenOverOrigenerator(NamedTuple):
+    pid: int
+    command_file: Path
+
+
+def taken_over_origenerator(
+    launch: SessionLaunch, *, pid: int, taken_over: bool,
+) -> TakenOverOrigenerator | None:
+    if not taken_over:
+        return None
+    return TakenOverOrigenerator(pid, launch.bridge_config.origenerator.cmd_file)
 
 
 @dataclass(frozen=True)
@@ -54,7 +64,7 @@ class StartupEnd:
 class LaunchedSoFar:
     pids: list[int]
     rfb_hwnd: int
-    release_origenerator_via: Path | None = None
+    taken_over_origenerator: TakenOverOrigenerator | None = None
 
 
 @dataclass(frozen=True)

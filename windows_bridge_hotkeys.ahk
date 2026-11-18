@@ -220,6 +220,7 @@ SC034::QueueCommand("main_next")
 ; hooks nothing.
 EndSession() {
     global StartupPhase, EndingPhase
+    MarkForceQuit()
     if (StartupPhase || EndingPhase) {
         ; Mid-startup this cannot exit: the orchestrator is still building a
         ; session that has to come down first -- and once the session is ending
@@ -244,6 +245,14 @@ MarkSessionEnd(reason) {
     global STATE_DIR
     try FileDelete(STATE_DIR . "\session_end.txt")
     AppendWithRetry(reason, STATE_DIR . "\session_end.txt", 3, 50)
+}
+
+; The orchestrator reads this to close a taken-over Origenerator rather than
+; hand it back, so nothing of Haglio's comes back on screen.
+MarkForceQuit() {
+    global STATE_DIR
+    if (!FileExist(STATE_DIR . "\force_quit.txt"))
+        AppendWithRetry("force quit", STATE_DIR . "\force_quit.txt", 3, 50)
 }
 
 ; The same note, but never over one already there.  Everything that is not the
