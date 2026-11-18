@@ -10,6 +10,7 @@ from fun_time.bridge_records import Op, WindowOp
 from fun_time.command_answering import AHK_PASSTHROUGH_OPS, LOOP_COMMANDS, OP_HANDLERS
 from fun_time.command_value import parse_command
 from fun_time.event_log import EventLogHandler, read_events
+from fun_time.session_end import SESSION_END_MARKER
 from fun_time.shared_state import BridgeState, read_shared_state
 from fun_time.voice_commands import CommandLine
 from tests.fun_time_window_fakes import HandDrivenClock
@@ -187,3 +188,25 @@ def test_an_unknown_op_is_an_error_not_an_ahk_verb(tmp_path, caplog):
 
 def test_quit_is_one_of_the_loops_own_commands():
     assert "quit" in LOOP_COMMANDS
+
+
+def test_a_quit_with_the_dashboard_up_is_left_to_its_question(tmp_path):
+    answering = made_up_answering(tmp_path, dashboard_enabled=True)
+
+    with patch("fun_time.command_answering.post_to_inbox") as echoed:
+        answering.answer("quit", spoken_at=12.5)
+
+    assert [call.args[1] for call in echoed.call_args_list] == ["quit"]
+    assert not (tmp_path / "ahk_cmd.txt").exists()
+    assert not (tmp_path / SESSION_END_MARKER).exists()
+
+
+@pytest.mark.parametrize("how", [{"dashboard_enabled": False},
+                                 {"dashboard_enabled": True, "in_the_headset": True}])
+def test_a_quit_with_no_dashboard_to_ask_ends_the_session_at_once(tmp_path, how):
+    answering = made_up_answering(tmp_path, **how)
+
+    with patch("fun_time.command_answering.post_to_inbox"):
+        answering.answer("quit")
+
+    assert _mailbox(tmp_path) == ["end_session"]

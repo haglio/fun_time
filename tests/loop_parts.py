@@ -71,8 +71,9 @@ def made_up_window_work(tmp_path: Path, *, windows=None,
 
 
 def made_up_answering(tmp_path: Path, *, window_work: WindowWork | None = None,
-                      state: BridgeState | None = None, **how) -> CommandAnswering:
-    config = made_up_bridge_config(tmp_path)
+                      state: BridgeState | None = None, in_the_headset: bool = False,
+                      **how) -> CommandAnswering:
+    config = made_up_bridge_config(tmp_path, vr_main_funestra=in_the_headset)
     state = state or BridgeState()
     return CommandAnswering(
         config, made_up_session_files(tmp_path), state=state,

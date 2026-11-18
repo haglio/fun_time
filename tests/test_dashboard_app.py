@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 from app_support import file_channel
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
-from PySide6.QtGui import QColor, QMouseEvent
+from PySide6.QtGui import QCloseEvent, QColor, QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox, QTextBrowser, QWidget
 from shared_ui.colors import (
@@ -95,6 +95,7 @@ from fun_time.project_paths import PROJECT_ICON
 from fun_time.reference_dialog import ReferenceDialog
 from fun_time.rfb_mode_selector import STILL_STARTING_TOOLTIP
 from fun_time.rfb_modes import RfbMode
+from fun_time.session_end import SESSION_END_MARKER
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.unlogged_messages import flash_unlogged
 from fun_time.voice_control import VoiceController
@@ -857,7 +858,7 @@ def _answer_the_quit_question(monkeypatch, button):
     return asked
 
 
-def test_the_power_button_asks_first_and_quits_on_yes(
+def test_the_power_button_hands_its_quit_to_the_loop_without_asking(
         dashboard_window, dashboard_app_config, monkeypatch):
     commands = dashboard_app_config.dashboard_cmd_file
     commands.unlink(missing_ok=True)
@@ -865,19 +866,62 @@ def test_the_power_button_asks_first_and_quits_on_yes(
 
     dashboard_window._on_action(QUIT_BUTTON)
 
-    assert asked == [("Quit Fun Time", "Are you sure you want to quit Fun Time?")]
+    assert asked == []
     assert commands.read_text(encoding="utf-8").split() == [QUIT_BUTTON]
 
 
-def test_saying_no_to_the_power_button_leaves_fun_time_running(
+def test_a_quit_the_loop_heard_is_asked_about_and_ends_the_session_on_yes(
         dashboard_window, dashboard_app_config, monkeypatch):
-    commands = dashboard_app_config.dashboard_cmd_file
-    commands.unlink(missing_ok=True)
+    asked = _answer_the_quit_question(monkeypatch, QMessageBox.StandardButton.Yes)
+
+    dashboard_window._apply_presses([QUIT_BUTTON])
+
+    assert asked == [("Quit Fun Time", "Are you sure you want to quit Fun Time?")]
+    state_dir = dashboard_app_config.state_dir
+    assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "end_session"
+    assert (state_dir / SESSION_END_MARKER).exists()
+
+
+def test_saying_no_to_a_quit_leaves_fun_time_running(
+        dashboard_window, dashboard_app_config, monkeypatch):
     _answer_the_quit_question(monkeypatch, QMessageBox.StandardButton.No)
 
-    dashboard_window._on_action(QUIT_BUTTON)
+    dashboard_window._apply_presses([QUIT_BUTTON])
 
-    assert not commands.exists()
+    assert not (dashboard_app_config.state_dir / "ahk_cmd.txt").exists()
+
+
+class _ACloseFromWindows(QCloseEvent):
+    def spontaneous(self) -> bool:
+        return True
+
+
+def test_closing_the_window_from_windows_asks_first(
+        dashboard_window, dashboard_app_config, monkeypatch):
+    asked = _answer_the_quit_question(monkeypatch, QMessageBox.StandardButton.No)
+    closing = _ACloseFromWindows()
+
+    dashboard_window.closeEvent(closing)
+
+    assert asked == [("Quit Fun Time", "Are you sure you want to quit Fun Time?")]
+    assert not closing.isAccepted()
+    assert not (dashboard_app_config.state_dir / "ahk_cmd.txt").exists()
+
+
+def test_a_second_quit_while_the_question_is_up_asks_nothing_more(
+        dashboard_window, dashboard_app_config, monkeypatch):
+    asked = []
+
+    def while_asking(*args):
+        asked.append(args[1:3])
+        dashboard_window._apply_presses([QUIT_BUTTON])
+        return QMessageBox.StandardButton.No
+
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(while_asking))
+
+    dashboard_window._apply_presses([QUIT_BUTTON])
+
+    assert len(asked) == 1
 
 
 def test_help_action_opens_dialog_locally_without_routing_command(dashboard_window, dashboard_app_config):

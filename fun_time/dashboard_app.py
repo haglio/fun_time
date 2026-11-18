@@ -547,6 +547,7 @@ class DashboardWindow(QMainWindow):
 
         self._state_dir = app_config.state_dir
         self._ahk_cmd_file = app_config.state_dir / "ahk_cmd.txt"
+        self._asking_to_quit = False
 
         self._press_received.connect(self._handle_press_event)
         self._press_channel = LoopbackInbox(
@@ -573,12 +574,31 @@ class DashboardWindow(QMainWindow):
         write_dashboard_command(self._app_config.dashboard_cmd_file, action)
 
     def closeEvent(self, event: object) -> None:
-        mark_session_end(self._state_dir, "the dashboard window was closed")
-        with contextlib.suppress(OSError):
-            self._ahk_cmd_file.write_text("end_session", encoding="utf-8")
+        if event.spontaneous() and not self._sure_to_quit():
+            event.ignore()
+            return
+        self._end_the_session("the dashboard window was closed")
         self._stop_background_work()
         close_the_windows_it_opened(self)
         event.accept()
+
+    def _sure_to_quit(self) -> bool:
+        if self._asking_to_quit:
+            return False
+        self._asking_to_quit = True
+        try:
+            return sure(self, QUIT_TITLE, QUIT_QUESTION)
+        finally:
+            self._asking_to_quit = False
+
+    def _quit_if_sure(self) -> None:
+        if self._sure_to_quit():
+            self._end_the_session("the quit question was answered Yes")
+
+    def _end_the_session(self, asked_by: str) -> None:
+        mark_session_end(self._state_dir, asked_by)
+        with contextlib.suppress(OSError):
+            self._ahk_cmd_file.write_text("end_session", encoding="utf-8")
 
     def _stop_background_work(self) -> None:
         self._press_channel.stop()
@@ -659,8 +679,6 @@ class DashboardWindow(QMainWindow):
         if action_id == HELP_REFERENCE:
             self._reference.toggle(self._omni_paused)
             return
-        if action_id == QUIT_BUTTON and not sure(self, QUIT_TITLE, QUIT_QUESTION):
-            return
         self._flash.press(action_id)
         self._post_to_the_dispatch_loop(action_id)
         self._show_presses()
@@ -676,6 +694,8 @@ class DashboardWindow(QMainWindow):
         if HELP_REFERENCE in actions:
             self._reference.toggle(self._omni_paused)
         self._show_presses()
+        if QUIT_BUTTON in actions:
+            self._quit_if_sure()
 
     def _refresh(self) -> None:
         self._reveal.maybe_reveal()
