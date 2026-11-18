@@ -221,6 +221,8 @@ def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
     s = shared_integration_session
     sink = s.config.osr2_slot_port
     _in_kino_mode_and_out_of_omnipause(s)
+    if not s.read_main_funestra_status().has_funscript:
+        s.write_dashboard_command("main_funestra_next_funscripted")
     s.wait_until(lambda: s.read_main_funestra_status().has_funscript,
                  description="the Main Funestra to play a video with a funscript")
     try:
