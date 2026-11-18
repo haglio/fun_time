@@ -12,7 +12,14 @@ from fun_time.manifest import (
     LaunchManifest,
     write_windows_bridge_manifest,
 )
-from fun_time.session_end import SESSION_END_MARKER, describe_session_end, mark_session_end
+from fun_time.session_end import (
+    FORCE_QUIT_MARKER,
+    SESSION_END_MARKER,
+    describe_session_end,
+    force_quit_asked,
+    force_quit_marker_path,
+    mark_session_end,
+)
 from fun_time.windows_bridge_orchestrator import clear_last_sessions_leftovers
 from tests.ahk_script import function_source
 from tests.test_windows_bridge_dispatch_loop import make_runner
@@ -168,6 +175,28 @@ def test_a_marker_from_a_session_that_was_cut_off_is_not_worn_by_the_next(
                                   ahk_cmd_file=state_dir / "ahk_cmd.txt")
 
     assert "UNEXPECTED" in describe_session_end(state_dir, 0)
+
+
+def test_a_force_quit_of_a_session_that_was_cut_off_is_not_worn_by_the_next(
+        cfg_factory, tmp_path):
+    commands = LaunchManifest.read(write_windows_bridge_manifest(
+        load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)).commands
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(exist_ok=True)
+    force_quit_marker_path(state_dir).write_text("force quit", encoding="utf-8")
+
+    clear_last_sessions_leftovers(state_dir, commands, pids_file=state_dir / "bridge_pids.ini",
+                                  ahk_cmd_file=state_dir / "ahk_cmd.txt")
+
+    assert not force_quit_asked(state_dir)
+
+
+def test_the_quit_chord_marks_a_force_quit_before_anything_else_it_does():
+    assert FORCE_QUIT_MARKER in _hotkey_script()
+    chord = function_source("EndSession")
+    marked = chord.index("MarkForceQuit()")
+    assert marked < chord.index("RequestStartupCancel(")
+    assert marked < chord.index("EndTheSession()")
 
 
 def test_a_session_comes_down_even_when_it_cannot_leave_a_note(tmp_path):

@@ -38,7 +38,7 @@ from .desktop_session import (
     RunningSession,
     SessionLaunch,
     StartupEnd,
-    release_of,
+    taken_over_origenerator,
 )
 from .event_log import (
     EVERYTHING_THE_DIAL_CAN_SHOW,
@@ -88,7 +88,13 @@ from .process_tree import kill_process_tree
 from .raising_the_loading_screen import OFF_THE_MONITORS_WAIT_S, RaisedLoadingScreen
 from .rfb_modes import RfbMode
 from .rfb_slideshow import rfb_slideshow_on
-from .session_end import describe_session_end, session_end_marker_path, wait_for_the_session_to_end
+from .session_end import (
+    describe_session_end,
+    force_quit_asked,
+    force_quit_marker_path,
+    session_end_marker_path,
+    wait_for_the_session_to_end,
+)
 from .session_ending import (
     SessionEnding,
     TheControls,
@@ -259,7 +265,7 @@ def see_the_hosted_app_out(
             state_dir, child, command_file, taken_over=taken_over):
         return True
     forget_the_kept_origenerator(state_dir)
-    if taken_over and command_file is not None:
+    if taken_over and command_file is not None and not force_quit_asked(state_dir):
         append_command(command_file, RELEASE)
         return True
     _let_origenerator_save_and_close(child)
@@ -273,7 +279,7 @@ def let_go_of_a_kept_origenerator(state_dir: Path, command_file: Path) -> None:
         return
     if process_started(kept.pid) != kept.created_at:
         return
-    if kept.taken_over:
+    if kept.taken_over and not force_quit_asked(state_dir):
         append_command(command_file, RELEASE)
         return
     child = ChildProcess(pid=kept.pid, created_at=kept.created_at)
@@ -415,8 +421,11 @@ def _take_down_the_startup(
     stop_hotkey_script(hotkeys.proc, hotkeys.cmd_file)
     with loading_screen.progress.loading_screen_kept_up():
         _kill_while_their_pids_are_still_theirs(launched.pids)
-    if launched.release_origenerator_via is not None:
-        append_command(launched.release_origenerator_via, RELEASE)
+    if (taken := launched.taken_over_origenerator) is not None:
+        child = ChildProcess(pid=taken.pid, created_at=process_started(taken.pid) or 0)
+        if not see_the_hosted_app_out(state_dir, child, taken.command_file,
+                                      keep=False, taken_over=True):
+            kill_recorded_child(child)
     close_window(launched.rfb_hwnd)
     if back_to is not None:
         turn_back(state_dir, back_to, sibling_checkouts=launch.manifest.runtime.sibling_checkouts,
@@ -583,7 +592,7 @@ def clear_last_sessions_leftovers(
                   dashboard_cmd_file.with_suffix(".processing"), state_dir / PRESS_PORT_FILENAME,
                   state_dir / UNLOGGED_MESSAGE_PORT_FILENAME,
                   Path(commands.dashboard_state_file), session_end_marker_path(state_dir),
-                  state_dir / REFERENCE_OPEN_FILENAME, state_dir / LIBRARY_OPEN_FILENAME):
+                  force_quit_marker_path(state_dir), state_dir / REFERENCE_OPEN_FILENAME, state_dir / LIBRARY_OPEN_FILENAME):
         stale.unlink(missing_ok=True)
 
 
@@ -1055,13 +1064,17 @@ def run_session(
         return _take_down_the_startup(
             StartupEnd("Startup cancelled by user", canceled=True),
             LaunchedSoFar(cancelled.launched_pids, cancelled.rfb_hwnd,
-                          release_of(launch, cancelled.origenerator_taken_over)),
+                          taken_over_origenerator(
+                              launch, pid=cancelled.origenerator_pid,
+                              taken_over=cancelled.origenerator_taken_over)),
             launch, loading_screen, hotkey_script)
     except FunestraDied as died:
         _take_down_the_startup(
             StartupEnd(str(died)),
             LaunchedSoFar(died.launched_pids, died.rfb_hwnd,
-                          release_of(launch, died.origenerator_taken_over)),
+                          taken_over_origenerator(
+                              launch, pid=died.origenerator_pid,
+                              taken_over=died.origenerator_taken_over)),
             launch, loading_screen, hotkey_script)
         said = funestra_died_message(died.funestra, died.said)
         logger.error(said)
@@ -1069,7 +1082,8 @@ def run_session(
 
     launched = [getattr(result, key) for key in _CHILD_PID_KEYS
                 if not (key == "origenerator_pid" and result.origenerator_taken_over)]
-    started = LaunchedSoFar(launched, result.rfb_hwnd, release_of(launch, result.origenerator_taken_over))
+    started = LaunchedSoFar(launched, result.rfb_hwnd, taken_over_origenerator(
+        launch, pid=result.origenerator_pid, taken_over=result.origenerator_taken_over))
 
     esc_landed_after_the_last_checkpoint = progress.cancelled
     if esc_landed_after_the_last_checkpoint:

@@ -1395,6 +1395,7 @@ class TestOrigeneratorLaunch:
 
         assert open_app not in excinfo.value.launched_pids
         assert excinfo.value.origenerator_taken_over
+        assert excinfo.value.origenerator_pid == open_app
 
     def test_an_origenerator_already_open_is_taken_over_rather_than_launched(
         self, cfg_factory, tmp_path

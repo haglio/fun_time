@@ -16,6 +16,7 @@ A_PART = "part"
 THE_HOTKEYS = "ahk"
 
 SESSION_END_MARKER = "session_end.txt"
+FORCE_QUIT_MARKER = "force_quit.txt"
 
 
 def session_end_marker_path(state_dir: str | Path) -> Path:
@@ -34,6 +35,13 @@ def mark_session_end(state_dir: str | Path, reason: str) -> None:
     except OSError:
         logger.warning("Could not write %s", path, exc_info=True)
 
+
+def force_quit_marker_path(state_dir: str | Path) -> Path:
+    return Path(state_dir) / FORCE_QUIT_MARKER
+
+
+def force_quit_asked(state_dir: str | Path) -> bool:
+    return force_quit_marker_path(state_dir).exists()
 
 
 def describe_session_end(state_dir: Path, exit_code: int) -> str:
