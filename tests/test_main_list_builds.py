@@ -111,11 +111,11 @@ class _Build:
         self._gate = gate
         self.started = threading.Event()
 
-    def run(self) -> None:
+    def run(self, overtaken=lambda: False) -> None:
         self.started.set()
         if self._gate is not None:
             self._gate.wait(SETTLE_S)
-        self._ran.append(self.name)
+        self._ran.append(f"{self.name} (overtaken)" if overtaken() else self.name)
 
     def replacing(self, waiting: _Build) -> _Build:
         return _Build(f"{self.name} after {waiting.name}", self._ran)
@@ -147,11 +147,23 @@ def test_builds_asked_for_while_one_runs_come_down_to_the_newest():
     gate.set()
 
     wait_until(lambda: len(ran) == 2, timeout=SETTLE_S)
-    assert ran == ["slow", "third after second"]
+    assert ran == ["slow (overtaken)", "third after second"]
+
+
+def test_a_build_overtaken_while_it_ran_neither_holds_the_video_nor_says_anything(tmp_path, caplog):
+    on_screen, _other = _full_videos_for_want_of_a_record(tmp_path, "scene one.mp4", "scene two.mp4")
+    overtaken = _main_list_build(tmp_path, MainListSettings(length=LengthMode.CLIPS),
+                                 on_screen=str(on_screen))
+
+    with caplog.at_level(logging.WARNING):
+        overtaken.run(overtaken=lambda: True)
+
+    assert not overtaken.main_funestra_cmd_file.exists()
+    assert not [record for record in caplog.records if record.levelno == logging.WARNING]
 
 
 class _BrokenBuild(_Build):
-    def run(self) -> None:
+    def run(self, overtaken=lambda: False) -> None:
         self.started.set()
         raise OSError("the drive went away")
 
@@ -215,4 +227,4 @@ def test_settle_waits_through_every_build_coalesced_in_while_it_waited():
 
     builds.settle()
 
-    assert ran == ["slow", "second"]
+    assert ran == ["slow (overtaken)", "second"]

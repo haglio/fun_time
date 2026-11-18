@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
@@ -27,9 +28,11 @@ class MainListBuild:
     start_at_top: bool = False
     says: str = ""
 
-    def run(self) -> None:
+    def run(self, overtaken: Callable[[], bool] = lambda: False) -> None:
         written = self.main_list.write(self.settings, on_screen=self.on_screen,
                                        from_the_top=self.start_at_top)
+        if overtaken():
+            return
         verbs = [RELOAD_PLAYLIST]
         answer = answer_to_a_narrowing(self.says, nothing_left=written.nothing_left,
                                        things="videos")
@@ -93,6 +96,10 @@ class BuildsOffTheLoop:
                     self._idle.set()
                     return
             try:
-                build.run()
+                build.run(overtaken=self._a_newer_build_waits)
             except Exception:
                 logger.exception("The Main Funestra's list could not be rebuilt")
+
+    def _a_newer_build_waits(self) -> bool:
+        with self._lock:
+            return self._waiting is not None
