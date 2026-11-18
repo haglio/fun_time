@@ -21,6 +21,7 @@ from fun_time.event_log import (
     SOURCE_MAIN,
     SOURCE_PORTRAIT,
     SOURCE_SYSTEM,
+    answering_what_he_said,
     flash_message,
     list_message,
 )
@@ -316,6 +317,10 @@ class VoiceController:
             command, spoken_at=spoken_at, said=friendly_voice(phrase)))
 
     def handle_heard(self, heard: Heard) -> None:
+        with answering_what_he_said():
+            self._answer_what_was_heard(heard)
+
+    def _answer_what_was_heard(self, heard: Heard) -> None:
         if self.wants_words(heard):
             return
         if heard.recognition.phrase:
@@ -371,7 +376,8 @@ class VoiceController:
 
     def _say_it_is_being_worked_on(self, forming: str) -> None:
         if forming and not self._words_forming and self._is_listening():
-            flash_message(logger, WORKING_ON_IT, source=SOURCE_SYSTEM)
+            with answering_what_he_said():
+                flash_message(logger, WORKING_ON_IT, source=SOURCE_SYSTEM)
         self._words_forming = bool(forming)
 
     def _announce_the_microphone_is_back(self) -> None:

@@ -6,14 +6,16 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from shared_ui.message_shape import HEARD_MARK
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 from voice_core.speech import HearsSpeech
 
-from fun_time import voice_control
+from fun_time import unlogged_messages, voice_control
 from fun_time.command_value import set_command
 from fun_time.config import VoiceControlConfig
 from fun_time.content import genau_flick_noun
+from fun_time.event_log import parse_event_line
 from fun_time.filter_vocab import filter_voice_commands
 from fun_time.hosted_contract import HostedVocabulary
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands, parse_command_line
@@ -262,6 +264,17 @@ class TestHandleHeard:
         assert [(record.getMessage(), record.levelno, record.source, record.flashes,
                  record.spoken_at)
                 for record in caplog.records] == [(logged, logging.WARNING, source, False, 1.0)]
+
+    def test_what_it_heard_and_did_not_act_on_flashes_with_the_microphone(
+            self, tmp_path, monkeypatch):
+        vc = _controller(tmp_path)
+        posted = []
+        monkeypatch.setattr(unlogged_messages, "post_to_inbox",
+                            lambda _port, line: posted.append(parse_event_line(line)) or True)
+
+        vc.handle_heard(_formed(Recognition(unrecognized_text="put the kettle on")))
+
+        assert [record.mark for record in posted] == [HEARD_MARK]
 
     @pytest.mark.parametrize(("heard", "source"), [
         ("portrait full length please", "portrait"),

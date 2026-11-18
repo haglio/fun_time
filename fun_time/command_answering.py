@@ -32,7 +32,7 @@ from .dashboard_actions import (
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, who_drives_the_osr2
 from .dispatch_loop_setup import SessionFiles
-from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
+from .event_log import MESSAGE, SOURCE_SYSTEM, answering_what_he_said, flash_message
 from .funestra_status import read_main_funestra_status
 from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
@@ -103,6 +103,13 @@ class CommandAnswering:
         self.config = replace(self.config, origenerator_lock_phrases=phrases)
 
     def handle_line(self, line: CommandLine) -> None:
+        if line.spoken_at is None:
+            self._answer_the_line(line)
+            return
+        with answering_what_he_said():
+            self._answer_the_line(line)
+
+    def _answer_the_line(self, line: CommandLine) -> None:
         said = parse_command(line.command)
         source = said.message_source(self.state.active_funestra)
         answers_before = self._answers

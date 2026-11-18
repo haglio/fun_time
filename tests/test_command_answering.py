@@ -4,10 +4,12 @@ import logging
 from unittest.mock import patch
 
 import pytest
+from shared_ui.message_shape import HEARD_MARK
 
 from fun_time.bridge_records import Op, WindowOp
 from fun_time.command_answering import AHK_PASSTHROUGH_OPS, LOOP_COMMANDS, OP_HANDLERS
 from fun_time.command_value import parse_command
+from fun_time.event_log import EventLogHandler, read_events
 from fun_time.shared_state import BridgeState, read_shared_state
 from fun_time.voice_commands import CommandLine
 from tests.fun_time_window_fakes import HandDrivenClock
@@ -102,6 +104,32 @@ class TestWhatALineSaidAloudFlashes:
 
     def test_a_line_answered_elsewhere_is_not_flashed_a_second_time(self, tmp_path):
         assert self._flashed(tmp_path, [WindowOp(op=Op.MAIN_FUNESTRA_ANSWERS)]) == []
+
+
+class TestWhatALineSaidAloudIsMarkedWith:
+    def _marks(self, tmp_path, caplog, line: CommandLine) -> list[str]:
+        events = tmp_path / "event_log.jsonl"
+        handler = EventLogHandler(events)
+        logger = logging.getLogger("fun_time.command_answering")
+        logger.addHandler(handler)
+        answering = made_up_answering(tmp_path)
+        try:
+            with patch("fun_time.command_answering.dispatch_command",
+                       return_value=(answering.state, [])):
+                with caplog.at_level(logging.DEBUG, logger=logger.name):
+                    answering.handle_line(line)
+        finally:
+            logger.removeHandler(handler)
+        return [record.mark for record in read_events(events)[0] if record.message == "next"]
+
+    def test_a_message_answering_a_line_he_said_starts_with_the_microphone(self, tmp_path,
+                                                                            caplog):
+        assert self._marks(tmp_path, caplog, CommandLine("portrait_next", said="next",
+                                                         spoken_at=1.0)) == [HEARD_MARK]
+
+    def test_a_message_answering_a_press_has_no_microphone(self, tmp_path, caplog):
+        assert self._marks(tmp_path, caplog, CommandLine("portrait_next", said="next",
+                                                         pressed_at=1.0)) == [""]
 
 
 class TestTheDashboardsSnapshot:

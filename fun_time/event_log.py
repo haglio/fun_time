@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
+
+from shared_ui.message_shape import HEARD_MARK
 
 MESSAGE = 25
 logging.addLevelName(MESSAGE, "NOTICE")
@@ -56,6 +61,23 @@ class EventRecord:
     message: str
     flashes: bool = True
     spoken_at: float | None = None
+    mark: str = ""
+
+
+_ANSWERING_WHAT_HE_SAID: ContextVar[bool] = ContextVar("answering_what_he_said", default=False)
+
+
+@contextmanager
+def answering_what_he_said() -> Iterator[None]:
+    token = _ANSWERING_WHAT_HE_SAID.set(True)
+    try:
+        yield
+    finally:
+        _ANSWERING_WHAT_HE_SAID.reset(token)
+
+
+def mark_of_a_message_said_now(mark: str = "") -> str:
+    return mark or (HEARD_MARK if _ANSWERING_WHAT_HE_SAID.get() else "")
 
 
 def event_log_path(state_dir: str | Path) -> Path:
@@ -83,6 +105,7 @@ class EventLogHandler(logging.Handler):
                 message=record.getMessage(),
                 flashes=getattr(record, "flashes", True),
                 spoken_at=getattr(record, "spoken_at", None),
+                mark=mark_of_a_message_said_now(getattr(record, "mark", "")),
             ))
             with self.path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
@@ -98,6 +121,8 @@ def event_line(record: EventRecord) -> str:
         payload["flash"] = False
     if record.spoken_at is not None:
         payload["spoken_at"] = record.spoken_at
+    if record.mark:
+        payload["mark"] = record.mark
     return json.dumps(payload, ensure_ascii=False)
 
 
@@ -111,13 +136,15 @@ def parse_event_line(line: str | bytes) -> EventRecord | None:
             message=str(payload["msg"]),
             flashes=payload.get("flash", True) is not False,
             spoken_at=float(payload["spoken_at"]) if "spoken_at" in payload else None,
+            mark=str(payload.get("mark", "")),
         )
     except (ValueError, KeyError, TypeError, AttributeError):
         return None
 
 
-def flash_message(logger: logging.Logger, message: str, *, source: str, level: int = MESSAGE) -> None:
-    logger.log(level, message, extra={"source": source})
+def flash_message(logger: logging.Logger, message: str, *, source: str, level: int = MESSAGE,
+                  mark: str = "") -> None:
+    logger.log(level, message, extra={"source": source, "mark": mark})
 
 
 def list_message(logger: logging.Logger, message: str, *, source: str, level: int = MESSAGE,
