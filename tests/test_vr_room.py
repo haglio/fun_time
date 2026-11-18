@@ -216,6 +216,6 @@ class TestANewScreenIsRegisteredInOnePlace:
         assert self._spots_held_by(layout) == {}
         assert {name for name, kind in vars(funestras).items()
                 if isinstance(kind, type) and getattr(kind, "SPOTS", None)} == {
-            "_MainUnit", "_SatelliteUnit", "_DashUnit", "_LibraryUnit",
+            "_MainUnit", "_SatelliteUnit", "_DashUnit",
             "_GalleryUnit"}
         assert self._spots_held_by(funestras) == {}

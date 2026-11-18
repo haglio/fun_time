@@ -8,7 +8,6 @@ import re
 import shlex
 import subprocess
 import sys
-import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,7 +22,6 @@ from . import preview_marker
 from .branch_seeding import (
     mirror_private_overlays,
     seed_what_is_costly_to_rebuild,
-    top_up_thumbnails,
 )
 from .checkout_overrides import ORIGENERATOR_DIR_OVERRIDE_NAME
 from .child_launch import no_console_window
@@ -205,16 +203,6 @@ def build_branch_config(
     return destination
 
 
-def top_up_branch_thumbnails(
-    worktree: Path, *, primary: Path, primary_config_path: Path = DEFAULT_CONFIG_PATH
-) -> None:
-    live_state = load_config(primary_config_path, project_dir=primary).paths.state_dir
-    began = time.monotonic()
-    copied = len(top_up_thumbnails(live_state, worktree / STATE_DIRNAME))
-    print(f"Copied {copied} thumbnail{'' if copied == 1 else 's'} from {live_state} "
-          f"in {time.monotonic() - began:.1f}s", flush=True)
-
-
 ORCHESTRATOR_MODULES = {False: "fun_time.orchestrator", True: "fun_time_vr.orchestrator"}
 
 
@@ -248,12 +236,7 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     session = subprocess.Popen(
         command, cwd=str(worktree), env={**os.environ, preview_marker.FLAG: "1"},
         stdout=sys.stdout, stderr=sys.stderr, **no_console_window())
-    try:
-        top_up_branch_thumbnails(
-            worktree, primary=primary, primary_config_path=primary_config_path)
-    finally:
-        returncode = session.wait()
-    return returncode
+    return session.wait()
 
 
 BEING_REBUILT = ("That branch is being rebuilt right now, so its code is only part way "

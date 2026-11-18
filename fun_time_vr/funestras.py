@@ -22,7 +22,6 @@ from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 from funestra.funestra import Funestra
 from funestra.funestra_setup import FunestraSetup
-from funestra.funestra_verbs import play_file
 from funestra.genau_notifier import GenauNotifier
 from funestra.messages import MessageWriter
 from funestra.modes import MainMode
@@ -35,15 +34,13 @@ from shared_ui.type_scale import SIZE_SMALL, in_pixels
 
 from fun_time import preview_marker
 from fun_time.dashboard_actions import (
-    BROWSE_LIBRARY_CLOSE,
-    LIBRARY_OPEN_FILENAME,
     REFERENCE_OPEN_FILENAME,
 )
 from fun_time.dashboard_osr2_model import Osr2PartReader
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import MESSAGE, SOURCE_MAIN, event_log_path, flash_message
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.funestra_status import read_genau_status, read_main_funestra_status
+from fun_time.funestra_status import read_genau_status
 from fun_time.gallery import the_librarys_gallery
 from fun_time.genau_config import GenauSettings
 from fun_time.hosted_contract import (
@@ -52,7 +49,7 @@ from fun_time.hosted_contract import (
 )
 from fun_time.log_panel_model import ui_state_path
 from fun_time.manifest import LaunchManifest
-from fun_time.modes import scripted_item, source_roots
+from fun_time.modes import source_roots
 from fun_time.session_handoff import headset_hold_asked
 from fun_time.shared_state import BridgeState, read_shared_state, shared_state_path
 from fun_time.unlogged_messages import UnloggedMessages
@@ -98,7 +95,6 @@ from .layout import (
     GALLERY,
     LANDSCAPE,
     LAYOUT_FILENAME,
-    LIBRARY,
     MAIN,
     MAIN_HUD,
     MESSAGE_SCREEN,
@@ -110,18 +106,6 @@ from .layout import (
     shown_at,
     widening,
     write_layout,
-)
-from .library_panel import (
-    DISMISSED,
-    LIBRARY_SIZE_PX,
-    PICKED,
-    LibraryHost,
-    ShownWhileAsked,
-    event_line,
-    hover_line,
-    open_line,
-    scroll_line,
-    waiting_panel,
 )
 from .loading_screen import (
     LOADING_SCREEN_DWELL_S,
@@ -206,7 +190,6 @@ MESSAGE_OVERLAY_ID = 13
 MAIN_VIDEO_CAP_PX = 8192
 SATELLITE_VIDEO_CAP_PX = 2048
 
-LIBRARY_READING_SHOWN_AFTER_S = 0.3
 
 PUMP_HZ = 30.0
 TICK_HZ_FOR_A_SMOOTH_FLICK = 120.0
@@ -1110,128 +1093,6 @@ class _ReferenceUnit:
         self.screen.close()
 
 
-class _LibraryUnit:
-    SPOTS: ClassVar[dict[str, Placement]] = {LIBRARY: Placement(azimuth_deg=0.0, elevation_deg=4.0, width_deg=80.0)}
-
-    def __init__(
-        self, manifest: LaunchManifest, *, remembered: Mapping[str, Placement], flag: Path, host,
-        genau_has_the_slot: Callable[[], bool],
-    ) -> None:
-        commands = manifest.commands
-        self._flag = flag
-        self._host = host
-        self._main_funestra_cmd_file = Path(commands.main_funestra_cmd_file)
-        self._metadata_root = manifest.regen.metadata_folder
-        self._main_funestra_status_file = Path(commands.main_funestra_status_file)
-        self._genau_cmd_file = Path(commands.genau_cmd_file)
-        self._genau_status_file = Path(commands.genau_status_file)
-        self._genau_has_the_slot = genau_has_the_slot
-        self._browsing_flicks = False
-        self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
-        self._shown = ShownWhileAsked()
-        self._presses = _Presses(LIBRARY)
-        self._lock = threading.Lock()
-        self._image = None
-        self._uploaded = None
-        self._token = 0
-        self._opened_at = 0.0
-        self._drawn = False
-        self._hovered: tuple[int, int] | None = None
-        self._scrolled = 0.0
-        self.texture = FrameTexture()
-        self.screen = _HangingScreen(remembered.get(LIBRARY, self.SPOTS[LIBRARY]))
-
-    @property
-    def showing(self) -> bool:
-        return self._shown.showing and self._drawn
-
-    @property
-    def takes_the_stick(self) -> bool:
-        return self.showing and self._presses.hover is not None
-
-    def hangings(self) -> tuple[Hanging, ...]:
-        if not (self.showing and self.texture.ready):
-            return ()
-        return (Hanging(
-            Screen(LIBRARY, self.screen.placement, self.texture.aspect,
-                   movable=True, pressable=True),
-            mesh=self.screen, frame=self.texture, blend=True, in_front=True),)
-
-    def hangs_by(self) -> dict[str, Hangs]:
-        return {LIBRARY: Hangs((self.screen,))}
-
-    def put_back(self) -> None:
-        self.screen.placement = self.SPOTS[LIBRARY]
-
-    def point(self, frame: Frame) -> None:
-        self._presses.point(frame)
-
-    def scroll(self, notches: float) -> None:
-        with self._lock:
-            self._scrolled += notches
-
-    def pump(self, stop: threading.Event, now: float) -> None:
-        for answer in self._host.answers():
-            said, _, video = answer.partition(" ")
-            if said == PICKED and self._browsing_flicks:
-                append_command(self._genau_cmd_file, play_file(PlaylistItem(Path(video))))
-            elif said == PICKED:
-                append_command(self._main_funestra_cmd_file,
-                               play_file(scripted_item(video, self._metadata_root)))
-            if said in (PICKED, DISMISSED):
-                self._shown.put_away()
-                append_command(self._dashboard_cmd_file, BROWSE_LIBRARY_CLOSE)
-        if self._shown.asked(read_flag(self._flag, default=False)):
-            self._token += 1
-            self._opened_at = now
-            self._drawn = False
-            self._browsing_flicks = self._genau_has_the_slot()
-            playing = (read_genau_status(self._genau_status_file).flick if self._browsing_flicks
-                       else read_main_funestra_status(self._main_funestra_status_file).video)
-            self._host.send(open_line(self._token, playing, flicks=self._browsing_flicks))
-        events = list(self._presses.drain())
-        if not self._shown.showing:
-            return
-        for event in events:
-            self._host.send(event_line(event))
-        self._send_the_pointer()
-        self._show_what_it_drew(now)
-
-    def _send_the_pointer(self) -> None:
-        aim = self._presses.hover
-        at = surface_pixel(*aim[1], LIBRARY_SIZE_PX) if aim is not None else None
-        if at is not None and at != self._hovered:
-            self._host.send(hover_line(*at))
-        self._hovered = at
-        with self._lock:
-            notches = int(self._scrolled)
-            self._scrolled -= notches
-        if notches:
-            self._host.send(scroll_line(notches))
-
-    def _show_what_it_drew(self, now: float) -> None:
-        frame = self._host.frame(self._token)
-        if frame is not None:
-            width, height, pixels = frame
-            image = np.frombuffer(pixels, np.uint8).reshape(height, width, 4)
-        elif not self._drawn and now - self._opened_at >= LIBRARY_READING_SHOWN_AFTER_S:
-            image = waiting_panel()
-        else:
-            return
-        with self._lock:
-            self._image = image
-        self._drawn = True
-
-    def render_latest_frame(self) -> None:
-        if _upload(self):
-            self.screen.rehang(self.texture.aspect)
-
-    def close(self) -> None:
-        self._host.close()
-        self.texture.close()
-        self.screen.close()
-
-
 MESSAGE_ELEVATION_DEG = 24.0
 MESSAGE_PX_PER_DEG = 40.0
 MESSAGE_FONT_PX = round(in_pixels(SIZE_SMALL) * MESSAGE_PX_PER_DEG * DEG_PER_PX)
@@ -1710,7 +1571,7 @@ def _hands_for_the_funestras(
 class TheRoom:
     def __init__(
         self, *, main_unit: _MainUnit, satellites: Sequence[_SatelliteUnit], dash: _DashUnit,
-        main_hud_unit: _MainHudUnit, reference: _ReferenceUnit, library: _LibraryUnit,
+        main_hud_unit: _MainHudUnit, reference: _ReferenceUnit,
         flashed: _MessageUnit, gallery: _GalleryUnit, loading_screen: LoadingScreenUnit,
         messages: MessageBoard, keeper: _LayoutKeeper, posts: _ControllerPosts,
         pointing: _PointerDrawing, loading_screen_watch: LoadingScreenWatch,
@@ -1720,7 +1581,7 @@ class TheRoom:
         self.satellites = tuple(satellites)
         self.main_hud_unit = main_hud_unit
         self.loading_screen = loading_screen
-        self.scrollable: tuple[Scrolls, ...] = (library, gallery, reference)
+        self.scrollable: tuple[Scrolls, ...] = (gallery, reference)
         self.keeper = keeper
         self.posts = posts
         self.pointing = pointing
@@ -1731,7 +1592,7 @@ class TheRoom:
         dash_then_the_hud_hanging_from_where_it_went = (dash, main_hud_unit)
         self.units: list[RoomUnit] = [
             main_unit, *self.satellites, *dash_then_the_hud_hanging_from_where_it_went,
-            reference, library, flashed, gallery, loading_screen]
+            reference, flashed, gallery, loading_screen]
         self.closing: list[Pumped] = [messages, *self.units, keeper, posts]
         self.pumped = [one for one in self.closing if one is not main_unit]
         self.where = room.where_they_hang(self.units)
@@ -1771,8 +1632,7 @@ class TheRoom:
 
 
 def hang_the_room(
-    launch: RoomLaunch, *, manifest_path: Path,
-    loading_screen: LoadingScreenUnit,
+    launch: RoomLaunch, *, loading_screen: LoadingScreenUnit,
     present_the_loading_screen: Callable[[], object] = lambda: None,
 ) -> TheRoom:
     manifest = launch.manifest
@@ -1799,18 +1659,10 @@ def hang_the_room(
         reference_flag=reference_flag,
     )
     main_hud_unit = _MainHudUnit(main_unit, dash)
-    library = _LibraryUnit(
-        manifest,
-        remembered=remembered.placements,
-        flag=state_dir / LIBRARY_OPEN_FILENAME,
-        host=LibraryHost(manifest_path=manifest_path, state_dir=state_dir),
-        genau_has_the_slot=lambda: not main_unit.owns_the_slot,
-    )
     return TheRoom(
         main_unit=main_unit, satellites=satellites, dash=dash, main_hud_unit=main_hud_unit,
         reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag,
                                  host=ReferencePagesHost(state_dir=state_dir)),
-        library=library,
         flashed=_MessageUnit(main_unit, messages),
         gallery=_GalleryUnit(remembered=remembered.placements, commands=commands,
                              shared_state_file=shared_state_path(state_dir)),

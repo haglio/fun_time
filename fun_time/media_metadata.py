@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 from app_support import favorites
 from app_support.kino_folder import is_ai_video
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, record_path
-from app_support.video_names import clip_title, version_group_of
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS
 
@@ -68,27 +67,6 @@ NUMBER_IN_A_DOWNLOADED_SET = re.compile(r"\(\d+\)")
 def downloaded_set_number_of(video: str | Path) -> str:
     found = NUMBER_IN_A_DOWNLOADED_SET.findall(Path(video).stem)
     return found[-1] if found else ""
-
-
-def recorded_group(payload: dict, video: str | Path) -> str:
-    family_evolver_gave_the_whole_set = version_group_of(payload)
-    own_number = downloaded_set_number_of(video)
-    if family_evolver_gave_the_whole_set and own_number:
-        return f"{family_evolver_gave_the_whole_set} {own_number}"
-    return family_evolver_gave_the_whole_set
-
-
-TITLE_FIELD = "title"
-
-
-def video_title(payload: dict, video: str | Path) -> str:
-    evolvers_name_for_the_movie_and_its_cast = str(payload.get(TITLE_FIELD, "") or "").strip()
-    return (
-        evolvers_name_for_the_movie_and_its_cast
-        or clip_title(payload)
-        or recorded_group(payload, video)
-        or Path(video).stem
-    )
 
 
 def load_metadata(json_path: str | Path) -> dict:

@@ -12,7 +12,6 @@ from fun_time.media_metadata import (
     metadata_path_for,
     recorded_for,
     recorded_orientation,
-    video_title,
     video_type_of,
 )
 
@@ -168,26 +167,6 @@ def test_a_video_reached_through_a_junction_is_still_placed_under_the_library(tm
 
     assert metadata_path_for(link / "2D" / "clip.mp4", root / "metadata") == (
         root / "metadata" / "2D" / "clip.json")
-
-
-class TestWhatAVideoIsCalled:
-    def test_the_recorded_name_is_what_the_video_is_called(self):
-        assert video_title(
-            {"title": "Jane Doe - Alpha Study: Part Two",
-             "version": {"group": "Jane Doe - Alpha Study Part Two"}},
-            "C:/lib/Jane Doe - Alpha Study Part Two_apo8.mp4",
-        ) == "Jane Doe - Alpha Study: Part Two"
-
-    def test_a_video_evolver_has_not_named_yet_is_called_by_its_own_record(self):
-        assert video_title(
-            {"clip": {"performer": "Jane Doe", "source": "Alpha Study 3"}},
-            "C:/lib/whatever.mp4",
-        ) == "Jane Doe - Alpha Study 3"
-
-    def test_a_video_with_neither_falls_back_to_its_family_then_its_filename(self):
-        assert video_title({"version": {"group": "Jane-Doe_540-hQ2vLm8t"}},
-                           "C:/lib/Jane-Doe_540-hQ2vLm8t_apo8.mp4") == "Jane-Doe_540-hQ2vLm8t"
-        assert video_title({}, "C:/lib/Jane-Doe_540-hQ2vLm8t.mp4") == "Jane-Doe_540-hQ2vLm8t"
 
 
 def test_a_recorded_kind_is_the_kind_whatever_else_the_sidecar_holds():

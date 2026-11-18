@@ -23,5 +23,3 @@ HELP_REFERENCE_CLOSE = "help_reference_close"
 HELP_REFERENCE_COMMANDS = frozenset({HELP_REFERENCE, HELP_REFERENCE_CLOSE})
 
 REFERENCE_OPEN_FILENAME = "reference_open.txt"
-LIBRARY_OPEN_FILENAME = "library_open.txt"
-BROWSE_LIBRARY_CLOSE = "browse_library_close"

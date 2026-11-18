@@ -126,13 +126,13 @@ from fun_time.windows_bridge_orchestrator import (
     PreparedVoice,
     clear_last_sessions_leftovers,
     finish_under_the_loading_screen,
+    hud_publisher_for,
     kill_recorded_child,
     launch_hotkey_script,
     let_go_of_a_kept_origenerator,
     log_into_the_hotkey_scripts_log,
     prepare_voice_control,
     see_the_hosted_app_out,
-    start_hud_priming,
     start_voice_control,
     stop_hotkey_script,
     write_pids_file,
@@ -427,8 +427,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                 _wait_for_the_room(launch.room_ready_file, launched.funestra, progress)
         if not joined:
             return _end_a_launch_the_headset_never_joined(launch, launched, ahk_proc)
-        hud_publisher = start_hud_priming(
-            launch.bridge_config, launch.manifest, dashboard_enabled=True)
+        hud_publisher = hud_publisher_for(launch.manifest, dashboard_enabled=True)
         if progress.cancelled:
             raise StartupCancelled()
     except StartupCancelled:

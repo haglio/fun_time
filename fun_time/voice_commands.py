@@ -302,8 +302,6 @@ def build_voice_commands(
     "tilt up": "tilt_up",
     "tilt down": "tilt_down",
     "level": "tilt_reset",
-        **dict.fromkeys(("browse", "open browser", "open file browser", "file browser",
-                         "file browse"), "browse_library"),
         "save snippet": "genaumacher_save",
         f"save {flick}": "genaumacher_save",
         "record": "main_funestra_record_down",

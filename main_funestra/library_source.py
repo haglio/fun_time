@@ -5,9 +5,10 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
+from app_support.video_names import version_group_of
 from funestra.playlist import PlaylistItem
 
-from fun_time.media_metadata import recorded_for, version_group_of
+from fun_time.media_metadata import recorded_for
 
 from .discovery import discover_entries
 from .library import LibraryEntry, group_versions, version_index_from_groups

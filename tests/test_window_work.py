@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import threading
 from dataclasses import replace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -131,36 +130,3 @@ class TestOrigeneratorWindowConverger:
         made_up_window_work(tmp_path, windows=windows).converge_origenerator_window(HOSTING)
 
         assert windows.asked == [("converge_origenerator_window", RfbMode.ORIGENERATOR)]
-
-
-def _a_browse_that_stays_up_until_terminated() -> tuple[Mock, threading.Event]:
-    opened = threading.Event()
-    terminated = threading.Event()
-    process = Mock()
-    process.wait.side_effect = lambda: (opened.set(), terminated.wait(10.0))
-    process.terminate.side_effect = terminated.set
-    return process, opened
-
-
-class TestBrowserOutlivesNothing:
-    def test_closing_ends_a_browse_launched_after_the_startup_children(self, tmp_path):
-        work = made_up_window_work(tmp_path)
-        process, opened = _a_browse_that_stays_up_until_terminated()
-
-        with patch("fun_time.window_work.subprocess.Popen", return_value=process) as mock_popen:
-            browsing = threading.Thread(target=work.run_browser, args=(["python"],))
-            browsing.start()
-            assert opened.wait(2.0), "the browser never started"
-            work.close()
-            browsing.join(timeout=2.0)
-
-        mock_popen.assert_called_once()
-        process.terminate.assert_called_once()
-        assert work.browser_process is None, "the finished browse is not still held"
-
-    def test_closing_with_no_browse_open_terminates_nothing(self, tmp_path):
-        work = made_up_window_work(tmp_path)
-
-        work.close()
-
-        assert work.browser_process is None

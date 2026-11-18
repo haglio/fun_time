@@ -4,7 +4,6 @@ import contextlib
 import json
 import logging
 import socket
-import threading
 import time
 from dataclasses import replace
 from functools import partial
@@ -13,7 +12,6 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
-from app_support.file_channel import read_flag
 from app_support.state_files import OSR2_SERIAL_RX
 from app_support.threading_utils import wait_until
 from funestra.file_channel import publish_whole
@@ -38,7 +36,6 @@ from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
     HEADSET_OFF,
     HEADSET_ON,
-    LIBRARY_OPEN_FILENAME,
     ORIGENERATOR_ACTIVATE,
     RFB_ACTIVATE,
 )
@@ -53,7 +50,6 @@ from fun_time.fun_time_windows import (
 from fun_time.gallery import GalleryKeptOffTheLoop
 from fun_time.hosted_contract import SAID_AT_FIELD
 from fun_time.hud_transport import HudPublisher
-from fun_time.library_browser import BrowseOpening
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -234,17 +230,6 @@ def test_each_satellite_reads_the_hosted_hud_where_the_manifest_names_it(cfg_fac
     for funestra in FunTimeFunestra.SATELLITES:
         assert bridge.satellite(funestra).origenerator_hud_file == (
             config.satellite(funestra).origenerator_hud_file)
-
-
-def _join_the_browse_threads() -> None:
-    for thread in threading.enumerate():
-        if thread.name == "library-browser":
-            thread.join(timeout=10.0)
-
-
-def _wait_until_the_browse_thread_ends(mock_browse) -> None:
-    wait_until(lambda: mock_browse.call_count >= 1, timeout=10.0)
-    _join_the_browse_threads()
 
 
 @contextlib.contextmanager
@@ -449,24 +434,6 @@ class TestDispatchLoopRunner:
         assert loaded is not None
         assert loaded.omni_paused is True
 
-    def test_browse_library_sends_its_press_and_browses_with_the_app_playing(self, tmp_path):
-        with _press_channel(tmp_path) as recv_sock:
-            runner = make_runner(tmp_path, dashboard_enabled=True)
-            runner.answering.state = BridgeState(main_mode=MainMode.KINO)
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("browse_library", encoding="utf-8")
-
-            with _finding_no_window_not_even_a_real_fun_times(), \
-                 patch("fun_time.fun_time_windows.set_always_on_top"), \
-                 patch("fun_time.window_work.browse_library",
-                       return_value=None) as mock_browse:
-                runner.tick()
-
-                messages = _presses_until(recv_sock, "browse_library")
-                _wait_until_the_browse_thread_ends(mock_browse)
-
-        assert "browse_library" in messages
-        assert runner.answering.state.omni_paused is False
 
     def test_dispatch_forwards_remaining_ops_to_ahk(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -1679,382 +1646,6 @@ class TestResolveRole:
             runner.answering.dispatch(parse_command("main_kino_activate"))
 
         assert shown == [MAIN_FUNESTRA_HWND]
-
-
-class TestBrowseLibrary:
-    def test_a_browse_leaves_the_satellites_and_voice_playing(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=False)
-
-        with patch("fun_time.command_answering.dispatch_command") as mock_dispatch, \
-             patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.fun_time_windows.set_always_on_top"), \
-             patch("fun_time.window_work.browse_library", return_value=None):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        dispatched = [c[0][0].text for c in mock_dispatch.call_args_list]
-        assert "enter_omnipause" not in dispatched
-        assert "omnipause_toggle" not in dispatched
-        assert runner.answering.state.omni_paused is False
-
-    def test_removes_topmost_from_all_managed_windows(self, tmp_path):
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.answering.state = BridgeState(omni_paused=False)
-
-        topmost_calls = []
-
-        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.fun_time_windows.set_always_on_top",
-                   side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
-             patch("fun_time.window_work.browse_library", return_value=None):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        removed = {h for h, v in topmost_calls if not v}
-        assert removed == TOPMOST_HWNDS
-
-    def test_the_browser_stands_over_the_window_its_pick_will_play_in(self, tmp_path):
-        config = make_config(tmp_path, python_exe=r"C:\python.exe")
-        runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
-        runner.answering.state = BridgeState(omni_paused=False)
-
-        with patch.object(runner.window_work.windows, "remove_all_topmost"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.window_work.window_rect", return_value=(0, 400, 1080, 1520)), \
-             patch("fun_time.window_work.browse_library", return_value=None) as mock_browse:
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        mock_browse.assert_called_once_with(
-            tmp_path / "launch.ini", r"C:\python.exe",
-            BrowseOpening(over=(0, 400, 1080, 1520), playing="", flicks=False),
-            runner=runner.window_work.run_browser,
-        )
-
-    def test_browses_from_the_folder_the_main_funestra_is_playing_in(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=False)
-        runner.answering.config.main_funestra.status_file.write_text(
-            "video=C:/videos/big_batch/beta.mp4\n", encoding="utf-8",
-        )
-
-        with patch.object(runner.window_work.windows, "remove_all_topmost"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.window_work.browse_library",
-                   return_value=None) as mock_browse:
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        assert mock_browse.call_args.args[2].playing == "C:/videos/big_batch/beta.mp4"
-
-    def test_the_restack_on_leaving_omnipause_does_not_bury_an_open_browse(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=True)
-        runner.window_work.browser_process = Mock(pid=BROWSE_PID, **{"poll.return_value": None})
-
-        with patch.object(runner.window_work.windows, "restore_parked"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             patch("fun_time.window_work.find_window_for_process",
-                   return_value=BROWSE_HWND) as lookup, \
-             patch("fun_time.window_work.set_always_on_top") as on_top:
-            runner.answering.dispatch(parse_command("omnipause_toggle"))
-
-        assert on_top.call_args_list == [((BROWSE_HWND, True), {})]
-        assert lookup.call_args_list == [((BROWSE_PID,), {})]
-
-    def test_nothing_is_promoted_when_no_browse_is_open(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=True)
-
-        with patch.object(runner.window_work.windows, "restore_parked"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             patch("fun_time.window_work.set_always_on_top") as on_top:
-            runner.answering.dispatch(parse_command("omnipause_toggle"))
-
-        assert on_top.call_args_list == []
-
-    def test_an_exited_browses_pid_is_never_looked_up_for_a_window(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=True)
-        runner.window_work.browser_process = Mock(pid=BROWSE_PID, **{"poll.return_value": 0})
-
-        with patch.object(runner.window_work.windows, "restore_parked"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             patch("fun_time.window_work.find_window_for_process",
-                   return_value=BROWSE_HWND) as lookup, \
-             patch("fun_time.window_work.set_always_on_top") as on_top:
-            runner.answering.dispatch(parse_command("omnipause_toggle"))
-
-        assert lookup.call_args_list == [], "the pid may be another program's by now"
-        assert on_top.call_args_list == []
-
-    def test_sends_selected_file_to_main_funestra_by_default(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=False)
-
-        video = tmp_path / "videos" / "videos" / "movie.mp4"
-        video.parent.mkdir(parents=True)
-        video.write_text("x", encoding="utf-8")
-        mirrored = tmp_path / "videos" / "scripts" / "scripts" / "movie.funscript"
-        mirrored.parent.mkdir(parents=True)
-        mirrored.write_text("{}", encoding="utf-8")
-
-        with patch.object(runner.window_work.windows, "remove_all_topmost"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             _finding_no_window_not_even_a_real_fun_times(), \
-             patch("fun_time.window_work.browse_library", return_value=str(video)):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        command = runner.answering.config.main_funestra.cmd_file.read_text(encoding="utf-8")
-        assert command == f"PLAY_FILE {video}\t{mirrored}\n"
-
-    def test_sends_selected_file_to_main_funestra_in_kino_mode(self, tmp_path):
-        config = make_config(tmp_path, main_sources=r"C:\videos")
-        runner = make_runner(tmp_path, config=config)
-        runner.answering.state = BridgeState(omni_paused=False, main_mode=MainMode.KINO)
-
-        with patch.object(runner.window_work.windows, "remove_all_topmost"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             _finding_no_window_not_even_a_real_fun_times(), \
-             patch("fun_time.window_work.browse_library", return_value=r"C:\videos\movie.mp4"):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        assert runner.answering.config.main_funestra.cmd_file.read_text(
-            encoding="utf-8") == "PLAY_FILE C:\\videos\\movie.mp4\n"
-
-    def test_genau_browses_its_videos_over_the_main_funestras_window_from_the_video_it_has_up(self, tmp_path):
-        config = make_config(tmp_path, python_exe=r"C:\python.exe")
-        runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
-        runner.answering.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
-        runner.answering.config.genau.status_file.write_text(
-            "flick=C:/library/genau/flicks/Scene One.mp4\n", encoding="utf-8")
-
-        with patch.object(runner.window_work.windows, "remove_all_topmost"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             patch.object(runner.window_work.windows, "hwnd", side_effect=lambda window_name: {"main_funestra": MAIN_FUNESTRA_HWND}.get(window_name, 0)), \
-             patch("fun_time.window_work.window_rect",
-                   side_effect=lambda hwnd: (0, 400, 1080, 1520) if hwnd == MAIN_FUNESTRA_HWND else None), \
-             patch("fun_time.window_work.browse_library", return_value=None) as mock_browse:
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        mock_browse.assert_called_once_with(
-            tmp_path / "launch.ini", r"C:\python.exe",
-            BrowseOpening(over=(0, 400, 1080, 1520), playing="C:/library/genau/flicks/Scene One.mp4",
-                          flicks=True),
-            runner=runner.window_work.run_browser,
-        )
-
-    def test_a_video_picked_in_genau_mode_goes_to_genau_not_the_main_funestra(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
-
-        with patch.object(runner.window_work.windows, "remove_all_topmost"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             _finding_no_window_not_even_a_real_fun_times(), \
-             patch("fun_time.window_work.browse_library",
-                   return_value=r"C:\library\genau\flicks\Scene One.mp4"):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        assert runner.answering.config.genau.cmd_file.read_text(
-            encoding="utf-8") == "PLAY_FILE C:\\library\\genau\\flicks\\Scene One.mp4\n"
-        assert not runner.answering.config.main_funestra.cmd_file.exists()
-
-    def test_does_not_play_anything_on_cancel(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=False)
-
-        with patch.object(runner.window_work.windows, "remove_all_topmost"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             _finding_no_window_not_even_a_real_fun_times(), \
-             patch("fun_time.window_work.browse_library", return_value=None):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        assert not runner.answering.config.main_funestra.cmd_file.exists()
-
-    def test_restores_topmost_after_the_pick(self, tmp_path):
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.answering.state = BridgeState(omni_paused=False)
-
-        topmost_calls = []
-
-        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.fun_time_windows.set_always_on_top",
-                   side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
-             patch("fun_time.window_work.browse_library", return_value=None):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        restored = {h for h, v in topmost_calls if v}
-        assert restored == TOPMOST_HWNDS
-
-    def test_restores_the_main_funestras_band_in_genau_mode_too(self, tmp_path):
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.answering.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
-
-        topmost_calls = []
-
-        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.fun_time_windows.set_always_on_top",
-                   side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
-             patch("fun_time.window_work.browse_library", return_value=None):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        restored = {h for h, v in topmost_calls if v}
-        assert restored == TOPMOST_HWNDS
-
-    def test_the_hotkeys_that_would_eat_the_browsers_keys_are_suspended_for_it(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=False)
-        suspends: list[str] = []
-
-        with patch.object(runner.window_work.windows, "remove_all_topmost"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             _finding_no_window_not_even_a_real_fun_times(), \
-             patch("fun_time.window_work.browse_library",
-                   side_effect=lambda *a, **kw: suspends.append(
-                       _mailbox(runner))):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        assert suspends == [["suspend_hotkeys"]]
-        assert _mailbox(runner) == ["suspend_hotkeys", "unsuspend_hotkeys"]
-
-    def test_leaves_the_suspended_hotkeys_alone_when_already_paused(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=True)
-
-        with _finding_no_window_not_even_a_real_fun_times(), \
-             patch("fun_time.window_work.browse_library", return_value=None):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        assert not runner.answering.ahk_cmd_file.exists()
-
-    def test_topmost_removed_before_the_browser_opens(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=False)
-
-        call_log: list[str] = []
-
-        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.fun_time_windows.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
-             patch("fun_time.window_work.browse_library", side_effect=lambda *a, **kw: (call_log.append("browse"), None)[-1]):
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        assert "browse" in call_log
-        first_remove = next(i for i, c in enumerate(call_log) if c == "topmost_False")
-        assert first_remove < call_log.index("browse")
-
-    def test_a_browse_under_omnipause_never_puts_the_lowered_windows_back_on_top(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=True)
-
-        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=MAIN_FUNESTRA_HWND), \
-             patch("fun_time.window_work.window_rect", return_value=(0, 0, 800, 600)), \
-             patch("fun_time.fun_time_windows.set_always_on_top") as mock_topmost, \
-             patch("fun_time.window_work.browse_library", return_value=None) as mock_browse:
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        mock_topmost.assert_not_called()
-        mock_browse.assert_called_once()
-
-    def test_browses_unplaced_when_the_primary_display_cannot_be_found(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=False)
-
-        with patch.object(runner.window_work.windows, "remove_all_topmost"), \
-             patch.object(runner.window_work.windows, "restore_all_topmost"), \
-             _finding_no_window_not_even_a_real_fun_times(), \
-             patch("fun_time.window_work.browse_library", return_value=None) as mock_browse:
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-        assert mock_browse.call_args.args[2].over is None
-
-    def test_a_second_browse_while_one_is_open_is_dropped(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.answering.state = BridgeState(omni_paused=True)
-
-        browses: list[str] = []
-        first_browse_open = threading.Event()
-        let_the_browse_close = threading.Event()
-
-        def a_browser_the_user_is_sitting_in(*_args, **_kwargs):
-            browses.append("open")
-            first_browse_open.set()
-            let_the_browse_close.wait(timeout=10.0)
-
-        with patch("fun_time.window_work.browse_library",
-                   side_effect=a_browser_the_user_is_sitting_in):
-            first = threading.Thread(target=runner.window_work.browse_library,
-                                     args=(lambda: runner.answering.state,))
-            first.start()
-            assert first_browse_open.wait(timeout=10.0)
-
-            runner.window_work.browse_library(lambda: runner.answering.state)
-
-            let_the_browse_close.set()
-            first.join(timeout=10.0)
-
-        assert browses == ["open"]
-
-    def test_browse_library_routed_from_tick(self, tmp_path):
-        runner = make_runner(tmp_path)
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("browse_library", encoding="utf-8")
-
-        with patch.object(runner.window_work, "browse_library") as mock_handle:
-            runner.tick()
-            wait_until(lambda: mock_handle.call_count >= 1, timeout=10.0)
-
-        mock_handle.assert_called_once()
-
-
-class TestBrowsingFromTheHeadset:
-    def _runner(self, tmp_path):
-        return make_runner(
-            tmp_path, config=make_config(tmp_path, vr_main_funestra=True),
-            main_funestra_pid=0, portrait_pid=0, landscape_pid=0, dashboard_pid=0,
-        )
-
-    def _press(self, runner, *commands):
-        with _finding_no_window_not_even_a_real_fun_times(), \
-             patch("fun_time.fun_time_windows.set_always_on_top"), \
-             patch("fun_time.window_work.browse_library",
-                   return_value=None) as desktop:
-            for command in commands:
-                runner.answering.answer(command)
-            _join_the_browse_threads()
-        return desktop
-
-    def test_a_headset_browse_opens_the_panel_the_funestra_hangs(self, tmp_path):
-        runner = self._runner(tmp_path)
-
-        self._press(runner, "browse_library")
-
-        assert read_flag(tmp_path / LIBRARY_OPEN_FILENAME, default=False)
-
-    def test_a_headset_browse_launches_no_desktop_window_and_takes_no_keys(self, tmp_path):
-        runner = self._runner(tmp_path)
-
-        desktop = self._press(runner, "browse_library")
-
-        desktop.assert_not_called()
-        assert not runner.answering.ahk_cmd_file.exists()
-
-    def test_a_second_browse_puts_the_panel_away(self, tmp_path):
-        runner = self._runner(tmp_path)
-
-        self._press(runner, "browse_library", "browse_library")
-
-        assert not read_flag(tmp_path / LIBRARY_OPEN_FILENAME, default=True)
-
-    def test_the_panels_own_close_puts_it_away_and_never_opens_it(self, tmp_path):
-        runner = self._runner(tmp_path)
-
-        self._press(runner, "browse_library", "browse_library_close", "browse_library_close")
-
-        assert not read_flag(tmp_path / LIBRARY_OPEN_FILENAME, default=True)
 
 
 class TestWhatAPausedRoomCarriesOut:

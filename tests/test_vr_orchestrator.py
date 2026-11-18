@@ -1563,7 +1563,7 @@ def _launch_stand_ins(orchestrator, torn_down: list, *, startup=None, **override
         "process_started": MagicMock(return_value=7),
         "_wait_for_funestra": MagicMock(return_value=True),
         "_wait_for_the_room": MagicMock(),
-        "start_hud_priming": MagicMock(return_value=None),
+        "hud_publisher_for": MagicMock(return_value=None),
         "stop_hotkey_script": MagicMock(side_effect=lambda _proc, _file: torn_down.append("hotkeys")),
         "kill_recorded_child": MagicMock(side_effect=lambda child: torn_down.append(child.pid)),
         "_release_vr_runtime": MagicMock(side_effect=lambda *_a, **_k: torn_down.append("runtime")),

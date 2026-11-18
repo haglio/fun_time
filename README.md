@@ -239,138 +239,13 @@ Every Funestra has its own playback speed: the Main Funestra's row on its HUD, a
 
 ### Modes
 
-The main stack runs in one of two modes: **Kino** and **Genau** (spoken, or Kino by its button on the Main Funestra's HUD and "main kino mode"). "browse" opens the **library browser** (see below); the chosen video plays in the Main Funestra, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
+The main stack runs in one of two modes: **Kino** and **Genau** (spoken, or Kino by its button on the Main Funestra's HUD and "main kino mode"). A video is picked in Origenerator's gallery: a double-click on one Kino plays asks the session to play it (`kino_play|<path>`), which puts the Main Funestra in Kino mode and plays it there, paired with its funscript when one exists at the mirrored path; `genau_play|<path>` does the same for one of Genau's flicks, in Genau mode.
 
 `M`, `.` and `,` step and hold whatever is on the Main Funestra -- the video in Kino mode, Genau's flick in Genau mode -- and `-`/`+` nudge the video ten seconds. A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded; and wherever a step has less than 10 seconds to go (back in a video's first 10 seconds, forward in its last 10), a key, a press of either button or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` save-snippet key reads the current video/time from the Main Funestra's status file in Kino mode.
 
 Spoken, "kino mode" and "main kino mode" put the Main Funestra in Kino mode, and "genau mode" puts it in Genau mode. Genau is heard said either way, the German word or "go now".
 
 The Satellite Funestras have one mode, Satellite mode, which has no switch: each plays Origenerator's slideshows. What holds the Random Faves Browser's place is a switch of its own: the pair of mode selectors under the dashboard's log, **Random Faves Browser** and **Origenerator** (say "RFB", "random faves" or "random faves browser" for the first, "aura generator" for the second). The Origenerator button stays dim until Origenerator Core is ready, which waits for ComfyUI to answer; the Satellites do not wait for it. The session launches the checkout of [Origenerator](../origenerator) that `paths.origenerator_dir` names at startup with its `--fun-time` flag and asks it for both Satellites' slideshows before the loading screen comes down; an app that never answers ends the startup. Its main window sits over the RFB's rect while that pair says Origenerator (parked under the browser otherwise), and each Satellite opens on the whole Origenerator library of its own shape, shuffled, which is what its reset button goes back to. Each Satellite wears the app's own nav map and buttons under a row of its own minimize button (and, on the Portrait Funestra, the crown), and everything said to it — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app; only minimize, the crown and the playback speed stay the Funestra's. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface, and a standalone one that the session never took over stands off the device too — the session leaves its pid in `state/fun_time_session.txt` for as long as it runs, in that checkout and in the primary checkout a worktree belongs to, and a window that reads a live one there lets go of the OSR2 and keeps its switch off. A preview of an Origenerator branch reads the primary's as well as its own, so one open beside Fun Time lets go too. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry. Fun Time's hotkeys stay live while Origenerator's window has the keyboard, and clicking into one of its text fields enters OmniPause, which suspends them, so what you type goes into the field.
-
-### The library browser
-
-The main library is filed by pipeline stage, several folders deep, and the
-same video sits in three of them at different trims and upscales
-(`…/<folder>/0 unsorted/`, `…/<folder>/1 could use work/2_originals_good_trimwise_but_need_enhancing/`,
-`…/<folder>/3_good_to_go/processed/`). Browsing that tree means knowing how far a
-video got through the pipeline before you can find it, which is the librarian's
-business and not the viewer's.
-
-So `N` opens Fun Time's own browser instead of a file dialog. It shows one tile
-per **video** rather than per file — every rendition of one video collapsed into
-a single *handle* — with a thumbnail off each, named after the video, and no stage
-folders anywhere. Arrow keys move the selection, typing jumps to a title,
-and Enter or a double-click plays it in the Main Funestra; the window's close button abandons
-the browse. The global hotkeys are suspended for its duration so those keys
-reach it at all — they consume the press, and the arrows and every letter are
-already commands. Escape is the exception: it belongs to OmniPause and stays
-live, which is why it is not the way out of the browser.
-
-It is a **Tool window**: no taskbar button, because a browse is something you
-open and dismiss rather than a program you leave running. It claims Fun Time's
-AppUserModelID before its window exists, so it can never be filed under some
-unrelated app. Being a Tool window is also why it has to end its own process:
-Qt does not count one towards the last-window quit, so closing the window is
-wired to quitting the app — without that a picked video sat in the result file
-with the bridge blocked by a process that had nothing left to do. And it
-belongs to the session — quitting Fun Time closes a browse still on screen,
-since the dispatch loop that launched it holds it until it ends.
-
-In the headset the browser is the desktop's own. Nothing in the headset can see
-a window on the monitors, so a VR session runs the same browser with no window
-at all and hangs what it draws in front of you as a panel. `N`, "browse" and
-the HUD's browse button open it, and the same again puts it away. It is the
-window described below, header, letters and tiles alike, with three differences
-a pointer needs: one trigger press opens a tile, the stick scrolls whichever
-list the pointer is over, and a close button sits at the end of the header,
-since no title bar is drawn around it. A headset session has two kinds of
-video, so the browse opens on two folders: `VR`, the headset's own library
-(`vr.library_dirs`), and `2D`, the folders the desktop walks; a session with
-videos of only one kind opens straight on that kind's folders. A video picked
-plays on the Main Funestra and puts the browse away. It opens on the folder of
-the video that is playing, with that video chosen, and no hotkey is suspended
-while it is up. The browser starts, and reads the library, when the headset's
-Funestra does, so a browse opened in the first moments of a session says it is
-still reading.
-
-The grid is one you **walk**. It opens on the library's own folders — one tile
-per folder under a `main_player_library_dirs` source, showing four of its videos laid out
-two by two (drawn at random, so a folder is never the same thumbnail twice) and a
-count — and opening one shows what is in it: either the folders it was split
-into, or its videos. A tile at the head of every folder goes back up, and so
-does Backspace. The folder you are in is named across the top of the window,
-after **Library** and every folder above it, each of which is a link back to
-that folder.
-
-Down the left is the same folder listed a second way: **its letters, A to Z**,
-every one of them always, after `#` for names that start with a digit or a
-bracket. The grid is in the library's own ranking, which is the order to look
-*through* a folder in and no help when the title is already in mind — an
-alphabetical walk across a wrapped grid of thumbnails is not one. A letter with
-names under it carries ▸; clicking it moves the grid to its first name, opens
-its names beneath it with ▾, and closes whichever letter was open before, and
-clicking an open letter closes it again. A letter with nothing under it is
-grayed out and does nothing. A browse opens with the letter of the video playing
-already open. Clicking a name moves the grid's selection to it and scrolls it
-into view, and Enter or a double-click there opens it exactly as the tile would.
-Sub-folders are listed the same way at the levels that show them; the way back
-is not, since it is not something the folder holds. The grid keeps the focus, so
-the arrows and the type-ahead still drive the tiles, and Backspace goes back up
-from either half.
-
-The pipeline stages are never steps. Opening the last folder lays out **every**
-video under it at once, however many processing folders they are spread across
-on disk, because how far a video got through the pipeline is an implementation
-detail Fun Time exists to hide — and its other stages are reachable from the
-Funestra anyway, as versions. Within a folder it is alphabetical, and the folders
-rank by how much of the library each holds, biggest first.
-
-Videos **carved out of a compilation** become a folder of their own beside their
-folder's whole videos. Evolver marks an excerpt with a `video` record (the parent
-compilation, the running order in it, the scene it came from), and that record
-settles it — so a reel's worth of cuts never sits among the scenes they were
-cut from. Where a sidecar has no such record, the folder decides instead: a
-source folder that filed its cuts into a folder of their own put nothing else in
-there, so a video sitting among them is one of them whatever its sidecar failed
-to say. That fallback reaches only where the librarian already drew the line on
-disk — a folder whose cuts and whole videos share their sub-folders is separated
-by the sidecar alone, and the sub-folders they share are pipeline stages, which
-can never stand in for a division of the library.
-
-Where those two sets have been filed into two folders on disk, each
-keeping its own copy of the pipeline stages, the browse names them after those
-folders; where the split is the sidecar's alone, they are `full` and `videos`.
-
-The families come from Evolver's metadata sidecar (`version.group`), which is
-the authority on "same video, other version" — the filenames alone cannot say
-so. A video with no record stands alone as its own handle. Picking one plays its
-largest rendition, the same one the Main Funestra's own version cycling treats
-as canonical, so `V` walks the rest of the family from there. That largest
-rendition also decides the section: the odd family that records both an excerpt
-and the full scene sits with the whole videos, because that is what it plays.
-
-A thumbnail is grown until it meets one of its tile's edges and no further, so a
-tall video and a wide one keep their own proportions rather than both being
-squashed into the tile's shape. Stills are cached under `state/hud_thumbnails/` — the same cache the satellites'
-HUD maps paint from — and warmed in the background at startup, one per handle,
-taken off the *smallest* rendition: a 2.7 GB upscale and the original it came
-from make the same thumbnail, and only one of them is cheap to open.
-
-In Genau mode the same key, word and button browse **Genau's flicks** instead,
-under a header that starts at **Genau**: one tile per flick, named for its file,
-over Genau's own window, opening on the flick Genau has up, the way the video
-browse opens on the video playing. Genau's flicks folder (`paths.flicks_dir`) is
-laid out as the library's videos are: a `2D` folder split into `AI` (the flicks
-Origenerator makes) and `non_AI` (the flicks Genaumacher cuts), and a `VR` folder.
-Either Funestra's browse holds `VR` and `2D`, the way the headset's video browse
-does. The desktop's Genau cycles through the 2D flicks alone, and a VR flick
-picked on the desktop plays there as it is, both eyes side by side. A flick
-picked goes up in Genau at once and Genau carries on from it in the order it
-was browsing; one that is not in that order, a VR flick on the desktop or one
-that arrived after Genau last read its folders, is put in after the flick that
-was up. The flicks are read
-afresh at every browse, so a flick Evolver delivered a minute ago is there, and
-their thumbnails are warmed at startup with the library's.
 
 ### Snippet recording (Kino mode)
 
@@ -566,13 +441,6 @@ Written by the Main Funestra: the current `video`, `position_ms`, `duration_ms`,
 ### `watch_stats.json`
 
 Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized path — Fun Time's half of the weighting described under "Watch weight"; Evolver reads it, adds the phone's, and writes the result on each sidecar. Written by the dispatch loop's ~1 Hz satellite sampler and by lock commands; entries whose file vanished (e.g. sent to Trash) are pruned on the next write. Delete the file to drop Fun Time's counts from the next stamping.
-
-### `library_browser_pick.txt`
-
-The video the library browser picked, written as it closes and consumed by the
-dispatch loop, which turns it into the Main Funestra's `PLAY_FILE`. The browser is a separate
-process (the bridge has no Qt event loop), so this is how the pick gets back.
-Cleared before every browse, so abandoning one never replays the last pick.
 
 ### `main_player_playlist.tsv`
 

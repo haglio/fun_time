@@ -28,7 +28,7 @@ from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
 from .config import load_config
 from .crown import majority_now
-from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
+from .dashboard_actions import REFERENCE_OPEN_FILENAME
 from .desktop_session import (
     NO_FAREWELL,
     HostedAppFarewell,
@@ -62,11 +62,9 @@ from .hosted_contract import (
 )
 from .hosted_origenerator import what_it_answers_by_voice_in
 from .hud_transport import HudPublisher
-from .library_handles import build_library_handles, genau_flick_sources
 from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
-from .modes import collect_video_files
 from .origenerator_opening import OrigeneratorNeverCameUp
 from .osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from .overlay_progress import (
@@ -120,7 +118,6 @@ from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import Shortcut, resolve_shortcut
 from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
-from .thumbnail_cache import hud_and_browser_thumbnail_cache, prewarm_thumbnails
 from .unlogged_messages import UNLOGGED_MESSAGE_PORT_FILENAME
 from .voice_control import HostedVoice, VoiceController
 from .win32 import (
@@ -555,33 +552,15 @@ def _covering(hwnd: int, stack, *, covers_it_by_design: tuple[int, ...] = ()) ->
     return [w for w in windows_obscuring(hwnd, stack) if w.hwnd not in covers_it_by_design]
 
 
-def _main_browse_stills(bridge_config) -> list[str]:
-    return [
-        handle.preview
-        for handle in build_library_handles(
-            bridge_config.main_sources, bridge_config.regen_metadata_root
-        )
-    ]
-
-
-def start_hud_priming(bridge_config, manifest, *, dashboard_enabled: bool) -> HudPublisher | None:
+def hud_publisher_for(manifest, *, dashboard_enabled: bool) -> HudPublisher | None:
     if not dashboard_enabled:
         return None
-    cache_dir = hud_and_browser_thumbnail_cache(bridge_config.state_dir)
-    publisher = HudPublisher({
+    return HudPublisher({
         **{funestra.label: manifest.satellite(funestra).hud_file
            for funestra in FunTimeFunestra.SATELLITES},
         "main_funestra": Path(manifest.commands.main_funestra_console_file),
         DASHBOARD_OSR2_PART: osr2_part_path(Path(manifest.commands.state_dir)),
     })
-
-    def _warm() -> None:
-        prewarm_thumbnails(_main_browse_stills(bridge_config), cache_dir)
-        prewarm_thumbnails(collect_video_files(genau_flick_sources(manifest.media.genau_flicks)),
-                           cache_dir)
-
-    threading.Thread(target=_warm, daemon=True, name="hud-warm").start()
-    return publisher
 
 
 def clear_last_sessions_leftovers(
@@ -592,7 +571,7 @@ def clear_last_sessions_leftovers(
                   dashboard_cmd_file.with_suffix(".processing"), state_dir / PRESS_PORT_FILENAME,
                   state_dir / UNLOGGED_MESSAGE_PORT_FILENAME,
                   Path(commands.dashboard_state_file), session_end_marker_path(state_dir),
-                  force_quit_marker_path(state_dir), state_dir / REFERENCE_OPEN_FILENAME, state_dir / LIBRARY_OPEN_FILENAME):
+                  force_quit_marker_path(state_dir), state_dir / REFERENCE_OPEN_FILENAME):
         stale.unlink(missing_ok=True)
 
 
@@ -1052,7 +1031,7 @@ def run_session(
                              project_dir=hotkeys.project_dir),
         ahk_cmd_file)
 
-    hud_publisher = start_hud_priming(bridge_config, manifest, dashboard_enabled=dashboard_enabled)
+    hud_publisher = hud_publisher_for(manifest, dashboard_enabled=dashboard_enabled)
 
     logger.info("Running startup sequence")
     try:
