@@ -15,6 +15,7 @@ from .command_value import FUNESTRA_SOURCES
 from .event_log import FAVORITE, MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import shows_button_lit
+from .hosted_contract import written_for_the_hosted_app
 from .main_list_commands import rebuild_the_main_list
 from .mode_plan import kino_shows
 from .shared_state import BridgeState
@@ -93,8 +94,7 @@ def _dispatch(collection: Collection, asked_for: tuple[FunTimeFunestra, ...], ta
         if funestra is FunTimeFunestra.MAIN:
             state = _tell_the_main_funestra(state, config, collection, enabled)
         else:
-            append_command(config.origenerator.cmd_file,
-                           sided_command(funestra, collection, enabled))
+            written_for_the_hosted_app([sided_command(funestra, collection, enabled)], config)
     logger.info("%s %s: %s", collection.label, "on" if enabled else "off",
                 ", ".join(funestra.label for funestra in asked_for))
     source = FUNESTRA_SOURCES[asked_for[0]] if len(asked_for) == 1 else SOURCE_SYSTEM

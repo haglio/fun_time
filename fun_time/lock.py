@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from app_support.kino_folder import is_ai_video
-from funestra.file_channel import append_command
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
 from .gallery import Gallery, star_in_the_gallery, unstar_in_the_gallery
+from .hosted_contract import written_for_the_hosted_app
 from .media_metadata import a_favorite, mark_favorite, metadata_path_for
 from .random_faves_browser import FavEntry, target_for_fav, with_its_page
 from .rfb_mode import switch_the_rfb_mode
@@ -80,7 +80,7 @@ def _its_page(favorite: FavEntry, config: BridgeConfig, gallery: Gallery):
 
 def _core_goes_to(item: str, state: BridgeState, config: BridgeConfig) -> bool:
     if state.origenerator_core_ready:
-        append_command(config.origenerator.cmd_file, go_to_line(item))
+        written_for_the_hosted_app([go_to_line(item)], config)
     return state.origenerator_core_ready
 
 

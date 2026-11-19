@@ -26,6 +26,7 @@ from .command_value import FUNESTRA_SOURCES
 from .event_log import SOURCE_MAIN
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_genau_status, read_main_funestra_status
+from .hosted_contract import written_for_the_hosted_app
 from .lock import SENT_TO_TRASH, UNFAVORITED, unfavorited
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
 from .modes import same_file_to_windows, scripted_item
@@ -188,7 +189,7 @@ def _trash_kinos_video(state: BridgeState, config: BridgeConfig,
             append_command(config.main_funestra.cmd_file, NEXT)
         return state, [WindowOp(op="message", key=UNFAVORITED, source=SOURCE_MAIN)]
     append_command(config.main_funestra.cmd_file, f"{TRASH} {video}")
-    append_command(config.origenerator.cmd_file, trash_file_line(video))
+    written_for_the_hosted_app([trash_file_line(video)], config)
     return state, [WindowOp(op="message", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
 

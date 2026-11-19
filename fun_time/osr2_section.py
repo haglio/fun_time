@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from funestra.file_channel import append_command
 from funestra.hud_kinds import take_osr2_command
 from funestra.main_hud import MainHudModel, aim_row, osr2_controls
 from funestra.modes import MainMode, Osr2State
 
 from .fun_time_funestras import FunTimeFunestra
+from .hosted_contract import written_for_the_hosted_app
 
 DASHBOARD_OSR2_PART = "dashboard_osr2"
 
@@ -65,6 +65,6 @@ def tell_a_hosted_satellite_whose_the_osr2_is(config, told: dict[FunTimeFunestra
                                          funestra: FunTimeFunestra, has_it: bool) -> None:
     if told.get(funestra) == has_it:
         return
-    append_command(config.origenerator.cmd_file, osr2_said_to(funestra, has_it))
+    written_for_the_hosted_app([osr2_said_to(funestra, has_it)], config)
     told[funestra] = has_it
 

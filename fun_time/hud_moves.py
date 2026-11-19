@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import replace
 from functools import partial
 
-from funestra.file_channel import append_command
 from funestra.hud_placement import HudCorner, HudEdge
 
 from .bridge_records import BridgeConfig, Handler, Result, Route, SatelliteHandler, WindowOp
 from .command_value import Command
 from .fun_time_funestras import FunTimeFunestra
+from .hosted_contract import written_for_the_hosted_app
 from .shared_state import BridgeState
 
 _DIRECTIONS = ("left", "right", "up", "down")
@@ -93,7 +93,7 @@ def _hud_placed(corner: HudCorner, funestra: FunTimeFunestra, state: BridgeState
 
 def _tell_the_hosted_app(funestra: FunTimeFunestra, action: str, config: BridgeConfig) -> None:
     if funestra in FunTimeFunestra.SATELLITES:
-        append_command(config.origenerator.cmd_file, f"{funestra.label}_{action}")
+        written_for_the_hosted_app([f"{funestra.label}_{action}"], config)
 
 
 def _parked(window_name: str, _state: BridgeState, _config: BridgeConfig,

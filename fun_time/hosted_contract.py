@@ -146,16 +146,26 @@ def when_said_of(checkout: str | Path) -> WhenSaid:
 
 
 def with_when_said(line: str, spoken_at: float | None, when: WhenSaid) -> str:
+    return line + _the_time_it_was_said(spoken_at, when) + _that_he_said_it(line, when)
+
+
+def _the_time_it_was_said(spoken_at: float | None, when: WhenSaid) -> str:
     placeholder = "{" + SAID_AT_FIELD + "}"
     if spoken_at is None or placeholder not in when.said_at_suffix:
-        return line
+        return ""
     said_at = time.time() - (time.monotonic() - spoken_at)
-    heard = when.heard_suffix if is_answering_what_he_said() else ""
-    return line + when.said_at_suffix.replace(placeholder, f"{said_at:.3f}") + heard
+    return when.said_at_suffix.replace(placeholder, f"{said_at:.3f}")
+
+
+def _that_he_said_it(line: str, when: WhenSaid) -> str:
+    carries_words_or_a_file = ":" in line or "|" in line
+    if carries_words_or_a_file or not is_answering_what_he_said():
+        return ""
+    return when.heard_suffix
 
 
 def written_for_the_hosted_app(lines: list[str], config: BridgeConfig,
-                               spoken_at: float | None) -> list:
+                               spoken_at: float | None = None) -> list:
     for line in lines:
         append_command(config.origenerator.cmd_file,
                        with_when_said(line, spoken_at, config.origenerator_when_said))

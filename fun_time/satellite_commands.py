@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from functools import partial
 
-from funestra.file_channel import append_command
 from funestra.hud_placement import HudCorner
 
 from .bridge_records import BridgeConfig, Route, SatelliteHandler, WindowOp
 from .command_value import Command
 from .fun_time_funestras import FunTimeFunestra
+from .hosted_contract import written_for_the_hosted_app
 from .hud_transport import the_hosted_slideshow_is_locked
 from .lock import a_hosted_lock_holds
 from .osr2_commands import PLAYBACK_RATE_ACTS, percent_rate
@@ -50,7 +50,7 @@ def _let_go(funestra: FunTimeFunestra, state: BridgeState,
 
 
 def _tell_the_hosted_app(config: BridgeConfig, said: str) -> None:
-    append_command(config.origenerator.cmd_file, said)
+    written_for_the_hosted_app([said], config)
 
 
 def _send_to_satellite(verb: str, funestra: FunTimeFunestra, state: BridgeState,
