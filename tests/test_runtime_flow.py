@@ -148,6 +148,22 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
 
+def test_entering_omnipause_tells_the_osr2_to_park_before_any_funestra_hears_of_it(flow_files):
+    happened: list[str] = []
+
+    apply_enter_omnipause(
+        omni_paused=False,
+        main_mode=MainMode.KINO,
+        paused=_paused(flow_files),
+        broker_cmd_file=flow_files["broker_cmd_file"],
+        write_flag=lambda path, _value: happened.append(Path(path).name),
+        tell_the_broker=lambda _path, verb: happened.append(verb),
+    )
+
+    assert happened[0] == "PARK"
+    assert len(happened) > 1
+
+
 def test_with_no_broker_omnipause_still_freezes_the_app(flow_files):
     apply_enter_omnipause(
         omni_paused=False,
