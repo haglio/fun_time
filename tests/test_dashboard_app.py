@@ -1445,9 +1445,9 @@ def test_a_press_arrives_stripped_of_whatever_framed_it(
         dashboard_window, dashboard_app_config):
     port = int(_press_port_file(dashboard_app_config).read_text(encoding="utf-8"))
 
-    _send_press(port, b"  quit \n")
+    _send_press(port, b"  voice_toggle \n")
 
-    assert "quit" in _drain(dashboard_window, "quit")
+    assert "voice_toggle" in _drain(dashboard_window, "voice_toggle")
 
 
 def test_the_machine_picks_the_port_so_two_sessions_never_collide(
