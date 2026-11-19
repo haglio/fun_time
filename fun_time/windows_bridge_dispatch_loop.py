@@ -16,7 +16,7 @@ from .dispatch_loop_setup import LOOP_TICK_S, Publishing, SessionFiles, SessionS
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import HandOvers
 from .gallery import GalleryKeptOffTheLoop, gallery_database_in, the_librarys_origenerator
-from .hosted_contract import said_at_suffix_of
+from .hosted_contract import when_said_of
 from .hud_feed import HudFeed
 from .latest_arrivals import LatestArrivals
 from .loop_followers import (
@@ -189,5 +189,5 @@ def build_bridge_config_from_manifest(
         regen_generate_image_url=manifest.regen.generate_image_url,
         librarys_origenerator=librarys_origenerator,
         kept_gallery=GalleryKeptOffTheLoop(gallery_database_in(librarys_origenerator)),
-        origenerator_said_at_suffix=said_at_suffix_of(manifest.runtime.origenerator_dir.strip()),
+        origenerator_when_said=when_said_of(manifest.runtime.origenerator_dir.strip()),
     )

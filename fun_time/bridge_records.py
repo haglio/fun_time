@@ -12,6 +12,7 @@ from .config import FunestraChannel, RegenConfig, SatelliteChannel
 from .event_log import MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
 from .gallery import Gallery, the_gallery_in
+from .hosted_contract import NOT_TOLD_WHEN, WhenSaid
 from .loopback_server import LOOPBACK_PORT
 from .main_list import MainList
 from .main_list_builds import BUILDS_HERE, MainListBuilds
@@ -43,7 +44,7 @@ class BridgeConfig:
     python_exe: str = ""
     broker_cmd_file: Path | None = None
     broker_tray_launcher: Path | None = None
-    origenerator_said_at_suffix: str = ""
+    origenerator_when_said: WhenSaid = NOT_TOLD_WHEN
     origenerator_lock_phrases: frozenset[str] = frozenset()
     broker_state_dir: Path | None = None
     regen_media_root: Path | None = None

@@ -17,7 +17,7 @@ from fun_time.config import VoiceControlConfig
 from fun_time.content import genau_flick_noun
 from fun_time.event_log import parse_event_line
 from fun_time.filter_vocab import filter_voice_commands
-from fun_time.hosted_contract import HostedVocabulary
+from fun_time.hosted_contract import NOT_TOLD_WHEN, HostedVocabulary, WhenSaid
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands, parse_command_line
 from fun_time.voice_control import (
     WHILE_NOT_WEARING_HEADSET,
@@ -763,11 +763,11 @@ _THE_HOSTED_APP = HostedVocabulary(frozenset({"request", "gamma shelf"}), frozen
 
 
 class TestWhatIsSaidToASatelliteShowingOrigenerator:
-    def _controller(self, tmp_path: Path, *, said_at_suffix="") -> VoiceController:
+    def _controller(self, tmp_path: Path, *, when_said=NOT_TOLD_WHEN) -> VoiceController:
         return VoiceController(
             cmd_file=tmp_path / "cmd.txt",
             settings=VoiceControlConfig(enabled=True, model_path="unused"),
-            hosted=HostedVoice(vocabulary=_THE_HOSTED_APP, cmd_file=tmp_path / "origenerator_cmd.txt", said_at_suffix=said_at_suffix),
+            hosted=HostedVoice(vocabulary=_THE_HOSTED_APP, cmd_file=tmp_path / "origenerator_cmd.txt", when_said=when_said),
             clock=lambda: HELD_FROM,
         )
 
@@ -794,7 +794,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
 
     def test_the_words_of_an_open_request_carry_when_they_were_said_to_an_app_taking_it(
             self, tmp_path):
-        vc = self._controller(tmp_path, said_at_suffix=" @{said_at_epoch_seconds}")
+        vc = self._controller(tmp_path, when_said=WhenSaid(" @{said_at_epoch_seconds}"))
         vc.request_opened("landscape")
         on_the_wall, spoken_at = time.time() - 2.0, time.monotonic() - 2.0
         heard = replace(_as_voice_core_heard(Recognition(phrase="landscape next")), spoken_at=spoken_at)

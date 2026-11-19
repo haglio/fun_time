@@ -13,6 +13,7 @@ from funestra.hud_placement import HudCorner, HudEdge
 from funestra.hud_title import ENHANCED_LABEL, FAVORITES_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import LengthMode, MainMode
+from shared_ui.message_shape import answering_what_he_said
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
@@ -25,6 +26,7 @@ from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_LANDSCAPE, SOURCE_MAIN,
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.gallery import Gallery, GalleryKeptOffTheLoop
 from fun_time.genaumacher_save import _genaumacher_project_dir
+from fun_time.hosted_contract import WhenSaid
 from fun_time.hosted_words import routes_to_origenerator
 from fun_time.main_list import MainListSettings
 from fun_time.main_list_builds import MainListBuild
@@ -2064,7 +2066,7 @@ def _handed_over(*_funestras: FunTimeFunestra, **fields) -> BridgeState:
 
 def test_a_spoken_trash_reaches_a_hosted_satellite_with_when_it_was_said(tmp_path):
     config = replace(_make_config(tmp_path),
-                     origenerator_said_at_suffix=" @{said_at_epoch_seconds}")
+                     origenerator_when_said=WhenSaid(" @{said_at_epoch_seconds}"))
     on_the_wall, said_two_seconds_ago = time.time() - 2.0, time.monotonic() - 2.0
 
     dispatch_command("portrait_trash", _handed_over(FunTimeFunestra.PORTRAIT), config,
@@ -2076,9 +2078,34 @@ def test_a_spoken_trash_reaches_a_hosted_satellite_with_when_it_was_said(tmp_pat
     assert float(stamp) == pytest.approx(on_the_wall, abs=0.1)
 
 
+def test_images_only_said_for_a_hosted_satellite_reaches_it_saying_he_said_it(tmp_path):
+    config = replace(_make_config(tmp_path),
+                     origenerator_when_said=WhenSaid(" @{said_at_epoch_seconds}", " heard"))
+
+    with answering_what_he_said():
+        dispatch_command("portrait_media_images", _handed_over(FunTimeFunestra.PORTRAIT), config,
+                         given_at=12.0)
+
+    [line] = _origenerator_cmds(config)
+    assert line.startswith("portrait_media_images @")
+    assert line.endswith(" heard")
+
+
+def test_images_only_pressed_for_a_hosted_satellite_reaches_it_with_its_time_alone(tmp_path):
+    config = replace(_make_config(tmp_path),
+                     origenerator_when_said=WhenSaid(" @{said_at_epoch_seconds}", " heard"))
+
+    dispatch_command("portrait_media_images", _handed_over(FunTimeFunestra.PORTRAIT), config,
+                     given_at=12.0)
+
+    [line] = _origenerator_cmds(config)
+    assert line.startswith("portrait_media_images @")
+    assert not line.endswith(" heard")
+
+
 def test_a_spoken_lock_reaches_a_hosted_satellite_with_no_time_to_go_back_to_again(tmp_path):
     config = replace(_make_config(tmp_path),
-                     origenerator_said_at_suffix=" @{said_at_epoch_seconds}")
+                     origenerator_when_said=WhenSaid(" @{said_at_epoch_seconds}"))
     _set_current(config, FunTimeFunestra.PORTRAIT, "C:\\pictures\\moved on to.png")
 
     dispatch_command("portrait_lock_on", _handed_over(FunTimeFunestra.PORTRAIT), config,

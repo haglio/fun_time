@@ -50,7 +50,7 @@ from fun_time.fun_time_windows import (
     FunTimeWindows,
 )
 from fun_time.gallery import GalleryKeptOffTheLoop
-from fun_time.hosted_contract import SAID_AT_FIELD
+from fun_time.hosted_contract import SAID_AT_FIELD, WhenSaid
 from fun_time.hud_transport import HudPublisher
 from fun_time.library_browser import BrowseOpening
 from fun_time.manifest import (
@@ -214,12 +214,12 @@ def test_the_session_ends_a_line_said_aloud_the_way_its_origenerator_publishes(
     origenerator_dir = tmp_path / "origenerator"
     origenerator_dir.mkdir()
     (origenerator_dir / "origenerator_contract.json").write_text(
-        json.dumps({"said_at_suffix": " @{said_at_epoch_seconds}"}), encoding="utf-8")
+        json.dumps({"said_at_suffix": " @{said_at_epoch_seconds}", "heard_suffix": " heard"}), encoding="utf-8")
     config = load_config(cfg_factory({"paths": {"origenerator_dir": str(origenerator_dir)}}))
     manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
 
-    assert build_bridge_config_from_manifest(manifest).origenerator_said_at_suffix == (
-        " @{said_at_epoch_seconds}")
+    assert build_bridge_config_from_manifest(manifest).origenerator_when_said == WhenSaid(
+        " @{said_at_epoch_seconds}", " heard")
 
 
 def test_each_satellite_reads_the_hosted_hud_where_the_manifest_names_it(cfg_factory, tmp_path):
@@ -2585,7 +2585,7 @@ class TestALockPressedWhileFunTimeIsSlow:
 
     def test_a_satellite_key_the_hosted_app_answers_carries_the_moment_it_went_down(self, tmp_path):
         config = replace(make_config(tmp_path),
-                         origenerator_said_at_suffix=" @{" + SAID_AT_FIELD + "}")
+                         origenerator_when_said=WhenSaid(" @{" + SAID_AT_FIELD + "}"))
         runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", _handed_over(BridgeState()))

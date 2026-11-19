@@ -37,7 +37,9 @@ from fun_time.funestra_deaths import (
 )
 from fun_time.hosted_contract import (
     NO_HOSTED_VOCABULARY,
+    NOT_TOLD_WHEN,
     HostedVocabulary,
+    WhenSaid,
     published_actions_heard_as,
 )
 from fun_time.library_browser import BrowserConfig
@@ -3360,7 +3362,7 @@ class _RunsAtOnce:
 @dataclass(frozen=True)
 class Hosting:
     vocabulary: HostedVocabulary = NO_HOSTED_VOCABULARY
-    said_at_suffix: str = ""
+    when_said: WhenSaid = NOT_TOLD_WHEN
 
 
 class TestStartingVoice:
@@ -3377,7 +3379,7 @@ class TestStartingVoice:
             return windows_bridge_orchestrator.prepare_voice_control(
                 str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
                 hosted_cmd_file=tmp_path / "origenerator_cmd.txt",
-                hosted_said_at_suffix=hosting.said_at_suffix,
+                hosted_when_said=hosting.when_said,
                 ask_the_hosted_app=lambda: hosting.vocabulary, state_dir=tmp_path)
 
     @classmethod
@@ -3436,9 +3438,9 @@ class TestStartingVoice:
         controller = MagicMock()
 
         self._prepared(config_path, tmp_path, controller=controller,
-                       hosting=Hosting(said_at_suffix=" @{said_at_epoch_seconds}"))
+                       hosting=Hosting(when_said=WhenSaid(" @{said_at_epoch_seconds}")))
 
-        assert controller.call_args.kwargs["hosted"].said_at_suffix == " @{said_at_epoch_seconds}"
+        assert controller.call_args.kwargs["hosted"].when_said == WhenSaid(" @{said_at_epoch_seconds}")
 
     def test_the_app_hears_as_a_lock_the_words_the_hosted_app_takes_as_its_lock(
         self, cfg_factory, tmp_path,

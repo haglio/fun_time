@@ -13,6 +13,7 @@ from app_support.file_channel import read_flag
 from funestra import broker
 from funestra.file_channel import append_command
 from funestra.main_hud import BROKER_PRESS
+from shared_ui.message_shape import answering_what_he_said
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .command_dispatch import app_at_defaults, dispatch_command
@@ -32,7 +33,7 @@ from .dashboard_actions import (
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, who_drives_the_osr2
 from .dispatch_loop_setup import SessionFiles
-from .event_log import MESSAGE, SOURCE_SYSTEM, answering_what_he_said, flash_message
+from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
 from .funestra_status import read_main_funestra_status
 from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
