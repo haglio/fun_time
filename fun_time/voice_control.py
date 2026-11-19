@@ -15,6 +15,7 @@ from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, ListenerEvents, ListenerSettings, engines_for
 from voice_core.listening import Heard
 
+from fun_time.command_bell import ring as ring_the_command_bell
 from fun_time.command_value import SAY, parse_command
 from fun_time.config import VoiceControlConfig
 from fun_time.event_log import (
@@ -181,8 +182,10 @@ class VoiceController:
         verifying_listener: Callable[[bytes, str], str] | None = None,
         hosted: HostedVoice = NO_HOSTED_VOICE,
         clock: Callable[[], float] = time.monotonic,
+        ring: Callable[[Path], object] = ring_the_command_bell,
     ) -> None:
         self.cmd_file = Path(cmd_file)
+        self._ring = ring
         hosted_vocabulary = hosted.vocabulary
         self.commands = build_voice_commands(
             origenerator_phrases=hosted_vocabulary.phrases,
@@ -316,8 +319,11 @@ class VoiceController:
         hold = self._holds.when(spoken_at)
         if hold is not None and command not in hold.heard:
             return False
-        return append_command(self.cmd_file, format_spoken_command(
+        written = append_command(self.cmd_file, format_spoken_command(
             command, spoken_at=spoken_at, said=friendly_voice(phrase)))
+        if written:
+            self._ring(self.cmd_file)
+        return written
 
     def handle_heard(self, heard: Heard) -> None:
         with answering_what_he_said():

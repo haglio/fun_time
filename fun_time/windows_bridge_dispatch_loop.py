@@ -11,6 +11,7 @@ from app_support.threading_utils import start_daemon_thread
 from .arrivals import keep_looking
 from .bridge_records import BridgeConfig
 from .command_answering import CommandAnswering
+from .command_bell import Bell, CommandBell, wait_out_the_tick
 from .config import FunestraChannel
 from .dispatch_loop_setup import LOOP_TICK_S, Publishing, SessionFiles, SessionStart
 from .fun_time_funestras import FunTimeFunestra
@@ -20,6 +21,7 @@ from .hosted_contract import when_said_of
 from .hud_feed import HudFeed
 from .latest_arrivals import LatestArrivals
 from .loop_followers import (
+    DashboardCommands,
     Follower,
     LoopParts,
     give_core_the_browsers_place_if_owed,
@@ -63,6 +65,7 @@ class DispatchLoopRunner:
         *,
         followers: Callable[[LoopParts], Sequence[Follower]] = the_followers,
         clock: Callable[[], float] = time.monotonic,
+        bell: Bell | None = None,
     ) -> None:
         left_in = read_shared_state(files.shared_state) or BridgeState()
         self.opening = OrigeneratorOpening(
@@ -87,6 +90,8 @@ class DispatchLoopRunner:
             rfb_slideshow=start.rfb_slideshow)))
         self._clock = clock
         self._stop = threading.Event()
+        self._dashboard_cmd = files.dashboard_cmd
+        self._bell = bell
 
     def activate_origenerator(self, *, wait_for_the_app) -> None:
         if not self.opening.opens_now(wait_for_the_app):
@@ -119,6 +124,14 @@ class DispatchLoopRunner:
         if kept_gallery is not None:
             start_daemon_thread(target=keep_looking, args=(kept_gallery.look, self._stop),
                                 name="kept-gallery")
+        bell = self._bell = self._bell or CommandBell(self._dashboard_cmd)
+        between_ticks = DashboardCommands(self._dashboard_cmd)
+        try:
+            self._tick_until_stopped(bell, between_ticks)
+        finally:
+            bell.close()
+
+    def _tick_until_stopped(self, bell: Bell, between_ticks: DashboardCommands) -> None:
         last_wall = time.time()
         while not self._stop.is_set():
             now = time.time()
@@ -134,10 +147,19 @@ class DispatchLoopRunner:
                 self.tick()
             except Exception:
                 logger.exception("Dispatch loop error")
-            self._stop.wait(LOOP_TICK_S)
+            wait_out_the_tick(bell=bell, stop=self._stop, clock=self._clock, tick_s=LOOP_TICK_S,
+                              answer=lambda: self._answer_between_ticks(between_ticks))
+
+    def _answer_between_ticks(self, commands: DashboardCommands) -> None:
+        try:
+            commands.tick(self._clock(), self.answering)
+        except Exception:
+            logger.exception("Dispatch loop error answering a command between ticks")
 
     def stop(self) -> None:
         self._stop.set()
+        if self._bell is not None:
+            self._bell.ring_here()
 
     def close(self) -> None:
         self.window_work.close()
