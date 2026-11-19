@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 from app_support.flick_folder import trash_folder_in
 from funestra.funestra import User
+from funestra.genau_refresh import SEND_THREAD
 from funestra.inclusion_pair import BOTH
 from funestra.main_hud import ModeHud
 from funestra.modes import MessageLevel
@@ -34,7 +35,8 @@ from tests.disk_looks import DiskLooks
 from tests.genau_fakes import (
     FakeNotifier,
     FakeSink,
-    every_thread_now_but_the_port_binding_udp_reader,
+    ThreadsAsked,
+    every_thread_now_but_the_ones_that_run_for_good,
 )
 from tests.made_up_gallery import a_row
 
@@ -65,11 +67,22 @@ class _CondemningInTheBackground:
 
     def __call__(self, *, target, args=(), name=""):
         if name != "genau-condemn":
-            every_thread_now_but_the_port_binding_udp_reader(target=target, args=args, name=name)
+            every_thread_now_but_the_ones_that_run_for_good(target=target, args=args, name=name)
             return
         thread = threading.Thread(target=target, args=args, name=name)
         self.threads.append(thread)
         thread.start()
+
+
+class _CondemningWhenTold:
+    def __init__(self) -> None:
+        self.waiting: list = []
+
+    def __call__(self, *, target, args=(), name=""):
+        if name != "genau-condemn":
+            every_thread_now_but_the_ones_that_run_for_good(target=target, args=args, name=name)
+            return
+        self.waiting.append(lambda: target(*args))
 
 
 @dataclass(frozen=True)
@@ -82,7 +95,7 @@ class WorldSetup:
     metadata_root: Path | None = None
     turned: tuple = ()
     orientations: tuple = BOTH
-    start_thread: Callable = every_thread_now_but_the_port_binding_udp_reader
+    start_thread: Callable = every_thread_now_but_the_ones_that_run_for_good
     gallery_names: GalleryNames = NO_GALLERY_NAMES
     origenerator_commands: Path | None = None
     kind: str = "non_AI"
@@ -155,6 +168,10 @@ class World:
         self.clock.now += seconds
         self.genau.tick()
 
+    def beat_of_the_send_clock(self, seconds: float = 1 / 30) -> None:
+        self.clock.now += seconds
+        self.genau.send_between_passes(self.clock.now)
+
     def status(self) -> dict[str, str]:
         lines = self.channels.status.read_text(encoding="utf-8").splitlines()
         return dict(line.split("=", 1) for line in lines if "=" in line)
@@ -220,6 +237,20 @@ class TestTheFlickOnScreen:
 
         assert (trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4").is_file()
         assert world.genau.top_block() == ModeHud(video="beta two")
+
+    def test_trash_moves_the_file_off_the_window_s_pass_since_a_move_in_the_library_can_take_long(self, tmp_path):
+        condemning = _CondemningWhenTold()
+        world = World(tmp_path, WorldSetup(start_thread=condemning))
+        flick = world.flat_dir / "alpha one.mp4"
+
+        world.send("TRASH")
+        up_next, still_there = world.genau.top_block(), flick.is_file()
+        for job in condemning.waiting:
+            job()
+
+        assert (up_next, still_there) == (ModeHud(video="beta two"), True)
+        assert len(condemning.waiting) == 1
+        assert (trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4").is_file()
 
     def test_trash_moves_a_flick_still_being_read_once_it_is_let_go(self, tmp_path):
         condemning = _CondemningInTheBackground()
@@ -485,8 +516,34 @@ class TestItsFrame:
 
         world.genau.own_frame().seek_loop(0.5)
         world.tick(0.05)
+        world.beat_of_the_send_clock()
 
         assert len(world.sink.sent) > sent_before
+
+    def test_the_osr2_s_positions_go_out_on_a_thread_of_their_own_and_no_pass_of_the_window_sends_one(self, tmp_path):
+        threads = ThreadsAsked()
+        world = World(tmp_path, WorldSetup(start_thread=threads))
+        world.send("RESUME")
+
+        for _pass in range(4):
+            world.tick(0.016)
+        sent_by_the_passes = list(world.sink.sent)
+        for _beat in range(3):
+            world.beat_of_the_send_clock()
+
+        assert threads.named.count(SEND_THREAD) == 1
+        assert sent_by_the_passes == []
+        assert len(world.sink.sent) == 3
+
+    def test_the_frame_carries_every_frame_of_its_flick_so_the_window_can_scale_them_ahead(self, tmp_path):
+        world = World(tmp_path)
+        world.tick(0.05)
+
+        first, again = world.genau.own_frame(), world.genau.own_frame()
+
+        assert len(first.frames) == 8
+        assert any(frame is first.frame for frame in first.frames)
+        assert again.frames is first.frames
 
     def test_the_frame_carries_the_flicks_time_on_screen(self, tmp_path):
         world = World(tmp_path)

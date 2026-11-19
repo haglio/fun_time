@@ -44,7 +44,7 @@ from tests.dispatch_sweep import every_command, headset_config, sweep
 from tests.genau_fakes import (
     FakeNotifier,
     FakeSink,
-    every_thread_now_but_the_port_binding_udp_reader,
+    every_thread_now_but_the_ones_that_run_for_good,
 )
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
@@ -158,7 +158,7 @@ def _genau_in_the_headset(tmp_path: Path) -> GenauInTheHeadset:
         outputs=GenauOutputs(notifier=FakeNotifier(), tcode_sink=FakeSink()),
         seams=EngineSeams(
             decode=lambda _flick: [np.zeros((8, 16, 3), dtype=np.uint8)],
-            start_thread=every_thread_now_but_the_port_binding_udp_reader))
+            start_thread=every_thread_now_but_the_ones_that_run_for_good))
 
 
 class _the_funestras_refusals:

@@ -181,7 +181,11 @@ class Genau:
                        elapsed_ms=elapsed_s * 1000.0, interval_ms=interval_s * 1000.0,
                        loading=self._loading,
                        seek_time=lambda ms: self._engine.seek_the_time_on_screen(ms / 1000.0),
-                       seek_loop=self._engine.seek, flick=self._flick)
+                       seek_loop=self._engine.seek, flick=self._flick,
+                       frames=self._engine.frames_on_screen())
+
+    def send_between_passes(self, now: float) -> None:
+        self._engine.controller.send_between_passes(now)
 
     def close(self) -> None:
         self._engine.close()

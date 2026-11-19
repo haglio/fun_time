@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -53,10 +53,12 @@ class GenauEngine:
     def current_flick(self) -> Path | None:
         return self.renderer.current_flick_path
 
-    def playhead(self) -> tuple[int, int]:
+    def frames_on_screen(self) -> Sequence:
         entry = self.renderer.current_flick_entry()
-        frames = entry.get("frames") if entry else None
-        count = len(frames) if frames else 0
+        return (entry.get("frames") if entry else None) or ()
+
+    def playhead(self) -> tuple[int, int]:
+        count = len(self.frames_on_screen())
         index = self.renderer.current_frame_index
         return (0 if index is None else max(0, count - 1 - index), count)
 
@@ -193,6 +195,7 @@ def build_genau_engine(
         tcode_sender=driver,
         logger=log,
         now_source=clock,
+        start_thread=start_thread,
     )
 
     def holding_what_is_on_screen() -> None:
@@ -243,13 +246,13 @@ class _Condemning:
 
 
 def _condemn(condemning: _Condemning, start_thread) -> None:
-    if not _still_open_after_trying(condemning):
-        return
-    condemning.log.info("%s is still open; condemning it once it is let go", condemning.flick.name)
     start_thread(target=_condemn_once_let_go, args=(condemning,), name="genau-condemn")
 
 
 def _condemn_once_let_go(condemning: _Condemning) -> None:
+    if not _still_open_after_trying(condemning):
+        return
+    condemning.log.info("%s is still open; condemning it once it is let go", condemning.flick.name)
     give_up_at = time.monotonic() + CONDEMN_PATIENCE_S
     while time.monotonic() < give_up_at:
         time.sleep(CONDEMN_RETRY_S)
