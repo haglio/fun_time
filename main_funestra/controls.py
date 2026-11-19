@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -24,6 +25,7 @@ class KinoControls:
     modes: Any
     jumps: Any
     reload_playlist: Callable[[], None]
+    clock: Callable[[], float] = time.monotonic
 
 
 Act = Callable[[KinoControls, str], bool]
@@ -33,18 +35,32 @@ def _playhead(controls: KinoControls) -> int:
     return int(controls.playback.position_ms)
 
 
-def _record_down(controls: KinoControls, _value: str) -> bool:
-    controls.snippet.record_down(_playhead(controls))
+LONGEST_A_PRESS_TAKES_TO_ARRIVE_S = 5.0
+
+
+def _playhead_when_pressed(controls: KinoControls, pressed_at: str) -> int:
+    try:
+        gone = controls.clock() - float(pressed_at)
+    except ValueError:
+        return _playhead(controls)
+    if controls.playback.is_paused or not 0.0 <= gone <= LONGEST_A_PRESS_TAKES_TO_ARRIVE_S:
+        return _playhead(controls)
+    played_since_ms = gone * 1000.0 * controls.playback.speed
+    return int(max(0.0, controls.playback.position_ms - played_since_ms))
+
+
+def _record_down(controls: KinoControls, pressed_at: str) -> bool:
+    controls.snippet.record_down(_playhead_when_pressed(controls, pressed_at))
     return True
 
 
-def _record_up(controls: KinoControls, _value: str) -> bool:
-    controls.snippet.record_up(_playhead(controls))
+def _record_up(controls: KinoControls, pressed_at: str) -> bool:
+    controls.snippet.record_up(_playhead_when_pressed(controls, pressed_at))
     return True
 
 
-def _record_tap(controls: KinoControls, _value: str) -> bool:
-    controls.snippet.record_tap(_playhead(controls))
+def _record_tap(controls: KinoControls, pressed_at: str) -> bool:
+    controls.snippet.record_tap(_playhead_when_pressed(controls, pressed_at))
     return True
 
 
@@ -99,9 +115,9 @@ CONTROLS: tuple[Control, ...] = (
     Control(
         name="snippet",
         verbs=(
-            Verb(RECORD_DOWN, _record_down),
-            Verb(RECORD_UP, _record_up),
-            Verb(RECORD_TAP, _record_tap),
+            Verb(RECORD_DOWN, _record_down, may_name_its_item=True),
+            Verb(RECORD_UP, _record_up, may_name_its_item=True),
+            Verb(RECORD_TAP, _record_tap, may_name_its_item=True),
             Verb(SNIPPET_CANCEL, _snippet_cancel),
             Verb(SET_SNIPPET, _set_snippet, takes_a_value=True),
         ),

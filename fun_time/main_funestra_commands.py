@@ -21,8 +21,20 @@ from funestra.funestra_verbs import (
 from funestra.hud_controls import why_it_cannot_step
 from funestra.hud_kinds import VIDEO
 
-from .bridge_records import IN_GENAU_MODE, OUTSIDE_VR, BridgeConfig, Handler, Op, WindowOp, ignored
-from .command_value import FUNESTRA_SOURCES
+from main_funestra.snippet_verbs import RECORD_DOWN, RECORD_TAP, RECORD_UP
+
+from .bridge_records import (
+    IN_GENAU_MODE,
+    OUTSIDE_VR,
+    BridgeConfig,
+    Handler,
+    Op,
+    Result,
+    Route,
+    WindowOp,
+    ignored,
+)
+from .command_value import FUNESTRA_SOURCES, Command
 from .event_log import SOURCE_MAIN
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_genau_status, read_main_funestra_status
@@ -129,6 +141,15 @@ def _forward_to_main_funestra_on_screen(verb: str, state: BridgeState, config: B
     return state, []
 
 
+_MARKED_WHERE_THE_PLAYHEAD_WAS = frozenset({RECORD_DOWN, RECORD_UP, RECORD_TAP})
+
+
+def _mark_where_the_playhead_was(verb: str, command: Command, state: BridgeState,
+                                 config: BridgeConfig, target_path: str) -> Result:
+    pressed = verb if command.given_at is None else f"{verb} {command.given_at:.3f}"
+    return _forward_to_main_funestra_on_screen(pressed, state, config, target_path)
+
+
 def _skip_ahead_on_the_main_funestra(state: BridgeState, config: BridgeConfig,
                                      target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if kino_shows(state.main_mode) and (refused := skip_ahead_refused(FunTimeFunestra.MAIN, state)):
@@ -205,8 +226,13 @@ HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_forward_to_the_vr_main_funestra, verb)
        for cmd, verb in VR_MAIN_FUNESTRA_VERBS.items()},
     **{cmd: partial(_forward_to_main_funestra_on_screen, verb)
-       for cmd, verb in MAIN_FUNESTRA_CMD_MAP.items() if cmd != SKIP_AHEAD},
+       for cmd, verb in MAIN_FUNESTRA_CMD_MAP.items()
+       if cmd != SKIP_AHEAD and verb not in _MARKED_WHERE_THE_PLAYHEAD_WAS},
     SKIP_AHEAD: _skip_ahead_on_the_main_funestra,
     "genaumacher_save": _save_video,
     "main_trash": _trash_kinos_video,
 }
+
+VALUED: dict[str, Route] = {
+    cmd: partial(_mark_where_the_playhead_was, verb)
+    for cmd, verb in MAIN_FUNESTRA_CMD_MAP.items() if verb in _MARKED_WHERE_THE_PLAYHEAD_WAS}
