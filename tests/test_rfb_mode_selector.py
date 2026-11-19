@@ -5,8 +5,14 @@ from funestra.hud_button import FIT_THE_WORD, Button
 from funestra.satellite_hud import HudModel
 from funestra.satellite_hud_paint import HudRenderer
 
+from fun_time import rfb_mode_selector
 from fun_time.dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
-from fun_time.rfb_mode_selector import paint_selector, place_selector, selector_buttons
+from fun_time.rfb_mode_selector import (
+    RfbModeSelector,
+    paint_selector,
+    place_selector,
+    selector_buttons,
+)
 from fun_time.rfb_modes import RfbMode
 
 
@@ -69,3 +75,55 @@ def test_a_hovered_button_lightens_as_a_huds_does_and_a_dim_one_does_not():
     assert not np.array_equal(_rgb_inside_the_corners(drawn(browser), browser), _rgb_inside_the_corners(drawn(None), browser))
     assert np.array_equal(_rgb_inside_the_corners(drawn(origenerator), origenerator),
                           _rgb_inside_the_corners(drawn(None), origenerator))
+
+
+def _counting_paints(monkeypatch) -> list[tuple[int, int]]:
+    painted: list[tuple[int, int]] = []
+    real = rfb_mode_selector.paint_selector
+
+    def counted(size, placed, **kwargs):
+        painted.append(size)
+        return real(size, placed, **kwargs)
+
+    monkeypatch.setattr(rfb_mode_selector, "paint_selector", counted)
+    return painted
+
+
+def _a_selector_showing_the_browser() -> RfbModeSelector:
+    selector = RfbModeSelector(x=4, y=4, post=lambda _command: None)
+    selector.show(RfbMode.RFB, origenerator_core_ready=True)
+    return selector
+
+
+def test_the_strip_is_painted_once_while_nothing_on_it_changes(monkeypatch):
+    selector = _a_selector_showing_the_browser()
+    painted = _counting_paints(monkeypatch)
+
+    drawings = {selector.rgba((300, 30)) for _ in range(3)}
+
+    assert (len(painted), len(drawings)) == (1, 1)
+
+
+def test_the_strip_is_painted_again_when_the_pointer_comes_onto_a_button(monkeypatch):
+    selector = _a_selector_showing_the_browser()
+    painted = _counting_paints(monkeypatch)
+    selector.rgba((300, 30))
+    (left, top, _width, _height), _button = selector.placed[0]
+
+    selector.move(left + 1, top + 1)
+    selector.rgba((300, 30))
+    selector.move(left + 2, top + 1)
+    selector.rgba((300, 30))
+
+    assert len(painted) == 2
+
+
+def test_the_strip_says_which_button_the_pointer_is_over_so_a_move_on_it_repaints_nothing():
+    selector = _a_selector_showing_the_browser()
+    (left, top, _width, _height), _button = selector.placed[0]
+
+    selector.move(left + 1, top + 1)
+    first = selector.what_the_pointer_shows()
+    selector.move(left + 2, top + 1)
+
+    assert selector.what_the_pointer_shows() == first == selector.placed[0][0]

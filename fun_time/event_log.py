@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import queue
+from collections.abc import Callable
 from dataclasses import dataclass
+from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
 
 from shared_ui.message_shape import mark_of_a_message_said_now
@@ -73,13 +76,15 @@ def start_event_log(state_dir: str | Path) -> Path:
 
 
 class EventLogHandler(logging.Handler):
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *,
+                 after_an_announcement: Callable[[], object] = lambda: None) -> None:
         super().__init__()
         self.path = Path(path)
+        self._after_an_announcement = after_an_announcement
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            line = event_line(EventRecord(
+            event = EventRecord(
                 ts=record.created,
                 level=record.levelno,
                 source=getattr(record, "source", SOURCE_SYSTEM),
@@ -87,11 +92,44 @@ class EventLogHandler(logging.Handler):
                 flashes=getattr(record, "flashes", True),
                 spoken_at=getattr(record, "spoken_at", None),
                 mark=mark_of_a_message_said_now(getattr(record, "mark", "")),
-            ))
+            )
             with self.path.open("a", encoding="utf-8") as fh:
-                fh.write(line + "\n")
+                fh.write(event_line(event) + "\n")
+            if is_announcement(event):
+                self._after_an_announcement()
         except Exception:
             pass
+
+
+class _TheMessageAlone(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        return record.getMessage()
+
+
+class QueuedEventLog(QueueHandler):
+    def __init__(self, *, writer: logging.Handler) -> None:
+        super().__init__(queue.Queue())
+        self.setFormatter(_TheMessageAlone())
+        self.writer = writer
+        self._listener = QueueListener(self.queue, writer)
+        self._listener.start()
+
+    def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
+        prepared = super().prepare(record)
+        prepared.mark = mark_of_a_message_said_now(getattr(record, "mark", ""))
+        return prepared
+
+    def flush(self) -> None:
+        self.queue.join()
+
+    def close(self) -> None:
+        self._listener.stop()
+        super().close()
+
+
+def queued_event_log(path: str | Path, *,
+                     after_an_announcement: Callable[[], object] = lambda: None) -> QueuedEventLog:
+    return QueuedEventLog(writer=EventLogHandler(path, after_an_announcement=after_an_announcement))
 
 
 def event_line(record: EventRecord) -> str:
@@ -164,13 +202,20 @@ LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME = ("voice_core",)
 _NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)
 
 
-def open_event_log(state_dir: Path) -> None:
-    handler = EventLogHandler(start_event_log(state_dir))
+def open_event_log(state_dir: Path, *,
+                   after_an_announcement: Callable[[], object] = lambda: None) -> None:
+    handler = queued_event_log(start_event_log(state_dir),
+                               after_an_announcement=after_an_announcement)
     handler.setLevel(EVERYTHING_THE_DIAL_CAN_SHOW)
+    replaced: set[logging.Handler] = set()
     for name in ("fun_time", *_NON_PROPAGATING_LOGGERS, *LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME):
         target = logging.getLogger(name)
-        for existing in [h for h in target.handlers if isinstance(h, EventLogHandler)]:
+        for existing in [h for h in target.handlers
+                         if isinstance(h, (EventLogHandler, QueuedEventLog))]:
             target.removeHandler(existing)
+            replaced.add(existing)
         target.addHandler(handler)
+    for old in replaced:
+        old.close()
     for name in ("fun_time", *LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME):
         logging.getLogger(name).setLevel(EVERYTHING_THE_DIAL_CAN_SHOW)

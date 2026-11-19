@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from funestra.file_channel import publish_whole
 from funestra.main_hud import OSR2_DRIVING, MainHudModel, main_hud_text, read_main_hud
 from funestra.main_hud_painter import MainHud
 from funestra.modes import MainMode, Osr2State
@@ -25,7 +26,7 @@ def a_readout(speed: int = 50) -> DriveHud:
 
 def published(state_dir: Path, part: MainHudModel) -> MainHudModel:
     path = osr2_part_path(state_dir)
-    path.write_text(main_hud_text(part), encoding="utf-8")
+    assert publish_whole(path, main_hud_text(part))
     return read_main_hud(path)
 
 

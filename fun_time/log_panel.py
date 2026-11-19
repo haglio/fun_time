@@ -43,17 +43,16 @@ from fun_time.event_log import (
     SOURCE_LABELS,
     SOURCES,
     EventRecord,
-    event_log_path,
-    read_events,
 )
 from fun_time.level_colors import level_rgb
 from fun_time.log_panel_model import (
     MAX_RECORDS,
     LogFilter,
     LogPanelState,
-    append_records,
+    change_the_rows,
     copy_button_position,
     format_record,
+    heard_words_that_changed,
     load_ui_state,
     remember_what_was_heard,
     save_ui_state,
@@ -99,23 +98,15 @@ class _LevelDial(QComboBox):
 
 
 class LogPanelWidget(QWidget):
-    APPENDED_LINES_POLL_MS = 300
-
     @classmethod
     def for_session(cls, state_dir: Path) -> LogPanelWidget:
-        return cls(event_log_path(state_dir), ui_state_path(state_dir))
+        return cls(ui_state_path(state_dir))
 
-    def __init__(
-        self,
-        event_log: Path,
-        ui_state_file: Path,
-        parent: QWidget | None = None,
-    ) -> None:
+    def __init__(self, ui_state_file: Path, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._event_log = Path(event_log)
         self._ui_state_file = Path(ui_state_file)
-        self._offset = 0
         self._records: list[EventRecord] = []
+        self._row_records: list[EventRecord] = []
         self._heard: dict[float, str] = {}
         self._hover_pos: QPoint | None = None
 
@@ -123,11 +114,6 @@ class LogPanelWidget(QWidget):
         self._filter = LogFilter(verbosity=state.verbosity, sources=state.sources)
 
         self._build_ui()
-
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._read_the_lines_other_processes_appended)
-        self._timer.start(self.APPENDED_LINES_POLL_MS)
-        self._read_the_lines_other_processes_appended()
 
 
     def _build_ui(self) -> None:
@@ -301,33 +287,51 @@ class LogPanelWidget(QWidget):
             LogPanelState(verbosity=self._filter.verbosity, sources=self._filter.sources),
         )
 
-    def _read_the_lines_other_processes_appended(self) -> None:
-        new, self._offset = read_events(self._event_log, self._offset)
-        if not new:
+    def take_records(self, new: list[EventRecord]) -> None:
+        self._records, change = change_the_rows(self._records, new, self._filter)
+        if not (change.dropped or change.added):
             return
-        self._records = append_records(self._records, new)
-        self._rebuild_list()
+        at_lower = self._scrolled_to_the_lower_end()
+        for _ in range(change.dropped):
+            self._list.takeItem(0)
+        del self._row_records[:change.dropped]
+        for record in change.added:
+            self._add_row(record)
+        self._after_the_rows_changed(at_lower)
 
     def show_what_was_heard(self, records: list[EventRecord]) -> None:
-        self._heard = remember_what_was_heard(self._heard, records, keep=MAX_RECORDS)
-        self._rebuild_list()
+        heard = remember_what_was_heard(self._heard, records, keep=MAX_RECORDS)
+        changed = heard_words_that_changed(self._heard, heard)
+        self._heard = heard
+        for row, record in enumerate(self._row_records):
+            if record.spoken_at in changed:
+                [shown] = with_what_was_heard([record], heard)
+                self._list.item(row).setText(format_record(shown))
 
-    def _rebuild_list(self) -> None:
-        at_lower = (
-            self._list.verticalScrollBar().value()
-            >= self._list.verticalScrollBar().maximum() - 4
-        )
-        self._list.clear()
-        for record in visible_records(with_what_was_heard(self._records, self._heard),
-                                      self._filter):
-            item = QListWidgetItem(format_record(record))
-            item.setForeground(level_color(record.level))
-            self._list.addItem(item)
+    def _scrolled_to_the_lower_end(self) -> bool:
+        bar = self._list.verticalScrollBar()
+        return bar.value() >= bar.maximum() - 4
+
+    def _add_row(self, record: EventRecord) -> None:
+        [shown] = with_what_was_heard([record], self._heard)
+        item = QListWidgetItem(format_record(shown))
+        item.setForeground(level_color(record.level))
+        self._list.addItem(item)
+        self._row_records.append(record)
+
+    def _after_the_rows_changed(self, at_lower: bool) -> None:
         if at_lower:
             self._list.scrollToBottom()
         self._sync_copy_button()
 
+    def _rebuild_list(self) -> None:
+        at_lower = self._scrolled_to_the_lower_end()
+        self._list.clear()
+        self._row_records = []
+        for record in visible_records(self._records, self._filter):
+            self._add_row(record)
+        self._after_the_rows_changed(at_lower)
+
 
     def shutdown(self) -> None:
-        self._timer.stop()
         self._flash_timer.stop()

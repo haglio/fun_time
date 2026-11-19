@@ -30,7 +30,7 @@ from .dashboard_actions import (
     REFERENCE_OPEN_FILENAME,
     RFB_ACTIVATE,
 )
-from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
+from .dashboard_bridge import DashboardSnapshot, DashboardSnapshotWriter, snapshot_word
 from .device_arbiter import DeviceArbiter, who_drives_the_osr2
 from .dispatch_loop_setup import SessionFiles
 from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
@@ -99,6 +99,7 @@ class CommandAnswering:
         self._answers = 0
         self._ignored_because = ""
         self._last_dashboard_warning = float("-inf")
+        self._dashboard_snapshot = DashboardSnapshotWriter(self.config.dashboard_state_file)
 
     def hear_as_a_lock(self, phrases: frozenset[str]) -> None:
         self.config = replace(self.config, origenerator_lock_phrases=phrases)
@@ -207,8 +208,7 @@ class CommandAnswering:
 
     def update_dashboard(self) -> None:
         try:
-            write_dashboard_snapshot(
-                str(self.config.dashboard_state_file),
+            changed = self._dashboard_snapshot.write(
                 DashboardSnapshot(
                     omni_paused=self.state.omni_paused,
                     voice_active=self.voice.active,
@@ -228,6 +228,9 @@ class CommandAnswering:
             if now - self._last_dashboard_warning >= _DASHBOARD_WARNING_EVERY_S:
                 self._last_dashboard_warning = now
                 logger.warning("dashboard snapshot write failed: %s", exc)
+            return
+        if changed:
+            self.echo_the_press_best_effort(snapshot_word(self._dashboard_snapshot.last_written))
 
     def flag_the_panel_for_the_headset(self, filename: str, *, toggling: bool) -> None:
         path = Path(self.config.state_dir) / filename

@@ -23,6 +23,7 @@ class Osr2PartWidget(PressableDrawing):
         self._panel = panel
         self._reader = Osr2PartReader(state_dir)
         self._hud: MainHud | None = None
+        self._drawn = NOTHING_DRAWN
         self.setFixedSize(*room_for_a_whole_part())
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.poll)
@@ -35,7 +36,11 @@ class Osr2PartWidget(PressableDrawing):
 
     def poll(self) -> None:
         self._hud = self._reader.read()
-        if self._hud is not None:
+        if self._hud is None:
+            return
+        drawn = self.drawing()
+        if drawn != self._drawn:
+            self._drawn = drawn
             self.update()
 
     def shutdown(self) -> None:

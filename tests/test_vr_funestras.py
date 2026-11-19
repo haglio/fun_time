@@ -228,6 +228,7 @@ def test_only_announcements_reach_the_sessions_event_log(tmp_path):
         a_unit.setLevel(logging.NOTSET)
         for handler in announcer.handlers[len(before):]:
             announcer.removeHandler(handler)
+            handler.close()
 
     lines = event_log_path(tmp_path).read_text(encoding="utf-8").splitlines()
     assert [json.loads(line)["msg"] for line in lines] == ["the video stopped advancing"]

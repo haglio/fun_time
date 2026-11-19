@@ -283,6 +283,32 @@ class TestAudioPlaybackController:
 
         music.set_volume.assert_not_called()
 
+    def test_a_sounds_length_is_measured_off_the_loop_once_per_sound(self, tmp_path, monkeypatch):
+        controller, _music, clock, first = self._running(tmp_path, monkeypatch)
+        second = tmp_path / "other.mp3"
+        second.write_bytes(b"other")
+        measured: list[Path] = []
+        set_aside: list = []
+        controller.sound_length = lambda path: (measured.append(path), 10.0)[1]
+        controller.measure_aside = set_aside.append
+
+        for clip in (first, second, first):
+            controller.switch_clip(clip)
+            clock["now"] += 12.0
+        assert measured == []
+
+        for measure in set_aside:
+            measure()
+        assert (measured, controller.clip_lengths) == ([first, second], {first: 10.0, second: 10.0})
+
+    def test_a_sound_is_played_before_its_length_is_known(self, tmp_path, monkeypatch):
+        controller, music, _clock, clip = self._running(tmp_path, monkeypatch)
+        controller.measure_aside = lambda _measure: None
+
+        controller.switch_clip(clip)
+
+        assert music.play_starts == [0.0]
+
     def test_normalize_position_wraps_when_clip_length_known(self, tmp_path: Path):
         controller = self._make_controller(tmp_path)
         clip = tmp_path / "demo.mp3"

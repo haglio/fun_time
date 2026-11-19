@@ -218,14 +218,12 @@ def test_the_reference_popup_opens_non_topmost_under_omnipause(cfg_path: Path):
 
 def test_a_closed_dashboard_neither_polls_the_status_files_nor_holds_its_socket(cfg_path: Path):
     window, _state_dir = _build_merged_dashboard(cfg_path)
-    log = window._log_widget
     overlay = window._messages.overlay
 
     window.close()
 
     assert not window._press_channel.listening
     assert not any(timer.isActive() for timer in window.findChildren(QTimer))
-    assert not log._timer.isActive()
     assert not window._osr2._timer.isActive()
     assert window._messages.overlay is None
     if overlay is not None:

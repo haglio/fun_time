@@ -41,18 +41,19 @@ class MessageFeed:
         make_overlay: Callable[[], object],
         held: bool,
         list_what_was_heard: Callable[[list[EventRecord]], None],
+        list_records: Callable[[list[EventRecord]], None] = lambda _records: None,
+        on_arrival: Callable[[], None] = lambda: None,
     ) -> None:
         self._state_dir = state_dir
         self._offset = 0
         self._held = held
         self._list_what_was_heard = list_what_was_heard
+        self._list_records = list_records
+        self._waiting: list[EventRecord] = []
         self._screens = screens
         self.overlay = make_overlay() if self._screens is not None else None
-        self._unlogged = UnloggedMessages(state_dir) if self.overlay is not None else None
-
-    @property
-    def offset(self) -> int:
-        return self._offset
+        self._unlogged = (UnloggedMessages(state_dir, on_arrival=on_arrival)
+                          if self.overlay is not None else None)
 
     @property
     def funestra_rects(self) -> FunestraRects | None:
@@ -65,19 +66,25 @@ class MessageFeed:
         return Crown.PORTRAIT if state is None else state.majority
 
     def poll(self) -> None:
+        records, self._offset = read_events(
+            self._state_dir / EVENT_LOG_FILENAME, self._offset)
+        self._flash(records)
+        if records:
+            self._list_records(records)
+
+    def _flash(self, records: list[EventRecord]) -> None:
         if self.overlay is None or self._screens is None:
             return
+        self._waiting.extend(filter(is_announcement, records))
         if self._held:
             if loading_screen_is_up(self._state_dir):
                 return
             self._held = False
-        records, self._offset = read_events(
-            self._state_dir / EVENT_LOG_FILENAME, self._offset)
         unlogged = self._unlogged.take_all()
         if unlogged:
             self._list_what_was_heard(unlogged)
-        announcements = sorted([*filter(is_announcement, records), *unlogged],
-                               key=lambda record: record.ts)
+        announcements = sorted([*self._waiting, *unlogged], key=lambda record: record.ts)
+        self._waiting = []
         if not announcements:
             return
         rects = self.funestra_rects

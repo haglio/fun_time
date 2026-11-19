@@ -69,7 +69,7 @@ from fun_time.dashboard_actions import (
     RESET_ALL,
     VOICE_TOGGLE,
 )
-from fun_time.dashboard_bridge import DashboardSnapshot
+from fun_time.dashboard_bridge import DashboardSnapshot, is_snapshot_word
 from fun_time.dashboard_controls import BarControl, BarState, bar_controls, icon_side
 from fun_time.dashboard_layout import (
     PAD,
@@ -82,7 +82,7 @@ from fun_time.dashboard_layout import (
     rect_from_arguments,
 )
 from fun_time.dashboard_osr2 import Osr2PartWidget
-from fun_time.dashboard_runtime import load_dashboard_snapshot
+from fun_time.dashboard_runtime import load_dashboard_snapshot, snapshot_in
 from fun_time.filter_vocab import Acts
 from fun_time.hosted_contract import published_actions_heard_as
 from fun_time.loading_reveal import LoadingReveal
@@ -93,6 +93,7 @@ from fun_time.message_feed import FLASH_POLL_MS, MessageFeed, screens_if_known
 from fun_time.message_overlay import MessageOverlay
 from fun_time.press_flash import PressFlash
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
+from fun_time.read_when_changed import file_stamp
 from fun_time.reference_dialog import ReferenceDialog
 from fun_time.rfb_mode_selector import RfbModeSelector
 from fun_time.session_end import mark_session_end
@@ -383,6 +384,9 @@ class RfbModeSelectorWidget(PressableDrawing):
         size = self.width(), self.height()
         return self.buttons.rgba(size), size
 
+    def what_the_pointer_shows(self) -> object:
+        return self.buttons.what_the_pointer_shows()
+
     def mouseMoveEvent(self, event: object) -> None:
         super().mouseMoveEvent(event)
         _say_the_name(self, event, self.buttons.name_under_the_pointer, self._tooltip)
@@ -475,6 +479,7 @@ def apply_dashboard_window_geometry(
 
 class DashboardWindow(QMainWindow):
     _press_received = Signal()
+    _message_arrived = Signal()
 
     def __init__(
         self,
@@ -495,9 +500,10 @@ class DashboardWindow(QMainWindow):
         self._reveal = LoadingReveal(app_config.state_dir)
 
         self._flash = PressFlash(clock=clock)
-        self._flash_going_out = self._timer_calling(self._show_presses)
-        self._flash_going_out.setSingleShot(True)
+        self._flash_going_out = self._single_shot_calling(self._show_presses)
         self._last_snapshot: DashboardSnapshot | None = None
+        self._last_drawn: tuple | None = None
+        self._snapshot_stamp: object = object()
 
         self._shown_as = preview_marker.shown_as()
         self.setWindowTitle(preview_marker.app_title(self._shown_as))
@@ -554,16 +560,28 @@ class DashboardWindow(QMainWindow):
             app_config.state_dir / PRESS_PORT_FILENAME, listener_name="press-listener",
             on_arrival=self._press_received.emit)
 
-        self._messages = MessageFeed(
+        self._messages = self._start_the_message_feed(app_config)
+        self._timer_calling(self._refresh).start(BAR_REFRESH_MS)
+        self._refresh()
+
+    def _start_the_message_feed(self, app_config: DashboardAppConfig) -> MessageFeed:
+        messages = MessageFeed(
             app_config.state_dir,
             screens_if_known(app_config.layout),
             make_overlay=MessageOverlay,
             held=self._reveal.deferred,
             list_what_was_heard=self._log_widget.show_what_was_heard,
+            list_records=self._log_widget.take_records,
+            on_arrival=self._message_arrived.emit,
         )
-        self._timer_calling(self._messages.poll).start(FLASH_POLL_MS)
-        self._timer_calling(self._refresh).start(BAR_REFRESH_MS)
-        self._refresh()
+        self._message_arrived.connect(messages.poll)
+        self._timer_calling(messages.poll).start(FLASH_POLL_MS)
+        return messages
+
+    def _single_shot_calling(self, slot: Callable[[], None]) -> QTimer:
+        timer = self._timer_calling(slot)
+        timer.setSingleShot(True)
+        return timer
 
     def _timer_calling(self, slot: Callable[[], None]) -> QTimer:
         timer = QTimer(self)
@@ -652,8 +670,13 @@ class DashboardWindow(QMainWindow):
         omni_paused = self._omni_paused
         self._sync_own_topmost(omni_paused)
         self._reference.sync_topmost(omni_paused)
+        held_back = self._placing_it_now_would_show_or_restore_it()
+        drawn = (snapshot, pressed_actions, self._reference.is_open, held_back)
+        if drawn == self._last_drawn:
+            return
+        self._last_drawn = drawn
         scene = self._bar_scene(pressed_actions)
-        if not self._placing_it_now_would_show_or_restore_it():
+        if not held_back:
             apply_dashboard_window_geometry(self, scene, launch_geometry=self._launch_geometry)
         self._widget.set_scene(scene)
 
@@ -686,7 +709,13 @@ class DashboardWindow(QMainWindow):
     def _handle_press_event(self) -> None:
         self._apply_presses(self._press_channel.take_all())
 
-    def _apply_presses(self, actions: list[str]) -> None:
+    def _apply_presses(self, words: list[str]) -> None:
+        snapshots = [snapshot_in(word) for word in words if is_snapshot_word(word)]
+        if snapshots:
+            self._do_render(snapshots[-1], self._flash.lit())
+        actions = [word for word in words if not is_snapshot_word(word)]
+        if not actions:
+            return
         for action in actions:
             self._flash.press(action)
         if HELP_REFERENCE_CLOSE in actions:
@@ -699,10 +728,11 @@ class DashboardWindow(QMainWindow):
 
     def _refresh(self) -> None:
         self._reveal.maybe_reveal()
-        self._do_render(
-            load_dashboard_snapshot(self._app_config.dashboard_state_file),
-            self._flash.lit(),
-        )
+        stamp = file_stamp(self._app_config.dashboard_state_file)
+        if stamp != self._snapshot_stamp:
+            self._snapshot_stamp = stamp
+            self._last_snapshot = load_dashboard_snapshot(self._app_config.dashboard_state_file)
+        self._do_render(self._last_snapshot, self._flash.lit())
 
 
 IMPORTED_CHECKOUT_FILENAME = "dashboard_source.txt"

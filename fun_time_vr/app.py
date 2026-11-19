@@ -7,6 +7,7 @@ import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -14,9 +15,10 @@ from app_support.win32 import set_app_user_model_id
 
 from fun_time import preview_marker
 from fun_time.console_logging import log_to_the_console
-from fun_time.event_log import MESSAGE, EventLogHandler, event_log_path
+from fun_time.event_log import MESSAGE, event_log_path, queued_event_log
 from fun_time.manifest import LaunchManifest
 from fun_time.project_paths import PROJECT_VR_ICON
+from fun_time.unlogged_messages import wake_the_dashboard
 
 from . import vr_runtime
 from .bringup import Bringup, open_vr_session
@@ -109,7 +111,8 @@ def main(argv: list[str] | None = None, *,
 
 
 def _announce_into_the_event_log(state_dir: Path) -> None:
-    handler = EventLogHandler(event_log_path(state_dir))
+    handler = queued_event_log(event_log_path(state_dir),
+                               after_an_announcement=partial(wake_the_dashboard, state_dir))
     handler.setLevel(MESSAGE)
     logging.getLogger("fun_time_vr").addHandler(handler)
 

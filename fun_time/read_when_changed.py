@@ -6,6 +6,8 @@ from pathlib import Path
 
 _NOT_READ = object()
 
+FileStamp = tuple[int, int, int]
+
 
 class ReadWhenChanged[T]:
     def __init__(self, path: Path, read: Callable[[Path], T]) -> None:
@@ -15,13 +17,16 @@ class ReadWhenChanged[T]:
         self._value: T | None = None
 
     def latest(self) -> T:
-        stamp = _stamp_of(self._path)
+        stamp = file_stamp(self._path)
         if stamp != self._stamp:
-            self._value, self._stamp = self._read(self._path), stamp
+            try:
+                self._value, self._stamp = self._read(self._path), stamp
+            except OSError:
+                return self._value
         return self._value
 
 
-def _stamp_of(path: Path) -> tuple[int, int, int] | None:
+def file_stamp(path: Path) -> FileStamp | None:
     try:
         written = os.stat(path)
     except OSError:

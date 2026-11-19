@@ -28,7 +28,7 @@ from fun_time.config import load_config
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from fun_time.dashboard_app import load_dashboard_app_config
-from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
+from fun_time.event_log import QueuedEventLog, event_log_path, open_event_log, read_events
 from fun_time.funestra_deaths import (
     ORIGENERATOR_NEVER_CAME_UP,
     FunestraDied,
@@ -2812,15 +2812,17 @@ class TestOpenEventLog:
             open_event_log(state_dir)
 
             assert package_logger.level == logging.DEBUG
-            assert any(isinstance(h, EventLogHandler) for h in package_logger.handlers)
+            [tail] = [h for h in package_logger.handlers if isinstance(h, QueuedEventLog)]
 
             logging.getLogger("fun_time.some_module").debug("chatter")
+            tail.flush()
             records, _offset = read_events(event_log_path(state_dir))
             assert [r.message for r in records] == ["chatter"]
         finally:
             for handler in package_logger.handlers[:]:
                 if handler not in original_handlers:
                     package_logger.removeHandler(handler)
+                    handler.close()
             package_logger.setLevel(original_level)
 
     def test_re_opening_replaces_the_handler_rather_than_stacking_one(self, tmp_path):
@@ -2831,13 +2833,14 @@ class TestOpenEventLog:
             open_event_log(tmp_path / "one")
             open_event_log(tmp_path / "two")
 
-            installed = [h for h in package_logger.handlers if isinstance(h, EventLogHandler)]
+            installed = [h for h in package_logger.handlers if isinstance(h, QueuedEventLog)]
             assert len(installed) == 1
-            assert installed[0].path.parent == tmp_path / "two"
+            assert installed[0].writer.path.parent == tmp_path / "two"
         finally:
             for handler in package_logger.handlers[:]:
                 if handler not in original_handlers:
                     package_logger.removeHandler(handler)
+                    handler.close()
             package_logger.setLevel(original_level)
 
     def test_the_orchestrator_logger_is_enrolled_even_though_it_does_not_propagate(self, tmp_path):
@@ -2851,10 +2854,14 @@ class TestOpenEventLog:
             open_event_log(tmp_path)
 
             orch_logger.info("bridge exited")
+            [tail] = [h for h in orch_logger.handlers if isinstance(h, QueuedEventLog)]
+            tail.flush()
 
             records, _offset = read_events(event_log_path(tmp_path))
             assert [r.message for r in records] == ["bridge exited"]
         finally:
+            for handler in {*package_logger.handlers, *orch_logger.handlers} - {*original[0], *original[1]}:
+                handler.close()
             package_logger.handlers[:] = original[0]
             orch_logger.handlers[:] = original[1]
             package_logger.setLevel(original[2])
@@ -2894,11 +2901,16 @@ class TestOpenEventLog:
             logging.getLogger("voice_core.listener").info("Voice command: 'next'")
             log_into_the_hotkey_scripts_log(tmp_path / "bridge.log")
             logging.getLogger("voice_core.listener").info("Voice command: 'skip'")
+            [tail] = [h for h in listener_logger.handlers if isinstance(h, QueuedEventLog)]
+            tail.flush()
 
             records, _offset = read_events(event_log_path(tmp_path))
             assert [r.message for r in records] == ["Voice command: 'next'", "Voice command: 'skip'"]
             assert "Voice command: 'skip'" in (tmp_path / "bridge.log").read_text(encoding="utf-8")
         finally:
+            for handler in {*package_logger.handlers, *listener_logger.handlers} - {*original[0], *original[1]}:
+                if isinstance(handler, QueuedEventLog):
+                    handler.close()
             package_logger.handlers[:] = original[0]
             listener_logger.handlers[:] = original[1]
             package_logger.setLevel(original[2])

@@ -3,17 +3,31 @@ from __future__ import annotations
 import configparser
 from pathlib import Path
 
-from .dashboard_bridge import DashboardSnapshot, decode_snapshot
+from .dashboard_bridge import (
+    SNAPSHOT_WORD_PREFIX,
+    DashboardSnapshot,
+    decode_snapshot,
+    is_snapshot_word,
+)
 from .rfb_modes import RfbMode
 
 
 def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
     if not path.exists():
         return None
+    return parse_dashboard_snapshot(decode_snapshot(path.read_bytes()))
 
+
+def snapshot_in(word: str) -> DashboardSnapshot | None:
+    if not is_snapshot_word(word):
+        return None
+    return parse_dashboard_snapshot(word.removeprefix(SNAPSHOT_WORD_PREFIX))
+
+
+def parse_dashboard_snapshot(text: str) -> DashboardSnapshot | None:
     parser = configparser.ConfigParser()
     parser.optionxform = str
-    parser.read_string(decode_snapshot(path.read_bytes()))
+    parser.read_string(text)
     if not parser.sections():
         return None
 

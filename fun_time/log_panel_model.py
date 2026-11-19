@@ -30,9 +30,26 @@ def visible_records(records: list[EventRecord], log_filter: LogFilter) -> list[E
     return [r for r in records if log_filter.accepts(r)]
 
 
-def append_records(buffer: list[EventRecord], new: list[EventRecord]) -> list[EventRecord]:
+@dataclass(frozen=True)
+class RowChange:
+    dropped: int
+    added: list[EventRecord]
+
+
+def change_the_rows(buffer: list[EventRecord], new: list[EventRecord],
+                    log_filter: LogFilter) -> tuple[list[EventRecord], RowChange]:
     combined = buffer + new
-    return combined[-MAX_RECORDS:]
+    cut = max(0, len(combined) - MAX_RECORDS)
+    return combined[cut:], RowChange(
+        dropped=len(visible_records(buffer[:cut], log_filter)),
+        added=visible_records(new[max(0, cut - len(buffer)):], log_filter),
+    )
+
+
+def heard_words_that_changed(before: Mapping[float, str],
+                             after: Mapping[float, str]) -> set[float]:
+    return {spoken_at for spoken_at in before.keys() | after.keys()
+            if before.get(spoken_at) != after.get(spoken_at)}
 
 
 def remember_what_was_heard(heard: Mapping[float, str], records: Iterable[EventRecord], *,

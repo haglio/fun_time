@@ -1,33 +1,42 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 from funestra.hud_button import Button
-from funestra.satellite_hud import parse_hud
+from funestra.satellite_hud import HudModel, parse_hud
 
 from .bridge_records import BridgeConfig
 from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
+from .read_when_changed import FileStamp, ReadWhenChanged, file_stamp
 
-if TYPE_CHECKING:
-    pass
-
-HudStamp = tuple[int, int] | None
+HudStamp = FileStamp | None
 
 
 def hud_stamp(channel: SatelliteChannel) -> HudStamp:
+    return file_stamp(channel.origenerator_hud_file)
+
+
+def _parsed_hud(path: Path) -> HudModel | None:
     try:
-        stat = channel.origenerator_hud_file.stat()
-    except OSError:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return None
-    return stat.st_ino, stat.st_mtime_ns
+    return parse_hud(text)
+
+
+_PUBLISHED_HUDS: dict[Path, ReadWhenChanged[HudModel | None]] = {}
+
+
+def _published_hud(path: Path) -> HudModel | None:
+    reader = _PUBLISHED_HUDS.get(path)
+    if reader is None:
+        reader = _PUBLISHED_HUDS[path] = ReadWhenChanged(path, _parsed_hud)
+    return reader.latest()
 
 
 def _slideshows_button(channel: SatelliteChannel, verb: str) -> Button | None:
-    try:
-        hud = parse_hud(channel.origenerator_hud_file.read_text(encoding="utf-8"))
-    except OSError:
-        return None
+    hud = _published_hud(channel.origenerator_hud_file)
     if hud is None:
         return None
     return next((button for row in hud.rows for button in row

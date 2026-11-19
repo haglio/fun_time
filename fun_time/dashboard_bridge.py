@@ -62,11 +62,35 @@ def _read_existing_snapshot(path: Path) -> str:
         return ""
 
 
-def write_dashboard_snapshot(output_file: str | Path, snapshot: DashboardSnapshot) -> bool:
-    path = Path(output_file)
-    text = build_dashboard_snapshot_text(snapshot)
-    if _read_existing_snapshot(path) == text:
-        return False
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-16")
-    return True
+SNAPSHOT_WORD_PREFIX = "dashboard_snapshot\n"
+
+
+def snapshot_word(text: str) -> str:
+    return SNAPSHOT_WORD_PREFIX + text
+
+
+def is_snapshot_word(word: str) -> bool:
+    return word.startswith(SNAPSHOT_WORD_PREFIX)
+
+
+class DashboardSnapshotWriter:
+    def __init__(self, output_file: str | Path) -> None:
+        self._path = Path(output_file)
+        self._last_written: str | None = None
+
+    @property
+    def last_written(self) -> str | None:
+        return self._last_written
+
+    def write(self, snapshot: DashboardSnapshot) -> bool:
+        text = build_dashboard_snapshot_text(snapshot)
+        if self._last_written is None:
+            self._last_written = _read_existing_snapshot(self._path)
+        if self._last_written == text:
+            return False
+        self._last_written = None
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(text, encoding="utf-16")
+        self._last_written = text
+        return True
+
