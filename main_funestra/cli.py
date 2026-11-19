@@ -145,9 +145,7 @@ def resolve_playlist(
 def kino_on(args, *, source: LibrarySource | None, memory: ModeMemory) -> Callable[[object], Kino]:
     library = KinoLibrary(
         source=source,
-        clip_nav=ClipNav.build(
-            [entry.video for entry in source.entries] if source is not None else [],
-            source.metadata_root if source is not None else None),
+        clip_nav=ClipNav.of(source.records if source is not None else {}),
         resolve_playlist=partial(resolve_playlist, args, source=source),
         gallery_names=GalleryNames(args.gallery_names_file))
     return partial(

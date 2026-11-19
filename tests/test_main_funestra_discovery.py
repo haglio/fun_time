@@ -5,6 +5,7 @@ from pathlib import Path
 from fun_time.modes import scripted_item
 from main_funestra.discovery import discover_entries
 from main_funestra.library import LibraryEntry
+from tests.disk_looks import DiskLooks
 
 
 def _library(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -82,3 +83,16 @@ class TestDiscoverEntries:
         assert [entry.funscript for entry in result] == [
             scripted_item(str(entry.video), metadata).funscript for entry in result]
         assert [entry.funscript is not None for entry in result] == [True, False]
+
+    def test_many_videos_in_one_folder_cost_two_listings_of_it_and_one_of_its_scripts(
+            self, tmp_path, monkeypatch):
+        videos, scripts, metadata = _library(tmp_path)
+        for number in range(5):
+            _write(videos / "room" / f"video {number}.mp4", "fake-body")
+        _write(scripts / "room" / "video 2.funscript", "{}")
+        looks = DiskLooks(monkeypatch, under=tmp_path / "videos")
+
+        result = discover_entries(videos, metadata_root=metadata)
+
+        assert ([entry.funscript is not None for entry in result], {entry.size for entry in result},
+                looks.total) == ([False, False, True, False, False], {len("fake-body")}, 4)

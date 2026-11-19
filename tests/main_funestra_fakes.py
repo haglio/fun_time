@@ -12,6 +12,10 @@ class PlaylistMovesWithRestartsCounted:
         self.replaced: list[list[PlaylistItem]] = []
         self.restarts = 0
 
+    @property
+    def playlist_length(self) -> int:
+        return len(self.playlist)
+
     def replace_playlist(self, playlist, funscripts=None) -> None:
         self._take(playlist, funscripts)
         if self.current_video not in self.playlist:

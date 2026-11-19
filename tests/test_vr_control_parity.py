@@ -126,7 +126,7 @@ class _TheHeadsetsMainFunestra:
             locked=True, sound_is_the_rooms=True,
             users={MainMode.KINO: partial(
                 Kino, library=KinoLibrary(
-                    source=None, clip_nav=ClipNav.build([], None), resolve_playlist=list),
+                    source=None, clip_nav=ClipNav.of({}), resolve_playlist=list),
                 messages=MessageWriter(None), memory=ModeMemory(None),
                 remembered=RememberedMode()),
                 MainMode.GENAU: lambda _playback: _genau_in_the_headset(tmp_path)},

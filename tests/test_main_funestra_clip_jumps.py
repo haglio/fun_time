@@ -6,10 +6,15 @@ from pathlib import Path
 from funestra.modes import MessageLevel
 from funestra.playlist import PlaylistItem
 
+from fun_time.media_metadata import recorded_for
 from main_funestra.clip_jumps import ClipJumps
 from main_funestra.clip_nav import ClipNav
 from tests.clip_records import ClipRecord
 from tests.main_funestra_fakes import PlaylistMovesWithRestartsCounted
+
+
+def _built(videos, metadata_root) -> ClipNav:
+    return ClipNav.of({video: recorded_for(video, metadata_root) for video in videos})
 
 
 def _clip(lib: Path, meta: Path, rel: str, record: ClipRecord) -> Path:
@@ -48,7 +53,7 @@ def _world(tmp_path: Path):
     scene = lib / "other" / "Alpha Scene 2 - Ann Bly 1080p.mp4"
     scene.parent.mkdir(parents=True, exist_ok=True)
     scene.write_bytes(b"x")
-    nav = ClipNav.build([first, second, scene], meta)
+    nav = _built([first, second, scene], meta)
     return nav, first, second, scene
 
 

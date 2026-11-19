@@ -20,11 +20,15 @@ class LibrarySource:
     entries: list[LibraryEntry]
     metadata_root: Path | None = None
 
+    @cached_property
+    def records(self) -> dict[Path, dict]:
+        return {entry.video: recorded_for(entry.video, self.metadata_root) for entry in self.entries}
+
     def _group_id_of(self) -> Callable[[Path], str | None] | None:
         if self.metadata_root is None:
             return None
-        metadata_root = self.metadata_root
-        return lambda video: version_group_of(recorded_for(video, metadata_root)) or None
+        records = self.records
+        return lambda video: version_group_of(records[video]) or None
 
     @cached_property
     def version_index(self) -> dict[Path, list[PlaylistItem]]:

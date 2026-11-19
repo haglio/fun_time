@@ -36,7 +36,7 @@ class Modes:
             video=self._name_on_screen,
             compilation=self._jumps.compilation,
             position=self._playback.index + 1,
-            total=len(self._playback.playlist),
+            total=self._playback.playlist_length,
         )
 
     @property
