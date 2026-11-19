@@ -23,6 +23,7 @@ from fun_time.random_faves_browser import (
 )
 from fun_time.rfb_tab_page import TabTarget, render_tab_page
 from fun_time.shared_state import BridgeState
+from tests.disk_looks import DiskLooks
 from tests.made_up_gallery import a_row, made_up_origenerator
 from tests.test_windows_bridge_dispatch_loop import make_config
 
@@ -162,7 +163,7 @@ def test_write_manifest_writes_profile_then_urls(tmp_path: Path):
     )
 
 
-def _regen_cfg(cfg_factory, tmp_path: Path) -> Path:
+def _regen_cfg(cfg_factory, tmp_path: Path, *, open_count: int = 10) -> Path:
     user_data_dir = tmp_path / "User Data"
     user_data_dir.mkdir()
     (user_data_dir / "Local State").write_text(
@@ -175,7 +176,7 @@ def _regen_cfg(cfg_factory, tmp_path: Path) -> Path:
                 "enabled": True,
                 "profile_name": "Jane Doe",
                 "user_data_dir": str(user_data_dir),
-                "open_count": 10,
+                "open_count": open_count,
             },
             "regen": {
                 "media_root": str(tmp_path / "videos" / "videos" / "2D" / "AI"),
@@ -244,6 +245,18 @@ def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_fac
     assert targets[0].url.startswith("https://example.com/video#ft=")
     assert targets[0].label == "https://example.com/image/abc"
     assert targets[0].video_path == str(video)
+
+
+def test_only_the_favorites_drawn_for_a_tab_have_their_records_read_again(
+        cfg_factory, tmp_path: Path, monkeypatch):
+    for number in range(6):
+        _favorite_video(tmp_path, f"provider/video {number}.mp4", page=f"https://example.com/page/{number}")
+    project = load_config(_regen_cfg(cfg_factory, tmp_path, open_count=2))
+    looks = DiskLooks(monkeypatch, under=_records(tmp_path))
+
+    _, targets = build_manifest(project, _PROVIDERS, gallery=Gallery([]))
+
+    assert (len(targets), looks.made["open"]) == (2, 6 + 2)
 
 
 def test_an_ai_video_the_gallery_has_not_starred_is_no_favorite(cfg_factory, tmp_path: Path):
