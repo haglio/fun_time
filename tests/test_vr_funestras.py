@@ -74,6 +74,7 @@ from fun_time.shared_state import (
     shared_state_path,
     write_shared_state,
 )
+from fun_time.shown_message import ShownMessage
 from fun_time.voice_commands import CommandLine, parse_command_line
 from fun_time_vr import app, frame_loop, funestras, room
 from fun_time_vr.app import build_parser
@@ -2242,8 +2243,8 @@ class TestTheReadoutOfAWrappedFrame:
         _MainUnit.flash_the_readout(unit, 1.0)
         _MainUnit.flash_the_readout(unit, 2.0)
 
-        assert flashed == [("Fisheye · 158° · height 1.20",
-                            {"level": MESSAGE, "screen": MAIN, "now": 1.0})]
+        assert flashed == [(ShownMessage("Fisheye · 158° · height 1.20"),
+                            {"screen": MAIN, "now": 1.0})]
 
 
 class TestTheBannerOverAWrappedFrame:
@@ -2270,7 +2271,7 @@ class TestTheBannerOverAWrappedFrame:
         return unit
 
     def test_it_floats_the_banner_in_front_while_the_frame_wraps_the_viewer(self):
-        flash_message = SimpleNamespace(message="Fisheye · 158° · height 1.20", level=MESSAGE)
+        flash_message = SimpleNamespace(shown=ShownMessage("Fisheye · 158° · height 1.20"))
 
         unit = self._floating(wraps=True, flashed=flash_message)
 
@@ -2285,12 +2286,12 @@ class TestTheBannerOverAWrappedFrame:
             unit._image.width / funestras.MESSAGE_PX_PER_DEG)
 
     def test_it_hangs_nothing_over_a_flat_frame_which_draws_its_own(self):
-        flash_message = SimpleNamespace(message="Flat", level=MESSAGE)
+        flash_message = SimpleNamespace(shown=ShownMessage("Flat"))
 
         assert _MessageUnit.hangings(self._floating(wraps=False, flashed=flash_message)) == ()
 
     def test_it_hangs_nothing_once_the_banner_has_faded(self):
-        unit = self._floating(wraps=True, flashed=SimpleNamespace(message="Flat", level=MESSAGE))
+        unit = self._floating(wraps=True, flashed=SimpleNamespace(shown=ShownMessage("Flat")))
 
         unit._messages = SimpleNamespace(flashed=lambda _screen: None)
         _MessageUnit.pump(unit, None, now=3.0)

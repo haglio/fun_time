@@ -5,7 +5,8 @@ import time
 from pathlib import Path
 
 import pytest
-from shared_ui.message_shape import time_to_read_ms
+from shared_ui.message_shape import FAVORITE as FAVORITE_KIND
+from shared_ui.message_shape import HEARD_MARK, time_to_read_ms
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -22,14 +23,15 @@ from fun_time.event_log import (
     EventRecord,
     event_line,
 )
+from fun_time.shown_message import ShownMessage
 from fun_time.unlogged_messages import UnloggedMessages
 from fun_time.voice_control import VoiceController
 from fun_time_vr.messages import MAIN, MessageBoard, screen_for
 
 
 def _event(message: str, level: int = MESSAGE, source: str = SOURCE_SYSTEM,
-           *, flashes: bool = True, spoken_at: float | None = None) -> EventRecord:
-    return EventRecord(1.0, level, source, message, flashes, spoken_at)
+           *, flashes: bool = True, spoken_at: float | None = None, mark: str = "") -> EventRecord:
+    return EventRecord(1.0, level, source, message, flashes, spoken_at, mark)
 
 
 def _write(path: Path, record: EventRecord) -> None:
@@ -67,16 +69,27 @@ class TestWhichScreenALineBelongsTo:
 
 
 class TestWhatItPicksUp:
+    def test_a_message_that_answers_what_he_said_reaches_the_headset_with_the_microphone(
+            self, tmp_path):
+        log = _log(tmp_path)
+        board = MessageBoard(log)
+        _write(log, _event("Videos only", source=SOURCE_PORTRAIT, mark=HEARD_MARK))
+
+        board.pump(None, now=1.0)
+
+        assert board.flashed(SOURCE_PORTRAIT).shown == ShownMessage(
+            "Videos only", mark=HEARD_MARK)
+
     def test_a_flash_from_inside_the_process_shows_at_once_and_fades_like_the_rest(self, tmp_path):
         board = MessageBoard(_log(tmp_path))
         said = "Fisheye · 158° · height 1.20"
         lasts_s = time_to_read_ms(said) / 1000
 
-        board.flash(said, level=MESSAGE, screen=MAIN, now=1.0)
+        board.flash(ShownMessage(said), screen=MAIN, now=1.0)
 
-        assert board.flashed(MAIN).message == said
+        assert board.flashed(MAIN).shown.text == said
         board.pump(None, now=1.0 + lasts_s - 0.01)
-        assert board.flashed(MAIN).message == said
+        assert board.flashed(MAIN).shown.text == said
         board.pump(None, now=1.0 + lasts_s)
         assert board.flashed(MAIN) is None
 
@@ -103,7 +116,7 @@ class TestWhatItPicksUp:
 
         board.pump(None, now=1.0)
 
-        assert board.flashed(MAIN).message == "landscape next"
+        assert board.flashed(MAIN).shown.text == "landscape next"
 
     def test_the_backlog_it_opened_on_is_not_news(self, tmp_path):
         path = _log(tmp_path)
@@ -122,7 +135,7 @@ class TestWhatItPicksUp:
 
         board.pump(None, now=1.0)
 
-        assert board.flashed(MAIN).message == "No video that way"
+        assert board.flashed(MAIN).shown.text == "No video that way"
 
     def test_the_level_rides_along_for_the_color(self, tmp_path):
         path = _log(tmp_path)
@@ -131,7 +144,7 @@ class TestWhatItPicksUp:
 
         board.pump(None, now=1.0)
 
-        assert board.flashed(MAIN).level == FAVORITE
+        assert board.flashed(MAIN).shown.kind == FAVORITE_KIND
 
 
 class TestTheBannerOverEachFunestra:
@@ -142,7 +155,7 @@ class TestTheBannerOverEachFunestra:
 
         board.pump(None, now=1.0)
 
-        assert board.flashed(SOURCE_PORTRAIT).message == "portrait next"
+        assert board.flashed(SOURCE_PORTRAIT).shown.text == "portrait next"
         assert board.flashed(SOURCE_LANDSCAPE) is None
         assert board.flashed(MAIN) is None
 
@@ -154,7 +167,7 @@ class TestTheBannerOverEachFunestra:
 
         board.pump(None, now=1.0)
 
-        assert board.flashed(SOURCE_PORTRAIT).message == "portrait lock"
+        assert board.flashed(SOURCE_PORTRAIT).shown.text == "portrait lock"
 
     def test_each_screen_flashes_its_own(self, tmp_path):
         path = _log(tmp_path)
@@ -164,8 +177,8 @@ class TestTheBannerOverEachFunestra:
 
         board.pump(None, now=1.0)
 
-        assert board.flashed(SOURCE_PORTRAIT).message == "portrait next"
-        assert board.flashed(MAIN).message == "skip"
+        assert board.flashed(SOURCE_PORTRAIT).shown.text == "portrait next"
+        assert board.flashed(MAIN).shown.text == "skip"
 
 
 class TestWhatItDrops:
@@ -177,7 +190,7 @@ class TestWhatItDrops:
         board.pump(None, now=100.0)
 
         board.pump(None, now=100.0 + lasts_s - 0.1)
-        assert board.flashed(MAIN).message == "skip"
+        assert board.flashed(MAIN).shown.text == "skip"
 
         board.pump(None, now=100.0 + lasts_s + 0.1)
         assert board.flashed(MAIN) is None
@@ -190,7 +203,7 @@ class TestWordsFlashedWithNoLogLine:
 
         board.pump(None, now=1.0)
 
-        assert board.flashed(SOURCE_PORTRAIT).message == "unrecognized voice command: alpha beta"
+        assert board.flashed(SOURCE_PORTRAIT).shown.text == "unrecognized voice command: alpha beta"
 
     def test_they_never_join_what_the_dash_lists(self, tmp_path):
         board = MessageBoard(_log(tmp_path), unlogged=_Unlogged(EventRecord(
@@ -261,7 +274,7 @@ class TestWordsFlashedWithNoLogLine:
             voice_log.removeHandler(written)
             board.close()
 
-        assert board.flashed(MAIN).message == "unrecognized voice command: put the kettle on"
+        assert board.flashed(MAIN).shown.text == "unrecognized voice command: put the kettle on"
         assert [record.message for record in board.records] == [
             "unrecognized voice command: put the kettle on"]
         assert "kettle" not in path.read_text(encoding="utf-8")

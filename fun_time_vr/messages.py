@@ -4,8 +4,6 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
-from shared_ui.message_shape import time_to_read_ms
-
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,
@@ -13,6 +11,7 @@ from fun_time.event_log import (
     read_events,
 )
 from fun_time.log_panel_model import remember_what_was_heard, with_what_was_heard
+from fun_time.shown_message import ShownMessage
 from fun_time.unlogged_messages import UnloggedMessages
 
 from .layout import LANDSCAPE, MAIN, PORTRAIT
@@ -28,13 +27,12 @@ def screen_for(source: str) -> str:
 
 @dataclass(frozen=True)
 class FlashedMessage:
-    message: str
-    level: int
+    shown: ShownMessage
     screen: str
     seen_at_on_the_pumps_clock: float
 
     def still_up_at(self, now: float) -> bool:
-        return now - self.seen_at_on_the_pumps_clock < time_to_read_ms(self.message) / 1000
+        return now - self.seen_at_on_the_pumps_clock < self.shown.time_to_read_ms / 1000
 
 
 class MessageBoard:
@@ -57,16 +55,16 @@ class MessageBoard:
         with self._lock:
             for record in sorted([*filter(is_announcement, records), *unlogged],
                                  key=lambda record: record.ts):
-                flashed = FlashedMessage(record.message, record.level, screen_for(record.source), now)
+                flashed = FlashedMessage(ShownMessage.of(record), screen_for(record.source), now)
                 self._flashed_messages[flashed.screen] = flashed
             self._flashed_messages = {
                 screen: flashed for screen, flashed in self._flashed_messages.items()
                 if flashed.still_up_at(now)
             }
 
-    def flash(self, message: str, *, level: int, screen: str, now: float) -> None:
+    def flash(self, shown: ShownMessage, *, screen: str, now: float) -> None:
         with self._lock:
-            self._flashed_messages[screen] = FlashedMessage(message, level, screen, now)
+            self._flashed_messages[screen] = FlashedMessage(shown, screen, now)
 
     def flashed(self, screen: str) -> FlashedMessage | None:
         with self._lock:

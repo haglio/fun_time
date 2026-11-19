@@ -1,23 +1,22 @@
 from __future__ import annotations
 
-import logging
-
 import numpy as np
-from shared_ui.message_shape import MESSAGE_TOP_MARGIN
+from shared_ui.message_shape import ERROR, FAVORITE, HEARD_MARK, INFO, MESSAGE_TOP_MARGIN
 
-from fun_time.event_log import FAVORITE, MESSAGE
+from fun_time.shown_message import ShownMessage
 from fun_time_vr.funestras import MAIN_VIDEO_CAP_PX, SATELLITE_VIDEO_CAP_PX
 from fun_time_vr.message_drawing import (
     MIN_FONT_PX,
     font_px,
+    mark_room,
     message_bgra,
     message_placement_in_a_frame,
     paint_message,
 )
 
 
-def _flashed(message="skip", level=MESSAGE, *, max_width=1600, size=48):
-    return paint_message(message, level, max_width=max_width, size=size)
+def _flashed(message="skip", kind=INFO, *, mark="", max_width=1600, size=48):
+    return paint_message(ShownMessage(message, kind, mark), max_width=max_width, size=size)
 
 
 class TestTheBanner:
@@ -28,13 +27,28 @@ class TestTheBanner:
         assert longer.width > short.width
         assert np.asarray(short)[:, :, 3].max() > 0
 
-    def test_it_reads_the_level_the_log_panel_reads(self):
-        plain = np.asarray(_flashed(level=MESSAGE))
-        loud = np.asarray(_flashed(level=logging.ERROR))
-        favorite = np.asarray(_flashed(level=FAVORITE))
+    def test_it_is_drawn_in_the_color_of_its_kind(self):
+        plain = np.asarray(_flashed(kind=INFO))
+        loud = np.asarray(_flashed(kind=ERROR))
+        favorite = np.asarray(_flashed(kind=FAVORITE))
 
         assert not np.array_equal(plain, loud)
         assert not np.array_equal(plain, favorite)
+
+    def test_a_message_that_answers_what_he_said_starts_with_the_microphone(self):
+        plain = _flashed("next", size=48)
+        marked = _flashed("next", mark=HEARD_MARK, size=48)
+
+        assert marked.width - plain.width == mark_room(HEARD_MARK, 48)
+        assert marked.height == plain.height
+        assert not np.array_equal(np.asarray(marked)[:, :marked.width // 3],
+                                  np.asarray(plain)[:, :marked.width // 3])
+
+    def test_a_message_with_no_drawing_leaves_no_room_for_one(self):
+        assert mark_room("", 48) == 0
+
+    def test_a_marked_message_too_long_for_its_banner_still_fits_it(self):
+        assert _flashed("word " * 60, mark=HEARD_MARK, max_width=400).width <= 400
 
     def test_a_long_line_is_cut_to_the_width_it_was_given(self):
         wide = _flashed("word " * 60, max_width=400)
@@ -77,8 +91,8 @@ class TestItIsSizedToTheFrameItGoesOn:
         assert large.height / small.height > 3.0
 
     def test_a_bigger_frame_gets_a_bigger_banner(self):
-        _x, _y, small = message_bgra("skip", MESSAGE, width=1280, height=720)
-        _x, _y, large = message_bgra("skip", MESSAGE, width=3840, height=2160)
+        _x, _y, small = message_bgra(ShownMessage("skip"), width=1280, height=720)
+        _x, _y, large = message_bgra(ShownMessage("skip"), width=3840, height=2160)
 
         assert large.shape[0] > small.shape[0]
 
@@ -115,7 +129,7 @@ class TestWhereItSits:
 
 class TestWhatTheOverlayGets:
     def test_it_hands_over_a_placed_bgra_block(self):
-        placed = message_bgra("skip", MESSAGE, width=1920, height=1080)
+        placed = message_bgra(ShownMessage("skip"), width=1920, height=1080)
 
         assert placed is not None
         x, y, bgra = placed
@@ -124,9 +138,9 @@ class TestWhatTheOverlayGets:
         assert y >= 0
 
     def test_the_banner_stays_inside_the_frame(self):
-        x, _y, bgra = message_bgra("landscape shuffle please", MESSAGE, width=1152, height=2048)
+        x, _y, bgra = message_bgra(ShownMessage("landscape shuffle please"), width=1152, height=2048)
 
         assert x + bgra.shape[1] <= 1152
 
     def test_a_frame_with_no_size_yet_gets_nothing(self):
-        assert message_bgra("skip", MESSAGE, width=1, height=1) is None
+        assert message_bgra(ShownMessage("skip"), width=1, height=1) is None
