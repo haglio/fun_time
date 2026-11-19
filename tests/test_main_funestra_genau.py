@@ -35,6 +35,7 @@ from tests.disk_looks import DiskLooks
 from tests.genau_fakes import (
     FakeNotifier,
     FakeSink,
+    HeldDecodes,
     ThreadsAsked,
     every_thread_now_but_the_ones_that_run_for_good,
 )
@@ -638,8 +639,12 @@ class TestTurnedAsAsked:
         assert set(self._shown(world)) == {"alpha one"}
 
     def test_turning_it_with_favorites_on_reads_each_flicks_record_once(self, tmp_path, monkeypatch):
-        world = self._world(tmp_path, WorldSetup(favorites=("alpha one.mp4", "beta two.mp4"), favorites_only=True))
+        the_decode_threads_which_read_a_flip_beside_the_frames = HeldDecodes()
+        world = self._world(tmp_path, WorldSetup(
+            favorites=("alpha one.mp4", "beta two.mp4"), favorites_only=True,
+            start_thread=the_decode_threads_which_read_a_flip_beside_the_frames))
         looks = DiskLooks(monkeypatch, under=tmp_path / "metadata")
+        the_decode_threads_which_read_a_flip_beside_the_frames.holding = True
 
         world.genau.apply_command(genau_orientations((False, True)))
 

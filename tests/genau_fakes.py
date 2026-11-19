@@ -23,6 +23,26 @@ class ThreadsAsked:
         every_thread_now_but_the_ones_that_run_for_good(target=target, args=args, name=name)
 
 
+class HeldDecodes:
+    def __init__(self) -> None:
+        self.holding = False
+        self._held = []
+
+    def __call__(self, *, target, args=(), name=""):
+        if name in RUN_FOR_GOOD:
+            return
+        if self.holding:
+            self._held.append((target, args))
+            return
+        target(*args)
+
+    def release(self) -> None:
+        self.holding = False
+        for target, args in self._held:
+            target(*args)
+        self._held.clear()
+
+
 class FakeSink:
     def __init__(self) -> None:
         self.sent: list[str] = []
