@@ -20,6 +20,7 @@ from fun_time_vr.projection import (
     RECTILINEAR_SBS,
 )
 from fun_time_vr.render import FrameTexture, RenderTarget, SceneRenderer
+from fun_time_vr.texture_rows import rows_changed
 from fun_time_vr.wraps import immersive_wrap
 
 pytestmark = [
@@ -204,3 +205,62 @@ def test_a_fisheye_reads_the_frame_out_to_the_angle_it_is_given_and_past_its_cir
 def test_a_height_stretches_the_frame_about_its_middle(renderer, projection, reads):
     _the_coordinates_it_reads_are_where_it_should(
         renderer, immersive_wrap(projection, height=1.5), _made_taller(reads, 1.5))
+
+
+def _what_the_card_holds(texture: FrameTexture) -> np.ndarray:
+    held = np.zeros((texture.height, texture.width, 4), np.uint8)
+    GL.glBindTexture(GL.GL_TEXTURE_2D, texture.texture)
+    GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)
+    GL.glGetTexImage(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, held)
+    GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+    return held
+
+
+def _as_the_card_held_it_before_the_staging_buffer(rgba: np.ndarray) -> np.ndarray:
+    if rgba.shape[2] == 3:
+        rgba = np.concatenate([rgba, np.full((*rgba.shape[:2], 1), 255, np.uint8)], axis=2)
+    return np.ascontiguousarray(rgba[::-1])
+
+
+@pytest.mark.parametrize("channels", [3, 4])
+def test_a_picture_reaches_the_card_exactly_as_it_did_before_the_staging_buffer(renderer, channels):
+    pixels = np.random.default_rng(channels).integers(0, 256, (37, 53, channels), dtype=np.uint8)
+    texture = FrameTexture()
+    try:
+        texture.upload(pixels)
+        texture.upload(pixels)
+        held = _what_the_card_holds(texture)
+    finally:
+        texture.close()
+
+    assert np.array_equal(held, _as_the_card_held_it_before_the_staging_buffer(pixels))
+
+
+def test_a_hud_handed_over_as_drawn_reaches_the_card_in_the_colors_it_had_when_swapped(renderer):
+    bgra = np.random.default_rng(7).integers(0, 256, (41, 29, 4), dtype=np.uint8)
+    texture = FrameTexture()
+    try:
+        texture.upload(bgra, bgra=True)
+        held = _what_the_card_holds(texture)
+    finally:
+        texture.close()
+
+    assert np.array_equal(held, _as_the_card_held_it_before_the_staging_buffer(
+        np.ascontiguousarray(bgra[:, :, [2, 1, 0, 3]])))
+
+
+def test_sending_only_the_changed_rows_leaves_the_card_holding_the_whole_new_picture(renderer):
+    rng = np.random.default_rng(11)
+    before = rng.integers(0, 256, (64, 48, 4), dtype=np.uint8)
+    after = before.copy()
+    after[40:47] = rng.integers(0, 256, (7, 48, 4), dtype=np.uint8)
+    texture = FrameTexture()
+    try:
+        texture.upload(before, bgra=True)
+        texture.upload(after, bgra=True, rows=rows_changed(before, after))
+        held = _what_the_card_holds(texture)
+    finally:
+        texture.close()
+
+    assert np.array_equal(held, _as_the_card_held_it_before_the_staging_buffer(
+        np.ascontiguousarray(after[:, :, [2, 1, 0, 3]])))

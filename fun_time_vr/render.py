@@ -10,6 +10,7 @@ import numpy as np
 from OpenGL import GL
 
 from .perf import UPLOADED, UploadedBytes
+from .texture_rows import Rows, as_the_texture_holds_them
 from .wraps import IMMERSIVE_FRAGMENT_SHADER, Wrap
 
 _RGBA_CHANNELS = 4
@@ -162,6 +163,7 @@ class FrameTexture:
         self.width = 0
         self.height = 0
         self.texture = int(GL.glGenTextures(1))
+        self._staging: int | None = None
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
@@ -169,26 +171,39 @@ class FrameTexture:
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)
         GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
 
-    def upload(self, pixels: np.ndarray) -> None:
+    def upload(self, pixels: np.ndarray, *, bgra: bool = False, rows: Rows | None = None) -> None:
         height, width, channels = pixels.shape
         if width <= 0 or height <= 0:
             return
-        rows = np.ascontiguousarray(pixels[::-1])
-        self._uploaded.note(rows.nbytes)
-        source = GL.GL_RGBA if channels == _RGBA_CHANNELS else GL.GL_RGB
+        resized = (width, height) != (self.width, self.height)
+        if resized or rows is None:
+            rows = Rows(0, height)
+        first_row, held = as_the_texture_holds_them(pixels, rows)
+        source = (GL.GL_BGRA if bgra else GL.GL_RGBA) if channels == _RGBA_CHANNELS else GL.GL_RGB
         GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
-        if (width, height) != (self.width, self.height):
+        if resized:
             self.width, self.height = width, height
-            GL.glTexImage2D(
-                GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0,
-                source, GL.GL_UNSIGNED_BYTE, rows,
-            )
-        else:
-            GL.glTexSubImage2D(
-                GL.GL_TEXTURE_2D, 0, 0, 0, width, height, source, GL.GL_UNSIGNED_BYTE, rows,
-            )
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0,
+                            source, GL.GL_UNSIGNED_BYTE, None)
+        self._stage(held)
+        GL.glTexSubImage2D(GL.GL_TEXTURE_2D, 0, 0, first_row, width, len(held),
+                           source, GL.GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+        GL.glBindBuffer(GL.GL_PIXEL_UNPACK_BUFFER, 0)
         GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+        self._uploaded.note(held.nbytes)
+
+    def _stage(self, held: np.ndarray) -> None:
+        size = held.nbytes
+        if self._staging is None:
+            self._staging = int(GL.glGenBuffers(1))
+        GL.glBindBuffer(GL.GL_PIXEL_UNPACK_BUFFER, self._staging)
+        GL.glBufferData(GL.GL_PIXEL_UNPACK_BUFFER, size, None, GL.GL_STREAM_DRAW)
+        mapped = GL.glMapBufferRange(GL.GL_PIXEL_UNPACK_BUFFER, 0, size,
+                                     GL.GL_MAP_WRITE_BIT | GL.GL_MAP_INVALIDATE_BUFFER_BIT)
+        np.copyto(np.ctypeslib.as_array((ctypes.c_ubyte * size).from_address(mapped))
+                  .reshape(held.shape), held)
+        GL.glUnmapBuffer(GL.GL_PIXEL_UNPACK_BUFFER)
 
     @property
     def ready(self) -> bool:
@@ -202,6 +217,8 @@ class FrameTexture:
 
     def close(self) -> None:
         GL.glDeleteTextures(1, [self.texture])
+        if self._staging is not None:
+            GL.glDeleteBuffers(1, [self._staging])
 
 
 class ScreenMesh:
