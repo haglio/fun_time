@@ -20,11 +20,12 @@ from .latest_arrivals import LatestArrivals
 from .lock import a_lock_holds
 from .mode_plan import kino_shows
 from .origenerator_opening import OrigeneratorOpening
+from .read_when_changed import ReadWhenChanged
 from .rfb_mode import switch_the_rfb_mode
 from .rfb_modes import RfbMode
 from .rfb_slideshow import RfbSlideshow
 from .satellite_speeds import SatelliteSpeeds
-from .shared_state import read_shared_state, write_shared_state
+from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .text_field_clicks import TypingWatch
 from .voice_commands import parse_command_line
 
@@ -68,9 +69,12 @@ class WhatTheSessionRemembers:
     def __init__(self, opening: OrigeneratorOpening) -> None:
         self._opening = opening
         self._reporting = FunestraReporting()
+        self._shared: ReadWhenChanged[BridgeState | None] | None = None
 
     def tick(self, now: float, answering: CommandAnswering) -> None:
-        shared = read_shared_state(answering.shared_state_file)
+        if self._shared is None:
+            self._shared = ReadWhenChanged(answering.shared_state_file, read_shared_state)
+        shared = self._shared.latest()
         if shared is not None:
             answering.state = shared
         answering.state = self._opening.app_as_it_is(answering.state)
