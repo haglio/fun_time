@@ -16,7 +16,6 @@ def _package_sources():
 
 
 _REACHES_AROUND_THE_GUARDED_WIN32_LAYER = {
-    "main_funestra/window.py": 3,
     # Deliberate: the stand-in raises Win32Unavailable (a RuntimeError) where
     # these want the AttributeError ctypes.windll gives off Windows, and every
     # caller catches it to fall back rather than to fail.  monitors.py is the

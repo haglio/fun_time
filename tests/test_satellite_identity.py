@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pygame
+from funestra.program.window import replace_pygames_logo_with
 
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.project_paths import PROJECT_ICON
@@ -14,7 +15,6 @@ from fun_time.windows_bridge_startup import (
     SATELLITE_PORTRAIT_TITLE,
     launch_core_apps,
 )
-from main_funestra.window import replace_pygames_logo_with
 from tests.dispatch_sweep import desktop_manifest
 from tests.test_windows_bridge_startup import _launch
 

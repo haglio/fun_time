@@ -50,7 +50,7 @@ def test_the_switches_outside_session_environment_are_those_children_inherit():
         "FUN_TIME_RUN_INTEGRATION", "FUN_TIME_INTEGRATION_OVERLAYS", "FUN_TIME_DISABLE_DASHBOARD"}
     assert {switch: where for switch, where in read_in.items() if switch not in at_the_edge} == {
         "FUN_TIME_MUTE_AUDIO": {
-            "fun_time/audio_companion_app.py", "main_funestra/cli.py", "satellite/cli.py"},
+            "fun_time/audio_companion_app.py", "main_funestra/cli.py", "satellite/silence.py"},
         "FUN_TIME_FAKE_MONITORS": {"fun_time/monitors.py"},
         "FUN_TIME_BRANCH_SESSION": {"fun_time/preview_marker.py"},
     }

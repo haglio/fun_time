@@ -18,8 +18,8 @@ _.set_bar  # the Funestra hands them the angle the Angle bar is set to
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
 _.decorationPosition  # Qt's item view reads it off the style option, to put a letter's mark after it
 _.ERROR_CHECKING  # PyOpenGL reads it once, when OpenGL.GL is first imported
+_.tick  # the Funestra (funestra) ticks main_funestra's Genau and Kino each pass
 _.optionxform  # ConfigParser hook, set to keep key case
-_.resizable  # pygame's Window property, set so SDL takes a resize from outside
 
 # --- Win32 struct fields written for an API call, never read back ---
 _.cbSize
@@ -51,7 +51,7 @@ _.in_latest
 _.plays_its_own_list
 _.lets_through
 _.put_up_next
-to_argv  # satellite.contract; the session's satellite launcher
+to_argv  # main_funestra.contract; the session's Main Funestra launcher
 compositor_layers  # fun_time_vr/orchestrator.py
 process_running  # win32_process; fun_time_vr's shutdown asks it whether the VR runtime is up
 GalleryFlips  # main_funestra.genau hands it to Genau's engine as where an AI flick's flip is kept

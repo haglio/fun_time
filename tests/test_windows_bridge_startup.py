@@ -18,6 +18,8 @@ from app_support import osr2_hold
 from funestra.channel_manifest import channel_flag
 from funestra.modes import MainMode
 from funestra.playlist import read_playlist
+from funestra.program.launch import launch_command
+from funestra.program.placement import WindowPlacement
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
 
@@ -53,7 +55,6 @@ from fun_time.windows_bridge_startup import (
     GenauStart,
     HandedFunestra,
     OrigeneratorSession,
-    _build_satellite_launch_command,
     ensure_broker,
     launch_audio_companion,
     launch_core_apps,
@@ -70,7 +71,7 @@ from fun_time.windows_bridge_startup import (
     the_taskbar_identity_a_child_must_be_told,
 )
 from main_funestra.cli import build_parser as main_funestra_parser
-from satellite.contract import SatelliteChannels, WindowPlacement
+from satellite.contract import SatelliteChannels
 from tests.dispatch_sweep import desktop_manifest
 from tests.made_up_machine import running
 
@@ -1250,9 +1251,8 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
         return command[command.index("--taskbar-identity") + 1]
 
     def test_the_satellites_are_told_who_they_belong_to(self):
-        command = _build_satellite_launch_command(
-            "python.exe", "satellite",
-            channels=_a_satellite_channels(),
+        command = launch_command(
+            "python.exe", _a_satellite_channels(), module="satellite",
             placement=WindowPlacement(x=0, y=0, width=100, height=100,
                                       title="Portrait AI Funestra",
                                       taskbar_identity=APP_USER_MODEL_ID))
@@ -1680,9 +1680,8 @@ def _a_satellite_channels(**overrides) -> SatelliteChannels:
 
 
 def _a_satellite_argv(*, title="Portrait AI Funestra", **channels) -> list[str]:
-    return _build_satellite_launch_command(
-        "python.exe", "satellite",
-        channels=_a_satellite_channels(**channels),
+    return launch_command(
+        "python.exe", _a_satellite_channels(**channels), module="satellite",
         placement=WindowPlacement(x=0, y=0, width=1, height=1, title=title))
 
 
@@ -1701,16 +1700,15 @@ def _launch(funestra, state_dir, rect) -> SatelliteLaunch:
     )
 
 
-def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry():
-    cmd = _build_satellite_launch_command(
-        "python.exe", "satellite",
-        channels=SatelliteChannels(
+def test_a_satellites_launch_command_forwards_the_file_quartet_and_geometry():
+    cmd = launch_command(
+        "python.exe", SatelliteChannels(
             playlist=Path("state/portrait_playlist.tsv"),
             command=Path("state/portrait_cmd.txt"),
             paused=Path("state/portrait_paused.txt"),
             status=Path("state/portrait_status.txt"),
             notice=Path("state/portrait_notice.txt"),
-            play_points=Path("state/portrait_play_points.json")),
+            play_points=Path("state/portrait_play_points.json")), module="satellite",
         placement=WindowPlacement(x=2560, y=0, width=1440, height=2500,
                                   title="Portrait AI Funestra"),
     )
@@ -1729,7 +1727,7 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
     assert (_val("--x"), _val("--y"), _val("--width"), _val("--height")) == ("2560", "0", "1440", "2500")
 
 
-def test_build_satellite_launch_command_forwards_the_distinct_title():
+def test_a_satellites_launch_command_forwards_the_distinct_title():
     cmd = _a_satellite_argv(title="Landscape AI Funestra")
 
     assert cmd[cmd.index("--title") + 1] == "Landscape AI Funestra"
@@ -1741,7 +1739,7 @@ def test_a_satellites_volume_control_is_not_killed_by_a_no_audio_flag():
     assert "--no-audio" not in cmd
 
 
-def test_build_satellite_launch_command_passes_no_config_flag():
+def test_a_satellites_launch_command_passes_no_config_flag():
     cmd = _a_satellite_argv()
 
     assert "--config" not in cmd
@@ -1794,7 +1792,7 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
     assert "-m satellite" in log_file.read_text(encoding="utf-8")
 
 
-def test_build_satellite_launch_command_forwards_the_hud_files():
+def test_a_satellites_launch_command_forwards_the_hud_files():
     cmd = _a_satellite_argv(hud=Path("state/portrait_hud.json"),
                             dashboard_cmd=Path("state/dashboard_cmd.txt"))
 
@@ -1802,7 +1800,7 @@ def test_build_satellite_launch_command_forwards_the_hud_files():
     assert Path(cmd[cmd.index(channel_flag("dashboard_cmd")) + 1]) == Path("state/dashboard_cmd.txt")
 
 
-def test_build_satellite_launch_command_omits_an_absent_hud():
+def test_a_satellites_launch_command_omits_an_absent_hud():
     cmd = _a_satellite_argv(hud=None, dashboard_cmd=None)
 
     assert channel_flag("hud") not in cmd
@@ -2137,11 +2135,11 @@ def test_only_the_portrait_funestra_is_launched_to_tile(tmp_path):
 def test_a_satellite_launched_to_tile_is_told_so_on_its_command_line():
     placement = WindowPlacement(x=0, y=0, width=1, height=1, title="Portrait AI Funestra")
 
-    tiling = _build_satellite_launch_command(
-        "python.exe", "satellite", channels=_a_satellite_channels(),
+    tiling = launch_command(
+        "python.exe", _a_satellite_channels(), module="satellite",
         placement=replace(placement, tiles=True))
-    plain = _build_satellite_launch_command(
-        "python.exe", "satellite", channels=_a_satellite_channels(), placement=placement)
+    plain = launch_command(
+        "python.exe", _a_satellite_channels(), module="satellite", placement=placement)
 
     assert ("--tile" in tiling, "--tile" in plain) == (True, False)
 

@@ -13,6 +13,15 @@ from funestra.funestra_setup import FunestraSetup
 from funestra.genau_notifier import GenauNotifier
 from funestra.messages import MessageWriter
 from funestra.modes import MainMode
+from funestra.program.input import Input
+from funestra.program.window import (
+    before_the_window_exists,
+    claim_the_sessions_taskbar_identity,
+    replace_pygames_logo_with,
+    run_the_window,
+    take_outside_resizes,
+    wear_the_sessions_taskbar_button,
+)
 
 from fun_time.gallery import the_librarys_gallery
 from fun_time.genau_config import GenauSettings
@@ -30,16 +39,7 @@ from .contract import MainChannels
 from .gallery_names import GalleryNames
 from .genau import ROBOT_HAND, Genau, GenauChannels, GenauFlicks, GenauOutputs
 from .genau_verbs import orientations_from
-from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
-from .window import (
-    before_the_window_exists,
-    claim_the_sessions_taskbar_identity,
-    replace_pygames_logo_with,
-    run_the_window,
-    take_outside_resizes,
-    wear_the_sessions_taskbar_button,
-)
 
 logger = logging.getLogger(__name__)
 

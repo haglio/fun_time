@@ -3,20 +3,18 @@ from __future__ import annotations
 from dataclasses import MISSING, fields, replace
 from pathlib import Path
 
-from funestra.channel_manifest import channel_flag
+from funestra.channel_manifest import EVERY_CHANNEL, channel_argv, channel_flag, channels_from_args
 from funestra.funestra import Channels
+from funestra.program.cli import build_parser
 
 from fun_time.config import SatelliteChannel
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import CommandFiles
 from fun_time.osr2_section import osr2_readout_path
-from satellite.cli import build_parser
 from satellite.contract import (
     FILES_EACH_SATELLITE_HAS,
-    PLACEMENT,
     SATELLITE_CHANNELS,
     SatelliteChannels,
-    WindowPlacement,
 )
 
 _FILLED = SatelliteChannels(
@@ -38,34 +36,33 @@ CHANNELS_ONLY_THE_MAIN_FUNESTRA_HAS = ("console",)
 CHANNELS_ONLY_THE_BROKER_HAD = ("tcode_host", "tcode_port")
 _NEVER_A_SATELLITES = {*CHANNELS_ONLY_THE_MAIN_FUNESTRA_HAS, *CHANNELS_ONLY_THE_BROKER_HAD}
 
-FLAGS_ARGPARSE_ADDS_ITSELF = {"-h"}
-POLICIES_NEITHER_A_CHANNEL_NOR_A_PLACEMENT = {"--no-audio"}
 
-_PLACED = WindowPlacement(x=2560, y=0, width=1440, height=2500,
-                          title="Portrait AI Funestra", taskbar_identity="Example.App")
+
+def _a_satellites_parser():
+    return build_parser(SATELLITE_CHANNELS)
+
+
+def _the_channel_flags_it_accepts() -> set[str]:
+    every_channel_flag = {channel_flag(name) for name in EVERY_CHANNEL}
+    return {action.option_strings[0] for action in _a_satellites_parser()._actions
+            if action.option_strings and action.option_strings[0] in every_channel_flag}
 
 
 class TestTheRoundTrip:
     def test_every_channel_survives_being_spelled_out_and_parsed_back(self):
-        parsed = build_parser().parse_args(_FILLED.to_argv())
+        parsed = _a_satellites_parser().parse_args(channel_argv(_FILLED, SATELLITE_CHANNELS))
 
-        assert SatelliteChannels.from_args(parsed) == _FILLED
-
-    def test_every_part_of_the_placement_survives_it_too(self):
-        parsed = build_parser().parse_args(_PLACED.to_argv())
-
-        assert WindowPlacement.from_args(parsed) == _PLACED
+        assert SatelliteChannels(**channels_from_args(parsed, SATELLITE_CHANNELS)) == _FILLED
 
     def test_a_satellite_given_nothing_is_given_no_flags(self):
-        assert SatelliteChannels().to_argv() == []
+        assert channel_argv(SatelliteChannels(), SATELLITE_CHANNELS) == []
 
-        parsed = build_parser().parse_args([])
+        parsed = _a_satellites_parser().parse_args([])
 
-        assert SatelliteChannels.from_args(parsed) == SatelliteChannels()
-        assert WindowPlacement.from_args(parsed) == WindowPlacement()
+        assert SatelliteChannels(**channels_from_args(parsed, SATELLITE_CHANNELS)) == SatelliteChannels()
 
     def test_a_channel_left_out_is_left_out_of_the_command_line(self):
-        argv = SatelliteChannels(playlist=Path("p.tsv")).to_argv()
+        argv = channel_argv(SatelliteChannels(playlist=Path("p.tsv")), SATELLITE_CHANNELS)
 
         assert argv == [channel_flag("playlist"), "p.tsv"]
 
@@ -74,8 +71,6 @@ class TestNoDeclarationDriftsFromTheTables:
     def test_every_field_has_a_row_and_every_row_has_a_field(self):
         assert tuple(
             field.name for field in fields(SatelliteChannels) if field.name not in _NEVER_A_SATELLITES) == SATELLITE_CHANNELS
-        assert tuple(field for field, _flag in PLACEMENT) == tuple(
-            field.name for field in fields(WindowPlacement))
 
     def test_every_channel_a_funestra_has_is_given_to_a_satellite_or_named_as_not(self):
         given = set(SATELLITE_CHANNELS)
@@ -83,22 +78,8 @@ class TestNoDeclarationDriftsFromTheTables:
         assert not given & _NEVER_A_SATELLITES
         assert given | _NEVER_A_SATELLITES == {field.name for field in fields(Channels)}
 
-    def test_every_flag_declared_here_is_one_the_satellite_accepts(self):
-        accepted = {action.option_strings[0]
-                    for action in build_parser()._actions if action.option_strings}
-
-        declared = {channel_flag(field) for field in SATELLITE_CHANNELS}
-        declared |= {flag for _field, flag in PLACEMENT}
-
-        assert declared <= accepted, declared - accepted
-
-    def test_the_satellite_accepts_nothing_a_record_cannot_carry(self):
-        accepted = {action.option_strings[0]
-                    for action in build_parser()._actions if action.option_strings}
-        declared = {channel_flag(field) for field in SATELLITE_CHANNELS}
-        declared |= {flag for _field, flag in PLACEMENT}
-        assert accepted - declared - FLAGS_ARGPARSE_ADDS_ITSELF == (
-            POLICIES_NEITHER_A_CHANNEL_NOR_A_PLACEMENT)
+    def test_a_satellite_accepts_exactly_the_channels_declared_here(self):
+        assert _the_channel_flags_it_accepts() == {channel_flag(field) for field in SATELLITE_CHANNELS}
 
 
 class TestReadOutOfTheManifest:

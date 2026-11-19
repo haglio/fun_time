@@ -54,21 +54,6 @@
       "ruled": "2026-11-02, his words, for Scripture, Origenerator and Funestra"
     },
     {
-      "id": "volume_control",
-      "thing": "the speaker and slider at the end of a HUD's row",
-      "screen": null,
-      "his_word": "volume control (2026-09-27)",
-      "code_today": [
-        "volume control"
-      ],
-      "code_word": "volume control",
-      "status": "ruled",
-      "ruled": "his answers of 2026-11-02",
-      "retired": [
-        "volume chip"
-      ]
-    },
-    {
       "id": "osr2_visualizer",
       "thing": "the drawing of the OSR2's motion on a HUD, with Center, Amp and Speed around it",
       "screen": null,

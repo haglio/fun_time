@@ -8,8 +8,7 @@ import threading
 from types import ModuleType, SimpleNamespace
 
 import pytest
-
-from satellite.app import set_up_logging
+from funestra.program.app import set_up_logging
 
 ENTRY_POINTS = (
     "fun_time.dashboard_app",
@@ -17,7 +16,7 @@ ENTRY_POINTS = (
     "fun_time.orchestrator",
     "fun_time_vr.orchestrator",
     "fun_time_vr.app",
-    "satellite.app",
+    "funestra.program.app",
 )
 
 THE_ONE_NAME_A_NEW_ENTRY_POINT_COPIES = "set_up_logging"

@@ -11,13 +11,14 @@ from app_support.file_channel import read_key_values
 from app_support.win32 import process_started
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import QUIT
+from funestra.program.placement import WindowPlacement
 
 from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
 from fun_time.windows_bridge_startup import ChildProgram, launch_satellite
-from satellite.contract import SatelliteChannels, WindowPlacement
+from satellite.contract import SatelliteChannels
 
 from .integration_support import (
     RELEASE_BUDGET_S,
