@@ -403,6 +403,18 @@ QueueCommand(cmd) {
     ; five seconds at most, so a collision on a starved machine costs no keypress.
     if !AppendWithRetry(cmd . stamp . "`n", DASHBOARD_CMD_FILE)
         Log("QueueCommand dropped (file busy): " . cmd)
+    else
+        RingTheCommandBell()
+}
+
+RingTheCommandBell() {
+    global DASHBOARD_CMD_FILE
+    name := "Local\FunTime_" . RegExReplace(StrLower(DASHBOARD_CMD_FILE), "[^a-z0-9]", "_")
+    bell := DllCall("OpenEventW", "UInt", 0x0002, "Int", 0, "Str", name, "Ptr")
+    if (bell) {
+        DllCall("SetEvent", "Ptr", bell)
+        DllCall("CloseHandle", "Ptr", bell)
+    }
 }
 
 ; The moment of a press, on the clock Python's time.monotonic reads on Windows

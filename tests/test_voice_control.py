@@ -145,6 +145,17 @@ class TestHandleHeard:
         assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == "landscape_next @1.000\tlandscape next\n"
         assert seen == []
 
+    def test_a_written_command_rings_the_loops_bell(self, tmp_path):
+        rung: list[Path] = []
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+            clock=lambda: HELD_FROM, ring=rung.append)
+
+        vc.handle_heard(_as_voice_core_heard(Recognition(phrase="landscape next")))
+
+        assert rung == [tmp_path / "cmd.txt"]
+
     def test_a_sound_alike_phrase_is_handed_on_under_its_friendly_name(self, tmp_path):
         vc = _controller(tmp_path)
 
