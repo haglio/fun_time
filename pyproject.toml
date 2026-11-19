@@ -228,3 +228,12 @@ norecursedirs = [
     ".tmp-pytest-local", ".tmp-pytest-fresh", ".tmp-pytest-int", ".tmp-pytest-int-one",
     "pytest-cache-files-*",
 ]
+
+# The names the screen capitalizes inside sentence-case text, and the calls here
+# that take on-screen text (app_support.sentence_case).
+[tool.haglio.sentence-case]
+names = ["Fun Time", "Funestra", "Funestras", "Main Funestra", "Satellite", "Satellites", "Origenerator",
+         "Genau", "Kino", "Evolver", "Random Faves Browser", "Robot Hand", "Broker", "Favorites",
+         "Enhanceds", "Trash", "Windows", "Chrome", "Angle", "Evolved", "Portrait",
+         "Genaumacher", "Core"]
+calls = ["_Group", "_Section", "_Row", "Phase"]

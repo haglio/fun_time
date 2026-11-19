@@ -31,6 +31,7 @@ from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import icon_pixmap
 from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK, as_hex
 from shared_ui.preview import Preview
+from shared_ui.reference import REFERENCE_WINDOW_TITLE
 from shared_ui.spacing import BUTTON_ICON_INSET, BUTTON_RADIUS_HUD, MARGIN_STANDARD
 from shared_ui.testing import appending_to, icons_lacking
 from voice_core.commands import Recognition
@@ -1128,7 +1129,7 @@ def test_the_popup_lands_in_the_right_band_after_it_is_shown_not_before(cfg_path
 def test_reference_dialog_window_title_is_the_content_title():
     dialog = ReferenceDialog()
     try:
-        assert dialog.windowTitle() == "Hotkeys & Voice Commands Reference"
+        assert dialog.windowTitle() == REFERENCE_WINDOW_TITLE
     finally:
         dialog.close()
 

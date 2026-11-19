@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .overlay_progress import STARTUP_PHASES, progress_file_argument
 
-WINDOW_TITLE = "Fun Time Loading"
+WINDOW_TITLE = "Fun Time loading"
 
 STALE_TIMEOUT_S = 60.0
 WORDS_THE_LAUNCH_WROTE_BEFORE_THIS_SCREEN_EXISTED = STARTUP_PHASES[0].message

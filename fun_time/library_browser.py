@@ -68,7 +68,7 @@ from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import cached_thumbnail, hud_and_browser_thumbnail_cache, thumbnail_for
 
-WINDOW_TITLE = "Fun Time Library"
+WINDOW_TITLE = "Fun Time library"
 TOP_LEVEL_NAME = "Library"
 FLICKS_TOP_LEVEL_NAME = "Genau"
 

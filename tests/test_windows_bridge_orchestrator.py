@@ -310,7 +310,7 @@ class TestFixPostLoadingWindows:
     def test_the_loading_screen_is_not_a_burial(self):
         result = _fake_startup_result()
         titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
-        loading_screen = StackedWindow(hwnd=77, title="Fun Time Loading", topmost=True,
+        loading_screen = StackedWindow(hwnd=77, title="Fun Time loading", topmost=True,
                                 rect=(0, 0, 4000, 2560))
         stack = [loading_screen,
                  StackedWindow(hwnd=222, title="Landscape AI Funestra",

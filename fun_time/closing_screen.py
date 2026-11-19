@@ -3,7 +3,7 @@ from __future__ import annotations
 from .overlay_progress import progress_file_argument, ready_file_for
 from .overlay_window import OverlayWindow
 
-WINDOW_TITLE = "Fun Time Closing"
+WINDOW_TITLE = "Fun Time closing"
 
 STALE_TIMEOUT_S = 20.0
 
