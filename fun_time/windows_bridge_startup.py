@@ -13,7 +13,7 @@ from typing import Protocol
 from app_support import osr2_hold
 from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from app_support.win32 import process_started
+from app_support.win32 import process_started, take_the_overlay_icon_off
 from funestra import broker
 from funestra.file_channel import append_command
 from funestra.inclusion_pair import BOTH, Included
@@ -78,6 +78,10 @@ def _the_session_icon() -> str:
 def dress_as_one_of_the_sessions_windows(hwnd: int) -> None:
     preview_marker.dress_the_window(hwnd)
     set_the_icon_alt_tab_draws(hwnd, _the_session_icon())
+    try:
+        take_the_overlay_icon_off(hwnd)
+    except OSError as refusal:
+        logger.info("The taskbar kept the overlay icon on window %s: %s", hwnd, refusal)
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:
