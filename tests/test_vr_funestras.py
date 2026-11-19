@@ -196,6 +196,7 @@ from fun_time_vr.scene import (
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.stick_scrolling import WHEEL_NOTCH, scroll_from_stick
 from fun_time_vr.surfaces import HudBitmap, LatestFrame
+from fun_time_vr.texture_rows import Rows
 from fun_time_vr.thumbs import NUDGE_FORWARD
 from fun_time_vr.wrap_readout import WrapReadout, label
 from fun_time_vr.wraps import immersive_wrap
@@ -1076,8 +1077,12 @@ class _FakeMainHudTexture:
     aspect = 280 / 120
     width = HUD_WIDTH_PX
 
-    def upload(self, pixels):
+    def __init__(self):
+        self.sent: list[tuple[bool, object]] = []
+
+    def upload(self, pixels, *, bgra=False, rows=None):
         self.uploaded = pixels
+        self.sent.append((bgra, rows))
 
     def close(self):
         pass
@@ -1127,6 +1132,21 @@ class TestTheConsoleUnderTheSlot:
         self._placed(p.unit)
 
         assert p.unit.texture.uploaded.shape == (120, HUD_WIDTH_PX, 4)
+
+    def test_a_repaint_of_the_scrubber_row_sends_the_card_only_that_row_and_no_copy(self):
+        p = self._unit()
+        self._placed(p.unit)
+        drawn = p.main_unit.hud.take().bgra
+        moved = drawn.copy()
+        moved[100:110] = 255
+
+        p.main_unit.hud.overlay(10, 8, 8, moved)
+        self._placed(p.unit)
+        for _ in range(3):
+            self._placed(p.unit)
+
+        assert p.unit.texture.sent == [(True, Rows(0, 120)), (True, Rows(100, 110))]
+        assert p.unit.texture.uploaded is moved
 
     def test_the_main_hud_follows_the_main_funestra_on_frames_that_repaint_nothing(self):
         p = self._unit()
@@ -1320,7 +1340,7 @@ class _FakeTexture:
         self.uploads = []
         self.texture = 7
 
-    def upload(self, pixels):
+    def upload(self, pixels, **_how):
         self.uploads.append(pixels)
 
     @property

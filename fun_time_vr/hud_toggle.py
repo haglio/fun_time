@@ -13,7 +13,6 @@ from .pointer import PRESS, PressEvent, Screen
 from .room import Hanging
 from .satellite_hud import HUD_GAP_DEG
 from .scene import Footprint, Placement, attached_to
-from .surfaces import red_and_blue_swapped
 
 TOGGLE = "toggle"
 TIP = "tip"
@@ -64,7 +63,7 @@ class HudToggle:
                               pressable=True)
         painted = outside.toggle(pointed=self._pointed).bgra
         if painted is not self._painted:
-            self._texture.upload(red_and_blue_swapped(painted))
+            self._texture.upload(painted, bgra=True)
             self._painted = painted
         self._mesh.rehang_at(placement, 1.0)
         self._tip = None
@@ -74,7 +73,7 @@ class HudToggle:
             self._tip = Screen(f"{toggle_screen_name(self._screen_name)}/{TIP}", beside,
                                tip.shape[1] / tip.shape[0], pressable=False)
             if tip is not self._tip_painted:
-                self._tip_texture.upload(red_and_blue_swapped(tip))
+                self._tip_texture.upload(tip, bgra=True)
                 self._tip_painted = tip
             self._tip_mesh.rehang_at(beside, self._tip.aspect)
 

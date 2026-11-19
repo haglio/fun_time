@@ -6,36 +6,72 @@ from funestra.funestra import HudSurface, UsersFrames
 from funestra.satellite_hud import MARGIN
 
 from fun_time_vr.surfaces import HudBitmap, LatestFrame
+from fun_time_vr.texture_rows import Rows
 
 
 class TestTheHudBitmap:
     def test_it_is_what_a_funestra_draws_its_hud_on(self):
         assert isinstance(HudBitmap(width=380), HudSurface)
 
-    def test_it_holds_the_bitmap_the_way_gl_reads_it(self):
+    def test_it_holds_the_bitmap_as_drawn_for_the_card_to_read_as_bgra(self):
         bitmap = HudBitmap()
         bgra = np.zeros((2, 3, 4), dtype=np.uint8)
         bgra[0, 0] = (10, 20, 30, 40)
 
         bitmap.overlay(10, MARGIN, MARGIN, bgra)
 
-        rgba, _version = bitmap.take()
-        assert rgba.shape == (2, 3, 4)
-        assert tuple(rgba[0, 0]) == (30, 20, 10, 40)
+        assert bitmap.take().bgra is bgra
         assert bitmap.size == (3, 2)
+
+    def test_a_repaint_hands_over_only_the_rows_it_changed_since_the_last_take(self):
+        bitmap = HudBitmap()
+        first = np.zeros((6, 3, 4), dtype=np.uint8)
+        bitmap.overlay(10, MARGIN, MARGIN, first)
+        bitmap.take()
+        scrubber_moved, readout_moved = first.copy(), first.copy()
+        scrubber_moved[4] = 9
+        readout_moved[4] = 9
+        readout_moved[1] = 9
+
+        bitmap.overlay(10, MARGIN, MARGIN, scrubber_moved)
+        bitmap.overlay(10, MARGIN, MARGIN, readout_moved)
+
+        assert bitmap.take().rows == Rows(1, 5)
+        assert bitmap.take().rows is None
+
+    def test_a_repaint_that_changed_nothing_hands_over_no_rows(self):
+        bitmap = HudBitmap()
+        bitmap.overlay(10, MARGIN, MARGIN, np.zeros((6, 3, 4), dtype=np.uint8))
+        bitmap.take()
+
+        bitmap.overlay(10, MARGIN, MARGIN, np.zeros((6, 3, 4), dtype=np.uint8))
+
+        assert bitmap.take().rows is None
+
+    def test_a_bitmap_handed_over_again_after_a_removal_or_as_the_same_object_is_sent_whole(self):
+        bitmap = HudBitmap()
+        bgra = np.zeros((6, 3, 4), dtype=np.uint8)
+        bitmap.overlay(10, MARGIN, MARGIN, bgra)
+        bitmap.take()
+        bitmap.overlay(10, MARGIN, MARGIN, bgra)
+        drawn_again_in_place = bitmap.take().rows
+        bitmap.remove_overlay(10)
+        bitmap.overlay(10, MARGIN, MARGIN, bgra.copy())
+
+        assert (drawn_again_in_place, bitmap.take().rows) == (Rows(0, 6), Rows(0, 6))
 
     def test_every_paint_and_removal_moves_the_version(self):
         bitmap = HudBitmap()
-        assert bitmap.take() == (None, 0)
+        assert bitmap.take() == (None, 0, None)
 
         bitmap.overlay(10, MARGIN, MARGIN, np.zeros((1, 1, 4), dtype=np.uint8))
-        _rgba, painted = bitmap.take()
+        painted = bitmap.take().version
         bitmap.remove_overlay(10)
-        rgba, removed = bitmap.take()
+        removed = bitmap.take()
 
         assert painted == 1
-        assert removed == 2
-        assert rgba is None
+        assert removed.version == 2
+        assert removed.bgra is None
         assert bitmap.size is None
 
     def test_it_is_held_to_the_width_it_was_given_or_sized_to_its_contents(self):

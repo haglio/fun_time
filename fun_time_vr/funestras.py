@@ -718,12 +718,12 @@ class _SatelliteUnit(_VideoUnit):
 
     def render_latest_frame(self) -> None:
         super().render_latest_frame()
-        rgba, version = self.hud.take()
+        bgra, version, rows = self.hud.take()
         if version != self._hud_version:
             self._hud_version = version
-            self._hud_shown = rgba is not None
-            if rgba is not None:
-                self.hud_texture.upload(rgba)
+            self._hud_shown = bgra is not None
+            if bgra is not None:
+                self.hud_texture.upload(bgra, bgra=True, rows=rows)
         if self.funestra is None:
             return
         minimized = self.funestra.hud_minimized
@@ -858,12 +858,12 @@ class _MainHudUnit:
         self._buttons.point(None if hovered is None else hovered[0])
 
     def render_latest_frame(self) -> None:
-        rgba, version = self._main_unit.hud.take()
+        bgra, version, rows = self._main_unit.hud.take()
         if version != self._version:
             self._version = version
-            self._shown = rgba is not None
-            if rgba is not None:
-                self.texture.upload(rgba)
+            self._shown = bgra is not None
+            if bgra is not None:
+                self.texture.upload(bgra, bgra=True, rows=rows)
         wrapped = self._main_unit.wraps_the_viewer
         screen_aspect = self._main_unit.texture_on_the_screen.aspect
         under, aspect = (

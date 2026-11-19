@@ -23,7 +23,7 @@ class _Texture:
     def __init__(self) -> None:
         self.uploads = 0
 
-    def upload(self, _rgba) -> None:
+    def upload(self, _rgba, **_how) -> None:
         self.uploads += 1
 
 
