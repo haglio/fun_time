@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from funestra.file_channel import append_command
@@ -36,12 +37,19 @@ class _TheMainFunestra:
 
 
 class LatestArrivals:
-    def __init__(self, config: BridgeConfig) -> None:
+    def __init__(self, config: BridgeConfig, *,
+                 list_library: Callable[[], list[str]] | None = None) -> None:
         self._config = config
-        self._main = Arrivals(lambda: collect_video_files(config.main_sources))
+        self._main = Arrivals(list_library or (lambda: collect_video_files(config.main_sources)))
+        self._latest: bool | None = None
 
     def look(self) -> None:
-        self._main.look()
+        if self._latest is not False:
+            self._main.look()
 
     def deliver(self, state: BridgeState) -> None:
+        self._latest = state.main_latest
+        if not state.main_latest:
+            self._main.forget()
+            return
         self._main.hand_to(_TheMainFunestra(self._config, state))
