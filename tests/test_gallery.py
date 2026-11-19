@@ -17,6 +17,7 @@ from fun_time.gallery import (
     the_librarys_gallery,
     the_librarys_origenerator,
 )
+from tests.disk_looks import DiskLooks
 from tests.made_up_gallery import (
     DATABASE,
     a_row,
@@ -186,6 +187,19 @@ def test_the_librarys_ai_videos_are_the_ones_in_kinos_and_genaus_ai_folders(gena
         video.write_bytes(b"")
 
     assert sorted(ai_videos_of_the_library()) == sorted(wanted)
+
+
+def test_listing_many_ai_videos_looks_at_each_folder_and_at_no_video_by_itself(
+        genaus_folder, monkeypatch):
+    site = kino_folder.upscales_in(kino_folder.kino_dir()) / "portrait" / "made up site"
+    site.mkdir(parents=True)
+    for number in range(5):
+        (site / f"scene {number}.mp4").write_bytes(b"")
+    looks = DiskLooks(monkeypatch, under=kino_folder.upscales_in(kino_folder.kino_dir()))
+
+    found = ai_videos_of_the_library()
+
+    assert (len(found), set(looks.made)) == (5, {"scandir", "isdir"})
 
 
 def test_an_origenerator_that_cannot_be_started_leaves_the_star_unasked(tmp_path, caplog):

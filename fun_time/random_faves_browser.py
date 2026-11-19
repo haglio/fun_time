@@ -100,15 +100,15 @@ def build_manifest(config: ProjectConfig, providers: tuple[WebProvider, ...], *,
 
     if gallery is None:
         gallery = the_librarys_gallery()
-    targets = [
-        target
-        for target in (
-            target_for_fav(entry, config.regen, providers, gallery)
-            for entry in favorite_entries(config.regen.metadata_root, gallery, providers)
-        )
-        if target.url
-    ]
-    return profile_directory, choose_random(targets, browser.open_count)
+    entries = favorite_entries(config.regen.metadata_root, gallery, providers)
+    targets: list[TabTarget] = []
+    for entry in choose_random(entries, len(entries)):
+        if len(targets) >= browser.open_count:
+            break
+        target = target_for_fav(entry, config.regen, providers, gallery)
+        if target.url:
+            targets.append(target)
+    return profile_directory, targets
 
 
 def write_manifest(output_path: Path, profile_directory: str, urls: list[str]) -> None:

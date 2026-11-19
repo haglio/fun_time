@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 import subprocess
 from collections.abc import Callable
@@ -20,9 +21,13 @@ _OPTIONAL = (*(column for column in RECORD_COLUMNS if column not in _COLUMNS), "
 
 def ai_videos_of_the_library() -> list[Path]:
     folders = (kino_folder.upscales_in(kino_folder.kino_dir()), Path(haglio_settings.value("genau_dir")))
-    return [video for folder in folders if folder.is_dir() for video in sorted(folder.rglob("*"))
+    return [video for folder in folders if folder.is_dir() for video in sorted(_files_under(folder))
             if gallery_rows.is_video_name(video.name) and ".partial." not in video.name
-            and kino_folder.is_ai_video(video) and video.is_file()]
+            and kino_folder.is_ai_video(video)]
+
+
+def _files_under(folder: Path) -> list[Path]:
+    return [Path(walked, name) for walked, _folders, files in os.walk(folder) for name in files]
 
 
 def the_librarys_origenerator() -> Path:
