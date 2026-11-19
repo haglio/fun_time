@@ -86,7 +86,7 @@ class _FakeCanvas:
 
 
 def _loading_screen(tmp_path: Path, *, stale_timeout_s: float = 5.0,
-           title: str = "Fun Time Loading", taking_over: TakingOver | None = None) -> OverlayWindow:
+           title: str = "Fun Time loading", taking_over: TakingOver | None = None) -> OverlayWindow:
     return OverlayWindow(
         tmp_path / "progress.txt",
         OverlaySurface(_TheOffscreenRootTkLacks(), _FakeCanvas(), title),
@@ -200,7 +200,7 @@ class TestTheLoadingScreenKeepsTheTopOfItsBand:
             window._stay_on_top()
             window._stay_on_top()
 
-        assert looked_up == [(("Fun Time Loading",), {"exact": True})]
+        assert looked_up == [(("Fun Time loading",), {"exact": True})]
         assert banded.call_args_list == [call(4242, True), call(4242, True)]
 
     def test_the_top_is_taken_back_through_windows_not_tks_topmost_flag(self, tmp_path: Path):

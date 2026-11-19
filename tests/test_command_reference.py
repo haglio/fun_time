@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from html import escape as html_escape
 
 from shared_ui.reference import BORDER as _BORDER
 from shared_ui.reference import (
@@ -10,6 +11,7 @@ from shared_ui.reference import (
     CONTROLLER_HEADER,
     HOTKEY_BLOCK_PX,
     HOTKEY_HEADER,
+    REFERENCE_WINDOW_TITLE,
     VOICE_HEADER,
     CommandRef,
     ReferenceGroup,
@@ -941,9 +943,9 @@ def test_the_maps_rows_the_loops_and_the_filters_follow_navigation_and_other_com
     crown = _the_row_of("main_crown")
 
     assert [group.title for group in funestras.groups] == [
-        "", "Navigation", "Nav Map", "Loops", "Filter", "Playlist", "Included video types",
+        "", "Navigation", "Nav map", "Loops", "Filter", "Playlist", "Included video types",
         "Audio", "Playback speed", "HUD", "Other"]
-    assert [row.description for row in _group("Funestras", "Nav Map").rows] == [
+    assert [row.description for row in _group("Funestras", "Nav map").rows] == [
         "navigate the map", "cycle action", "cycle seed", "wrong action"]
     assert cycle.detail == "seeds, then actions, then off"
     assert [row.description for row in _group("Funestras", "Loops").rows] == [
@@ -1311,7 +1313,7 @@ def test_render_reference_html_contains_key_content():
 def test_render_reference_html_has_no_heading_or_subtitle():
     html = render_reference_html(1000)
     assert "<h2" not in html
-    assert "Hotkeys &amp; Voice Commands Reference" not in html
+    assert html_escape(REFERENCE_WINDOW_TITLE) not in html
     assert "Global while Fun Time" not in html
 
 

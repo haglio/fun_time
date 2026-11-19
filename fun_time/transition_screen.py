@@ -4,7 +4,7 @@ from .overlay_progress import progress_file_argument, ready_file_for
 from .overlay_window import OverlayWindow
 from .session_handoff import LOADING_SCREEN_STALE_S
 
-WINDOW_TITLE = "Fun Time Transition"
+WINDOW_TITLE = "Fun Time transition"
 STALE_TIMEOUT_S = LOADING_SCREEN_STALE_S
 
 

@@ -63,7 +63,7 @@ class TestOrigeneratorRoles:
     (ORIGENERATOR_TITLE, True),
     (window_title(ORIGENERATOR_TITLE, Preview(feature=None)), True),
     (window_title(ORIGENERATOR_TITLE, Preview(feature="a fabricated feature")), True),
-    ("Origenerator Loading", False),
+    ("Origenerator loading", False),
     ("Origenerator Portrait", False),
     ("Origenerator Landscape", False),
     ("Slideshow", False),

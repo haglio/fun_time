@@ -749,7 +749,7 @@ class TestFindWindowForProcess:
     def test_a_caption_test_finds_the_window_whose_caption_it_accepts(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with _user32_mocked() as mock:
-            self._enumerating(mock, [(11, 500, "Origenerator Loading"),
+            self._enumerating(mock, [(11, 500, "Origenerator loading"),
                                      (12, 500, "Origenerator — preview of a fabricated feature")])
             assert win32.find_window_for_process(
                 500, lambda caption: caption.startswith("Origenerator — preview")) == 12

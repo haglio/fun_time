@@ -323,7 +323,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=("main_funestra_compilation", "main_funestra_end_compilation"),
                 ),
             )),
-            _Group("Nav Map", (
+            _Group("Nav map", (
                 _Row(
                     "navigate the map — move the lit cell up or down its column of "
                     "actions, switching to that one",
