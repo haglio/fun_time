@@ -106,3 +106,24 @@ class TestTheMainFunestraPlayingItsLatestList:
         arrivals.deliver(replace(MAIN_LATEST, main_plays_landscape=False))
 
         assert _queued(config.main_funestra.cmd_file) == [_next(portrait)]
+
+
+class TestWithLatestOff:
+    def test_it_never_lists_the_library_and_nothing_that_came_while_off_is_put_up(self, tmp_path):
+        library = tmp_path / "videos"
+        config = make_config(tmp_path, main_sources=str(library))
+        _video(library, "already there.mp4")
+        listed = []
+        arrivals = LatestArrivals(config, list_library=lambda: listed.append(1) or
+                                  [str(path) for path in library.iterdir()])
+        arrivals.look()
+        arrivals.deliver(BridgeState())
+        _video(library, "feature two.mp4")
+        for _look in range(5):
+            arrivals.look()
+        while_off = len(listed)
+        arrivals.deliver(MAIN_LATEST)
+        arrivals.look()
+        arrivals.deliver(MAIN_LATEST)
+
+        assert (while_off, _queued(config.main_funestra.cmd_file)) == (1, [])
