@@ -120,6 +120,20 @@ class TestSayingWhenTheAppHasGoneQuiet:
         assert "1 lines" in said, said
         assert panel.silence_only_the_room_can_report(now=QUIET_S + 2) is None, "it said the same thing twice"
 
+    def test_the_presses_file_is_not_read_while_the_app_answered_within_the_quiet_spell(
+            self, tmp_path, monkeypatch):
+        panel, writer = self._panel(tmp_path)
+        panel.send(hover_line(1, 1))
+        read = []
+        monkeypatch.setattr(panel, "_lines_waiting", lambda: read.append(1) or 1)
+
+        for tick in range(30):
+            panel.silence_only_the_room_can_report(now=tick * QUIET_S / 30)
+        panel.close()
+        writer.close()
+
+        assert read == []
+
     def test_a_silence_with_nothing_waiting_is_not_a_silence(self, tmp_path):
         panel, _writer = self._panel(tmp_path)
 
