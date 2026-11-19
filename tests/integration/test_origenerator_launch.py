@@ -11,6 +11,8 @@ from fun_time.config import load_config
 from fun_time.hosted_contract import CONTRACT_FILE, declared_flags, published_by
 from fun_time.origenerator_launch_check import (
     A_PLAN_PARSED_BUT_NEVER_PLACED,
+    CHECKS_IN_ORDER,
+    LAUNCH_CHECK,
     LAUNCH_CHECK_BUDGET_S,
     a_session_in,
     launch_check_command,
@@ -68,17 +70,20 @@ def _the_origenerator_this_branchs_session_would_launch():
     return Path(checkout), Path(python_exe)
 
 
-def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedProcess:
+def _run_the_launch(tmp_path: Path, extra: list[str],
+                    check: str = LAUNCH_CHECK) -> subprocess.CompletedProcess:
     checkout, python_exe = _the_origenerator_this_branchs_session_would_launch()
-    command = launch_check_command(checkout, python_exe, tmp_path)
+    command = launch_check_command(checkout, python_exe, tmp_path, check)
     if command is None:
-        pytest.skip(f"the hosted app at {checkout} publishes no launch check")
+        pytest.skip(f"the hosted app at {checkout} publishes no {check}")
     return run_within([*command, *extra], LAUNCH_CHECK_BUDGET_S,
                       **launch_check_kwargs(checkout, this_checkouts_siblings() or None))
 
 
-def test_the_real_app_imports_on_the_interpreter_and_path_the_launch_names(tmp_path):
-    result = _run_the_launch(tmp_path, [])
+@pytest.mark.parametrize("check", CHECKS_IN_ORDER)
+def test_the_real_app_passes_each_check_on_the_interpreter_and_path_the_launch_names(
+        tmp_path, check):
+    result = _run_the_launch(tmp_path, [], check)
 
     assert result.returncode == 0, (
         "the hosted Origenerator could not boot on the command this session "
