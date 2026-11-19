@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import configparser
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -1306,11 +1307,42 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
                             lambda hwnd, app_id, app: dressed.append((hwnd, app_id)))
         monkeypatch.setattr(windows_bridge_startup, "set_the_icon_alt_tab_draws",
                             lambda hwnd, icon: worn.append((hwnd, Path(icon))))
+        monkeypatch.setattr(windows_bridge_startup, "take_the_overlay_icon_off", lambda hwnd: None)
 
         windows_bridge_startup.dress_as_one_of_the_sessions_windows(4242)
 
         assert dressed == [(4242, APP_USER_MODEL_ID)]
         assert worn == [(4242, PROJECT_ICON)]
+
+    def test_the_random_faves_browser_leaves_chromes_profile_picture_off_the_sessions_button(
+            self, monkeypatch):
+        events = []
+        monkeypatch.setattr(preview_marker, "dress_window",
+                            lambda hwnd, app_id, app: events.append(("dressed", hwnd)))
+        monkeypatch.setattr(windows_bridge_startup, "set_the_icon_alt_tab_draws",
+                            lambda hwnd, icon: None)
+        monkeypatch.setattr(windows_bridge_startup, "take_the_overlay_icon_off",
+                            lambda hwnd: events.append(("overlay icon off", hwnd)))
+
+        windows_bridge_startup.dress_as_one_of_the_sessions_windows(4242)
+
+        assert events == [("dressed", 4242), ("overlay icon off", 4242)]
+
+    def test_a_taskbar_that_refuses_to_take_the_overlay_icon_off_is_logged_and_the_session_goes_on(
+            self, monkeypatch, caplog):
+        monkeypatch.setattr(preview_marker, "dress_window", lambda hwnd, app_id, app: None)
+        monkeypatch.setattr(windows_bridge_startup, "set_the_icon_alt_tab_draws",
+                            lambda hwnd, icon: None)
+
+        def refuse(hwnd):
+            raise OSError("CoCreateInstance(TaskbarList) failed: HRESULT 0x80070057")
+
+        monkeypatch.setattr(windows_bridge_startup, "take_the_overlay_icon_off", refuse)
+
+        with caplog.at_level(logging.INFO, logger=windows_bridge_startup.logger.name):
+            windows_bridge_startup.dress_as_one_of_the_sessions_windows(4242)
+
+        assert "0x80070057" in caplog.text
 
 
 class TestTheCheckoutsTheMainFunestraStartsWith:
