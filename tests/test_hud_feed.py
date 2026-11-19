@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from app_support.osr2_device import Osr2Mode
 from app_support.testing import file_channel_clock_at
+from funestra.file_channel import publish_whole
 from funestra.hud_button import Button
 from funestra.hud_kinds import HudFacts, HudKind, hud_rows, osr2_button
 from funestra.hud_placement import HudCorner
@@ -207,6 +208,36 @@ class TestHudPublishing:
             feed.publish(replace(state, active_funestra=3))
 
         assert hud(tmp_path, "portrait")["title"] == "Locked"
+
+    def test_an_unchanged_hosted_hud_is_read_once_however_often_the_huds_publish(self, tmp_path):
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
+        hosted_file = tmp_path / "origenerator_portrait_hud.json"
+        publish_whole(hosted_file, hud_text(HudModel(funestra="portrait", title="Locked")))
+        reads: list[Path] = []
+        real_read = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path == hosted_file:
+                reads.append(path)
+            return real_read(path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", counted):
+            for _ in range(5):
+                feed.publish(_hosted(BridgeState()))
+
+        assert (len(reads), hud(tmp_path, "portrait")["title"]) == (1, "Locked")
+
+    def test_a_change_to_a_hosted_hud_is_published_on_the_next_tick(self, tmp_path):
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
+        hosted_file = tmp_path / "origenerator_portrait_hud.json"
+        publish_whole(hosted_file, hud_text(HudModel(funestra="portrait", title="Locked")))
+        state = _hosted(BridgeState())
+        feed.publish_due(state, now=100.0)
+
+        publish_whole(hosted_file, hud_text(HudModel(funestra="portrait", title="Unlocked")))
+        feed.publish_due(state, now=100.0 + LOOP_TICK_S)
+
+        assert hud(tmp_path, "portrait")["title"] == "Unlocked"
 
     def test_what_the_hosted_app_says_about_the_image_on_screen_reaches_the_funestra(
         self, tmp_path,

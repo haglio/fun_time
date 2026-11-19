@@ -33,6 +33,7 @@ from .osr2_section import (
     osr2_part,
     tell_a_hosted_satellite_whose_the_osr2_is,
 )
+from .read_when_changed import ReadWhenChanged
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
 from .shown_favorite import ShownFavorite
@@ -50,6 +51,7 @@ class HudFeed:
         self.publisher = publisher
         self._last_publish = 0.0
         self._hosted_huds: dict[FunTimeFunestra, HudModel | None] = {}
+        self._hosted_files: dict[FunTimeFunestra, ReadWhenChanged[HudModel | None]] = {}
         self._last_worn_hosted: dict[FunTimeFunestra, HudModel | None] = {}
         self._osr2_told: dict[FunTimeFunestra, bool] = {}
         self._shown_favorite = ShownFavorite(
@@ -57,7 +59,7 @@ class HudFeed:
             gallery=config.gallery)
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
-        if now - self._last_publish < PUBLISH_INTERVAL_S:
+        if now - self._last_publish < PUBLISH_INTERVAL_S and not self._a_hosted_hud_moved():
             return
         self._last_publish = now
         self.publish(state)
@@ -146,12 +148,22 @@ class HudFeed:
         self._last_worn_hosted[funestra] = worn
         return worn
 
+    def _a_hosted_hud_moved(self) -> bool:
+        moved = False
+        for funestra in FunTimeFunestra.SATELLITES:
+            worn = self._hosted_huds.get(funestra)
+            moved |= self._hosted_hud(funestra) is not worn
+        return moved
+
     def _hosted_hud(self, funestra: FunTimeFunestra) -> HudModel | None:
         path = self.config.satellite(funestra).origenerator_hud_file
         if path is None:
             return None
+        hosted = self._hosted_files.get(funestra)
+        if hosted is None:
+            hosted = self._hosted_files[funestra] = ReadWhenChanged(path, read_the_hosted_hud)
         try:
-            hud = self._hosted_huds[funestra] = read_the_hosted_hud(path)
+            hud = self._hosted_huds[funestra] = hosted.latest()
         except OSError:
             return self._the_hud_the_app_is_republishing(funestra)
         return hud
