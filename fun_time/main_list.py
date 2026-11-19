@@ -18,8 +18,7 @@ from .media_metadata import (
     EXCERPT,
     FULL_LENGTH,
     SHORT,
-    a_favorite,
-    recorded_for,
+    RecordsRead,
     recorded_orientation,
     video_type_of,
 )
@@ -136,28 +135,28 @@ class MainList:
         return VideoShapes(vr_dirs=self.vr_dirs, plays_vr=settings.plays_vr,
                            plays_flat=settings.plays_flat)
 
-    def _lets_through(self, video: str, settings: MainListSettings) -> bool:
+    def _lets_through(self, video: str, settings: MainListSettings, records: RecordsRead) -> bool:
         narrows_length = settings.length is not LengthMode.MIXED
         if not narrows_length and settings.plays_portrait and settings.plays_landscape:
             return True
-        record = self._what_evolver_recorded_of(video)
+        record = self._what_evolver_recorded_of(video, records)
         kind = video_type_of(record) or FULL_LENGTH
         if narrows_length and kind not in _KINDS_OF_LENGTH.get(settings.length, frozenset()):
             return False
         portrait = recorded_orientation(record) == PORTRAIT
         return settings.plays_portrait if portrait else settings.plays_landscape
 
-    def _what_evolver_recorded_of(self, video: str) -> Mapping:
+    def _what_evolver_recorded_of(self, video: str, records: RecordsRead) -> Mapping:
         if in_a_vr_folder(video, source_roots(self.vr_dirs)):
             return _NOTHING_ASKED_OF_THE_VR_DRIVE
-        return recorded_for(video, self.metadata_root)
+        return records.recorded(video)
 
     def lets_through(self, videos: list[str], settings: MainListSettings) -> list[str]:
+        records = RecordsRead(self.metadata_root, _read_once(lambda: the_gallery_in(self.origenerator)))
         kept = [video for video in self.shapes(settings).keep(videos)
-                if self._lets_through(video, settings)]
+                if self._lets_through(video, settings, records)]
         if settings.favorites:
-            gallery = _read_once(lambda: the_gallery_in(self.origenerator))
-            kept = [video for video in kept if a_favorite(video, self.metadata_root, gallery)]
+            kept = [video for video in kept if records.favorite(video)]
         if settings.enhanced:
             enhanced = has_an_enhanced_version(videos)
             kept = [video for video in kept if enhanced(video)]
