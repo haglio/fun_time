@@ -15,6 +15,7 @@ from fun_time.thumbnail_cache import (
     thumbnail_for,
     thumbnail_path,
 )
+from tests.disk_looks import DiskLooks
 from tests.drive_fakes import files_that_never_answer, folders_listed
 
 
@@ -66,7 +67,7 @@ def test_a_cached_still_is_found_for_a_video_its_drive_will_not_answer_about(tmp
     assert found == thumbnail_path(video, cache)
 
 
-def test_a_map_of_one_folder_s_videos_lists_that_folder_once(tmp_path: Path):
+def test_a_map_of_one_folder_s_videos_lists_that_folder_and_the_cache_once(tmp_path: Path):
     folder = tmp_path / "vids"
     folder.mkdir()
     videos = []
@@ -81,7 +82,7 @@ def test_a_map_of_one_folder_s_videos_lists_that_folder_once(tmp_path: Path):
         for video in videos:
             cached_thumbnail(video, cache, listings)
 
-    assert len(read) == 1
+    assert sorted(Path(listed).name for listed in read) == ["cache", "vids"]
 
 
 def test_thumbnail_for_extracts_a_frame_scaled_within_bounds(tmp_path: Path):
@@ -156,11 +157,29 @@ def test_prewarming_covers_every_path_it_is_handed(tmp_path: Path):
 
     prewarm_thumbnails(
         [r"C:\videos\a.mp4", r"C:\videos\b.mp4", r"C:\videos\c.mp4"], cache_dir,
-        thumbnailer=lambda path, cache: warmed.append((path, cache)), sleep_fn=lambda _s: None,
+        thumbnailer=lambda path, cache, **_kw: warmed.append((path, cache)), sleep_fn=lambda _s: None,
     )
 
     assert [Path(p).name for p, _cache in warmed] == ["a.mp4", "b.mp4", "c.mp4"]
     assert all(cache == cache_dir for _p, cache in warmed)
+
+
+def test_prewarming_many_cached_videos_lists_their_folder_and_the_cache_once_each(
+        tmp_path: Path, monkeypatch):
+    videos = [tmp_path / "videos" / f"video {number}.mp4" for number in range(5)]
+    videos[0].parent.mkdir()
+    for video in videos:
+        video.write_bytes(b"")
+        dest = thumbnail_path(video, tmp_path / "thumbs")
+        dest.parent.mkdir(exist_ok=True)
+        dest.write_bytes(b"")
+    warmed: list[object] = []
+    looks = DiskLooks(monkeypatch, under=tmp_path)
+
+    prewarm_thumbnails(videos, tmp_path / "thumbs", thumbnailer=lambda path, *_args, **_kw: warmed.append(path),
+                       sleep_fn=lambda _s: None)
+
+    assert (warmed, dict(looks.made)) == ([], {"scandir": 2})
 
 
 def test_prewarming_pauses_after_each_video_so_decoding_never_starves_the_session(tmp_path: Path):
@@ -168,7 +187,7 @@ def test_prewarming_pauses_after_each_video_so_decoding_never_starves_the_sessio
 
     prewarm_thumbnails(
         ["a.mp4", "b.mp4", "c.mp4"], tmp_path / "thumbs",
-        thumbnailer=lambda _path, _cache: None, sleep_fn=pauses.append, pause_s=0.07,
+        thumbnailer=lambda _path, _cache, **_kw: None, sleep_fn=pauses.append, pause_s=0.07,
     )
 
     assert pauses == [0.07, 0.07, 0.07]

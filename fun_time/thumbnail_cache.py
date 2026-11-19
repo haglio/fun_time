@@ -33,7 +33,8 @@ def cached_thumbnail(
     video_path: str | Path, cache_dir: str | Path, listings: FolderListings | None = None
 ) -> Path | None:
     dest = thumbnail_path(video_path, cache_dir, listings)
-    return dest if dest.is_file() else None
+    there = listings.holds(dest) if listings is not None else dest.is_file()
+    return dest if there else None
 
 
 _FIFTHS = 5
@@ -77,10 +78,13 @@ def thumbnail_for(
 def prewarm_thumbnails(
     videos: Iterable[str | Path],
     cache_dir: str | Path,
-    thumbnailer: Callable[[str | Path, str | Path], object] = thumbnail_for,
+    thumbnailer: Callable[..., object] = thumbnail_for,
     sleep_fn: Callable[[float], None] = time.sleep,
     pause_s: float = 0.05,
 ) -> None:
+    listings = FolderListings()
     for video in videos:
-        thumbnailer(video, cache_dir)
+        if listings.holds(thumbnail_path(video, cache_dir, listings)):
+            continue
+        thumbnailer(video, cache_dir, listings=listings)
         sleep_fn(pause_s)

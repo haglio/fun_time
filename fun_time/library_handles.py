@@ -9,9 +9,9 @@ from funestra.flick_folder import flat_flicks_in, vr_flicks_in
 from funestra.video_groups import normalize_path_key
 
 from .folder_listings import FolderListings
+from .kept_records import kept_file_for, records_of
 from .media_metadata import (
     EXCERPT,
-    recorded_for,
     recorded_group,
     video_title,
     video_type_of,
@@ -164,10 +164,12 @@ def _largest_first(versions: list[str], sizes: FolderListings) -> tuple[str, ...
 
 def build_library_handles(
     sources: str, metadata_root: Path | None, *, listing=collect_video_files,
+    kept_records_in: Path | None = None,
 ) -> list[LibraryHandle]:
     videos = listing(sources)
     sizes = FolderListings()
-    payloads = {video: recorded_for(video, metadata_root) for video in videos}
+    payloads = records_of(videos, metadata_root, kept=None if kept_records_in is None
+                          else kept_file_for(kept_records_in, sources))
     paths = {video: source_path(video, sources) for video in videos}
     kinds = {video: video_type_of(payloads[video]) for video in videos}
     cuts = cut_folders(
@@ -213,15 +215,21 @@ _VR_FOLDER = "VR"
 _FLAT_FOLDER = "2D"
 
 
-def handles_by_shape(
-    sources: str, vr_sources: str, metadata_root: Path | None, *, listing=collect_video_files,
-) -> list[LibraryHandle]:
+def sources_by_shape(sources: str, vr_sources: str) -> tuple[tuple[str, str], ...]:
     vr_roots = source_roots(vr_sources)
     flat_sources = "|".join(str(root) for root in source_roots(sources) if root not in vr_roots)
+    return (_VR_FOLDER, vr_sources), (_FLAT_FOLDER, flat_sources)
+
+
+def handles_by_shape(
+    sources: str, vr_sources: str, metadata_root: Path | None, *, listing=collect_video_files,
+    kept_records_in: Path | None = None,
+) -> list[LibraryHandle]:
     shelves = [
         (name, handles)
-        for name, spec in ((_VR_FOLDER, vr_sources), (_FLAT_FOLDER, flat_sources))
-        if (handles := build_library_handles(spec, metadata_root, listing=listing))
+        for name, spec in sources_by_shape(sources, vr_sources)
+        if (handles := build_library_handles(spec, metadata_root, listing=listing,
+                                             kept_records_in=kept_records_in))
     ]
     if len(shelves) <= 1:
         return [handle for _name, handles in shelves for handle in handles]

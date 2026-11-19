@@ -49,6 +49,7 @@ from fun_time.library_handles import LibraryHandle
 from fun_time.library_tree import SubFolder
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
+from tests.disk_looks import DiskLooks
 from tests.drive_fakes import files_that_never_answer, folders_listed
 from tests.mouse_events import a_double_click_as_the_mouse_sends_it, send_left_button
 from tests.still_fakes import ExtractionsHeldAtTheFirst, still_extractions
@@ -367,6 +368,22 @@ def test_a_cached_still_becomes_the_tile_and_only_misses_are_extracted(browser, 
     assert rows_needing_stills(window.grid.rows, cache) == [bare_row]
 
 
+def test_finding_the_stills_of_many_tiles_lists_the_cache_once(tmp_path: Path, monkeypatch):
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    rows = []
+    for number in range(5):
+        video = tmp_path / "videos" / f"video {number}.mp4"
+        video.parent.mkdir(exist_ok=True)
+        video.write_bytes(b"\0")
+        if number != 3:
+            Image.new("RGB", (16, 9)).save(thumbnail_path(video, cache), "JPEG")
+        rows.append(SubFolder(name=f"folder {number}", count=1, previews=(str(video),)))
+    looks = DiskLooks(monkeypatch, under=cache)
+
+    assert (rows_needing_stills(rows, cache), dict(looks.made)) == ([3], {"scandir": 1})
+
+
 def test_a_folder_tile_missing_one_of_its_stills_is_queued_for_the_rest(tmp_path: Path):
     cache = tmp_path / "cache"
     cache.mkdir()
@@ -432,7 +449,7 @@ def test_a_folder_opens_thumbnailed_on_a_drive_stuck_on_its_videos(browser, tmp_
 
     rows = [window.grid.rows.index(handle) for handle in handles]
     assert all(not window.grid.item(row).icon().isNull() for row in rows)
-    assert len(read) == 2
+    assert sorted(Path(listed).name for listed in read) == ["cache", "cache", "vids", "vids"]
 
 
 def test_a_folder_tile_is_thumbnailed_with_a_still_from_inside_it(browser, tmp_path: Path):
@@ -975,6 +992,7 @@ def test_the_browser_reads_its_library_from_the_session_manifest(tmp_path: Path,
     assert browser_config.sources == "|".join(str(path) for path in config.paths.main_funestra_library_dirs)
     assert browser_config.metadata_root == tmp_path / "videos" / "metadata"
     assert browser_config.thumbnail_cache.parent == manifest.parent
+    assert browser_config.kept_records_in == manifest.parent
 
 
 def test_the_browser_reads_which_of_its_library_is_vr_from_the_session_manifest(

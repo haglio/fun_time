@@ -17,10 +17,12 @@ from fun_time_vr import library_host
 from fun_time_vr.library_host import (
     LISTING_FILENAME,
     HeadsetBrowse,
+    list_the_library_afresh,
     read_the_library,
     serve_once,
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX
+from tests.disk_looks import DiskLooks
 from tests.drive_fakes import files_that_never_answer
 from tests.still_fakes import ExtractionsHeldAtTheFirst
 
@@ -404,6 +406,7 @@ class TestTheListingItKeeps:
         return SimpleNamespace(
             sources="C:/videos/vr|C:/videos/flat", vr_sources="C:/videos/vr",
             metadata_root=tmp_path / "metadata", thumbnail_cache=tmp_path / "stills",
+            kept_records_in=None,
         )
 
     def test_the_first_read_lists_the_drive_and_the_next_does_not(self, tmp_path):
@@ -428,6 +431,19 @@ class TestTheListingItKeeps:
             read_the_library(self._config(tmp_path), kept, afresh=True)
 
         assert listed == asked_once * 2
+
+    def test_the_listing_kept_afresh_lists_each_shape_and_reads_no_record(self, tmp_path, monkeypatch):
+        listed: list[str] = []
+        record = tmp_path / "metadata" / "video one.json"
+        record.parent.mkdir()
+        record.write_text("{}", encoding="utf-8")
+        looks = DiskLooks(monkeypatch, under=tmp_path / "metadata")
+        with patch("fun_time_vr.library_host.collect_video_files",
+                   side_effect=lambda sources: listed.append(sources) or ["C:/videos/flat/video one.mp4"]):
+            list_the_library_afresh(self._config(tmp_path), tmp_path / LISTING_FILENAME)
+
+        assert (sorted(Path(sources) for sources in listed), looks.total) == (
+            [Path("C:/videos/flat"), Path("C:/videos/vr")], 0)
 
     def test_each_shelf_keeps_its_own_listing_so_neither_answers_the_others(self, tmp_path):
         kept = tmp_path / LISTING_FILENAME
