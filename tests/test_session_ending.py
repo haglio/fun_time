@@ -18,6 +18,7 @@ from fun_time.overlay_progress import (
     parse_progress,
     ready_file_for,
 )
+from fun_time.session_end import force_quit_marker_path
 from fun_time.session_ending import (
     CLOSING_SCREEN_READY_CEILING_S,
     SessionEnding,
@@ -159,17 +160,9 @@ class TestTheTurnOffReminder:
     @pytest.fixture
     def asked(self, monkeypatch):
         asked = []
-        monkeypatch.setattr(session_ending.broker, "remind_to_turn_off",
-                            lambda state_dir, launcher, *, closed: asked.append(
-                                (Path(state_dir), launcher, closed)))
+        monkeypatch.setattr(session_ending, "remind_to_turn_off",
+                            lambda state_dir, *, closed: asked.append((Path(state_dir), closed)))
         return asked
-
-    @pytest.fixture
-    def manifest(self, cfg_factory, tmp_path) -> LaunchManifest:
-        launcher = tmp_path / "broker" / "launch_the_tray.vbs"
-        return LaunchManifest.read(write_windows_bridge_manifest(
-            load_config(cfg_factory({"paths": {"broker_tray_launcher": str(launcher)}})),
-            tmp_path / "launch.ini"))
 
     def test_closing_fun_time_asks_the_broker_to_remind_him_to_turn_the_osr2_off_naming_the_app(
             self, manifest, tmp_path, asked):
@@ -178,10 +171,15 @@ class TestTheTurnOffReminder:
         end_the_session(_an_ending(manifest, tmp_path, heard, closed_app="Fun Time VR"),
                         _ItsOwn(heard), asked=True)
 
-        commands = manifest.commands
-        assert asked == [(Path(commands.broker_state_dir), Path(commands.broker_tray_launcher),
-                          "Fun Time VR")]
-        assert commands.broker_tray_launcher.endswith("launch_the_tray.vbs")
+        assert asked == [(Path(manifest.commands.broker_state_dir), "Fun Time VR")]
+
+    def test_a_force_quit_asks_for_no_reminder(self, manifest, tmp_path, asked):
+        heard = _Heard()
+        force_quit_marker_path(tmp_path).write_text("force quit", encoding="utf-8")
+
+        end_the_session(_an_ending(manifest, tmp_path, heard), _ItsOwn(heard), asked=True)
+
+        assert asked == []
 
     def test_a_crossing_is_no_closing_so_it_asks_for_no_reminder(self, manifest, tmp_path, asked):
         heard = _Heard()

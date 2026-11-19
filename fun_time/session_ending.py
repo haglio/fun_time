@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Protocol
 
 from app_support import osr2_hold
+from app_support.osr2_turn_off_reminder import remind_to_turn_off
 from app_support.threading_utils import wait_until
-from funestra import broker
 from funestra.file_channel import append_command
 from funestra.main_hud import HOLD_VERB
 
@@ -30,6 +30,7 @@ from .overlay_progress import (
     what_the_flag_asks,
 )
 from .runtime_flow import write_flag_file
+from .session_end import force_quit_asked
 from .session_handoff import (
     HandoffTarget,
     crossing_progress_path,
@@ -110,10 +111,7 @@ class SessionEnding:
         return self.quit_hint if asked else ""
 
     def ask_for_the_turn_off_reminder(self) -> None:
-        commands = self.manifest.commands
-        launcher = commands.broker_tray_launcher.strip()
-        broker.remind_to_turn_off(Path(commands.broker_state_dir),
-                                  Path(launcher) if launcher else None, closed=self.closed_app)
+        remind_to_turn_off(Path(self.manifest.commands.broker_state_dir), closed=self.closed_app)
 
 
 def silence_the_funestras(manifest: LaunchManifest) -> None:
@@ -150,7 +148,8 @@ def end_the_session(ending: SessionEnding, own: ItsOwnEnding, *, asked: bool) ->
         if crossing is None:
             own.stop_the_keys()
         own.last_of_all(crossing, hint)
-    if (crossing is None and not esc_called_the_quit_off(ending.state_dir, crossing, hint)
+    if (crossing is None and not force_quit_asked(ending.state_dir)
+            and not esc_called_the_quit_off(ending.state_dir, crossing, hint)
             and not own.origenerator_stays_open()):
         ending.ask_for_the_turn_off_reminder()
 

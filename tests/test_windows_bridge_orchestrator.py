@@ -1287,16 +1287,23 @@ class TestKeepingTheHostedApp:
         assert channel.read_text(encoding="utf-8").splitlines()[-1] == "RELEASE"
         assert "kill:800" not in events
 
-    @pytest.mark.parametrize(("taken_over", "reminded"), [
-        (False, ["Fun Time"]), (True, [])], ids=["closing everything", "handing it back"])
-    def test_closing_fun_time_asks_for_the_turn_off_reminder_unless_origenerator_stays_open(
-        self, cfg_factory, tmp_path, taken_over, reminded,
+    @pytest.mark.parametrize(("forced", "taken_over", "reminded"), [
+        (False, False, ["Fun Time"]), (False, True, []), (True, False, [])],
+        ids=["closing everything", "handing Origenerator back", "a force quit"])
+    def test_closing_fun_time_reminds_him_to_turn_the_osr2_off_unless_it_was_a_force_quit(
+        self, cfg_factory, tmp_path, forced, taken_over, reminded,
     ):
         asked: list[str] = []
-        with patch("fun_time.session_ending.broker.remind_to_turn_off",
-                   side_effect=lambda _state, _launcher, *, closed: asked.append(closed)):
-            _run_a_session(cfg_factory, tmp_path, SessionRun(events=[], result=replace(
-                _fake_startup_result(), origenerator_taken_over=taken_over)))
+
+        def startup_ended_by(_pid):
+            if forced:
+                force_quit_marker_path(tmp_path / "state").write_text("force quit", encoding="utf-8")
+
+        with patch("fun_time.session_ending.remind_to_turn_off",
+                   side_effect=lambda _state, *, closed: asked.append(closed)):
+            _run_a_session(cfg_factory, tmp_path, SessionRun(
+                events=[], while_ending=startup_ended_by,
+                result=replace(_fake_startup_result(), origenerator_taken_over=taken_over)))
 
         assert asked == reminded
 

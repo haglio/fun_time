@@ -66,6 +66,7 @@ from fun_time.project_paths import (
 from fun_time.session_end import (
     SESSION_END_MARKER,
     SessionEnd,
+    force_quit_marker_path,
     mark_session_end,
     wait_for_the_session_to_end,
 )
@@ -1902,15 +1903,23 @@ class TestOpeningAVrSession:
 
         assert parked == [True], "the app was not left for the session coming back"
 
-    @pytest.mark.parametrize(("taken_over", "reminded"), [
-        (False, ["Fun Time VR"]), (True, [])], ids=["closing everything", "handing it back"])
-    def test_closing_fun_time_vr_asks_for_the_turn_off_reminder_unless_origenerator_stays_open(
-            self, config, taken_over, reminded):
+    @pytest.mark.parametrize(("forced", "taken_over", "reminded"), [
+        (False, False, ["Fun Time VR"]), (False, True, []), (True, False, [])],
+        ids=["closing everything", "handing Origenerator back", "a force quit"])
+    def test_closing_fun_time_vr_reminds_him_to_turn_the_osr2_off_unless_it_was_a_force_quit(
+            self, config, forced, taken_over, reminded):
         asked: list[str] = []
-        with patch("fun_time.session_ending.broker.remind_to_turn_off",
-                   side_effect=lambda _state, _launcher, *, closed: asked.append(closed)):
+
+        def ended(*_a, **_k):
+            if forced:
+                force_quit_marker_path(config.paths.state_dir).write_text(
+                    "force quit", encoding="utf-8")
+            return "asked"
+
+        with patch("fun_time.session_ending.remind_to_turn_off",
+                   side_effect=lambda _state, *, closed: asked.append(closed)):
             _end_a_vr_session(
-                orchestrator, config, ended_by=lambda *_a, **_k: "asked",
+                orchestrator, config, ended_by=ended,
                 bring_up_the_hosted_app=MagicMock(
                     return_value=HostedApp(6060, already_open=taken_over, taken_over=taken_over,
                                            showing_a_slideshow=False)),
