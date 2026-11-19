@@ -4,6 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
 from app_support import haglio_settings, kino_folder
 
 from fun_time.gallery import (
@@ -16,6 +17,7 @@ from fun_time.gallery import (
     star_in_the_gallery,
     the_librarys_gallery,
     the_librarys_origenerator,
+    what_fun_time_reads,
 )
 from tests.disk_looks import DiskLooks
 from tests.made_up_gallery import (
@@ -51,7 +53,8 @@ def test_a_gallery_kept_off_the_loop_answers_from_its_last_look_and_rereads_only
         tmp_path, a_row("gen-1", "alpha_00007_.mp4", web_url="https://example.com/a"))
     reads, stamp = [], [1.0]
     kept = GalleryKeptOffTheLoop(database, read=lambda path: reads.append(path) or Gallery.read(path),
-                                 changed_at=lambda _path: stamp[0])
+                                 changed_at=lambda _path: stamp[0],
+                                 what_it_reads=lambda _path: stamp[0])
 
     kept.look()
     kept.look()
@@ -60,6 +63,39 @@ def test_a_gallery_kept_off_the_loop_answers_from_its_last_look_and_rereads_only
     kept.look()
 
     assert (page, reads) == ("https://example.com/a", [database, database])
+
+
+def test_a_write_that_leaves_what_fun_time_reads_alone_is_not_read_again(tmp_path):
+    database = made_up_gallery(tmp_path, a_row("gen-1", "alpha_00007_.mp4"))
+    reads, stamp = [], [1.0]
+    kept = GalleryKeptOffTheLoop(database, read=lambda path: reads.append(path) or Gallery.read(path),
+                                 changed_at=lambda _path: stamp[0])
+    kept.look()
+
+    for written_at in (2.0, 3.0, 4.0):
+        stamp[0] = written_at
+        kept.look()
+
+    assert reads == [database]
+
+
+@pytest.mark.parametrize("change", [
+    "UPDATE generations SET starred = 1",
+    "UPDATE generations SET web_url = 'https://example.com/b'",
+    "UPDATE generations SET watch_locks = 2",
+    "INSERT INTO generations (prompt_id, output_files) VALUES ('gen-2', '[]')",
+])
+def test_a_change_to_what_fun_time_reads_is_seen_without_reading_every_row(tmp_path, change):
+    database = made_up_gallery(tmp_path, a_row("gen-1", "alpha_00007_.mp4", starred=0,
+                                               watch_locks=1))
+    before = what_fun_time_reads(database)
+
+    connection = sqlite3.connect(database)
+    connection.execute(change)
+    connection.commit()
+    connection.close()
+
+    assert what_fun_time_reads(database) != before
 
 
 def test_a_gallery_kept_off_the_loop_reads_it_at_once_when_asked_before_its_first_look(tmp_path):
