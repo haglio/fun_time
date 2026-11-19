@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class OrigeneratorNeverCameUp(Exception):
-    pass
+    def __init__(self, said: str = ""):
+        super().__init__(said)
+        self.said = said
 
 
 class OrigeneratorOpening:

@@ -166,6 +166,14 @@ def origenerator_has_published(path: Path) -> bool:
 
 
 CORE_READY = "core_ready"
+START_FAILED = "start_failed"
+
+
+def origenerator_start_failure(path: Path) -> str:
+    try:
+        return read_key_values(path).get(START_FAILED, "").strip()
+    except (OSError, ValueError):
+        return ""
 
 
 def origenerator_core_waits(path: Path) -> bool:

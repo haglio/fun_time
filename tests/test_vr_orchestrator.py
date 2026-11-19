@@ -29,7 +29,11 @@ from fun_time import (
 from fun_time import orchestrator as desktop_orchestrator
 from fun_time.config import load_config
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.funestra_deaths import NO_ORIGENERATOR_SET_UP, ORIGENERATOR_NEVER_CAME_UP
+from fun_time.funestra_deaths import (
+    NO_ORIGENERATOR_SET_UP,
+    ORIGENERATOR_NEVER_CAME_UP,
+    origenerator_never_came_up_message,
+)
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import OUR_RUNTIME_NAME
 from fun_time.hosted_origenerator import HostedApp
@@ -1639,6 +1643,21 @@ class TestOpeningAVrSession:
         assert exit_code == 1
         assert said == [ORIGENERATOR_NEVER_CAME_UP]
         assert torn_down == ["hotkeys", A_LAUNCHED_APP.pid, 101, 202, "runtime"]
+
+    def test_an_origenerator_that_said_why_it_failed_is_quoted_in_the_headset_alert(self, config):
+        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        said: list[str] = []
+
+        with _launch_stand_ins(
+            orchestrator, [],
+            finish_under_the_loading_screen=MagicMock(
+                side_effect=OrigeneratorNeverCameUp("TypeError: example")),
+            show_funestra_died_alert=said.append,
+        ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen"):
+            orchestrator.run_vr_bridge(config, SessionEnvironment())
+
+        assert said == [origenerator_never_came_up_message("TypeError: example")]
 
     def test_a_failure_takes_down_what_it_launched_and_gives_the_monitors_back(self, config):
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
