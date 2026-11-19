@@ -5,8 +5,9 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 
+from funestra.program.window import replace_pygames_logo_with
+
 from main_funestra import app
-from main_funestra.window import replace_pygames_logo_with
 
 
 def _the_app_source_a_test_cannot_run() -> ast.Module:
@@ -136,7 +137,7 @@ class TestWhenSomethingCosmeticFails:
         not_an_icon.write_text("this is not an icon", encoding="utf-8")
         worn = []
 
-        with caplog.at_level(logging.DEBUG, logger="main_funestra.window"):
+        with caplog.at_level(logging.DEBUG, logger="funestra.program.window"):
             replace_pygames_logo_with(
                 SimpleNamespace(display=SimpleNamespace(set_icon=worn.append)), not_an_icon)
 

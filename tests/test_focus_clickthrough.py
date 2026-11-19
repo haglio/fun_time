@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-OPENERS_NEEDING_A_REAL_WINDOW_AND_LIBMPV = (REPO / "satellite" / "app.py", REPO / "main_funestra" / "app.py")
+OPENERS_NEEDING_A_REAL_WINDOW_AND_LIBMPV = (REPO / "main_funestra" / "app.py",)
 
 
 def _call_lines_read_off_the_source(source: Path) -> tuple[list[int], list[int]]:

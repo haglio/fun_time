@@ -51,7 +51,6 @@
     "tests/test_chrome_tabs.py": 12,
     "tests/test_command_dispatch.py": 3,
     "tests/test_dashboard_app.py": 17,
-    "tests/test_funestra_input_methods.py": 1,
     "tests/test_hidden_desktop.py": 15,
     "tests/test_hosted_contract.py": 2,
     "tests/test_hosted_origenerator.py": 2,

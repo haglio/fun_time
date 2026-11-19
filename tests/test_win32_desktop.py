@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import sys
 from unittest.mock import MagicMock
 
@@ -14,6 +13,8 @@ from fun_time.win32_desktop import (
     input_desktop_name,
     on_hidden_desktop,
 )
+from main_funestra import cli as main_funestra_cli
+from satellite import silence as satellite_silence
 
 
 def test_a_desktop_that_is_not_the_input_one_is_off_screen():
@@ -70,14 +71,20 @@ def test_the_unit_run_is_on_the_interactive_desktop_so_nothing_is_silenced():
     assert on_hidden_desktop() is False
 
 
-@pytest.mark.parametrize("module_name", ["main_funestra.cli", "satellite.cli"])
-def test_a_video_funestra_silences_itself_off_screen_with_no_switch_set(module_name, monkeypatch):
-    module = importlib.import_module(module_name)
+def test_the_main_funestra_silences_itself_off_screen_with_no_switch_set(monkeypatch):
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
-    monkeypatch.setattr(module, "on_hidden_desktop", lambda: True)
-    assert module.audio_muted(argparse.Namespace(no_audio=False)) is True
-    monkeypatch.setattr(module, "on_hidden_desktop", lambda: False)
-    assert module.audio_muted(argparse.Namespace(no_audio=False)) is False
+    monkeypatch.setattr(main_funestra_cli, "on_hidden_desktop", lambda: True)
+    assert main_funestra_cli.audio_muted(argparse.Namespace(no_audio=False)) is True
+    monkeypatch.setattr(main_funestra_cli, "on_hidden_desktop", lambda: False)
+    assert main_funestra_cli.audio_muted(argparse.Namespace(no_audio=False)) is False
+
+
+def test_a_satellite_silences_itself_off_screen_with_no_switch_set(monkeypatch):
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    monkeypatch.setattr(satellite_silence, "on_hidden_desktop", lambda: True)
+    assert satellite_silence.silenced() is True
+    monkeypatch.setattr(satellite_silence, "on_hidden_desktop", lambda: False)
+    assert satellite_silence.silenced() is False
 
 
 def test_the_audio_companion_silences_itself_off_screen_with_no_switch_set(monkeypatch):

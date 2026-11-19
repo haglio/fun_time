@@ -17,11 +17,13 @@ from app_support.win32 import process_started, take_the_overlay_icon_off
 from funestra import broker
 from funestra.file_channel import append_command
 from funestra.inclusion_pair import BOTH, Included
+from funestra.program.launch import launch_command
+from funestra.program.placement import WindowPlacement
 from funestra.robot_hand import FULL_INTENSITY
 
 from main_funestra.contract import MainChannels
 from main_funestra.genau_verbs import orientation_words
-from satellite.contract import SatelliteChannels, WindowPlacement
+from satellite.contract import SatelliteChannels
 
 from . import preview_marker
 from .audio_volume import publish_audio_level
@@ -590,22 +592,6 @@ def launch_core_apps(
     )
 
 
-def _build_satellite_launch_command(
-    python_exe: str | Path,
-    satellite_module: str,
-    *,
-    channels: SatelliteChannels,
-    placement: WindowPlacement,
-) -> list[str]:
-    return [
-        str(python_exe),
-        "-m",
-        str(satellite_module),
-        *placement.to_argv(),
-        *channels.to_argv(),
-    ]
-
-
 def launch_satellite(
     program: ChildProgram,
     *,
@@ -614,7 +600,6 @@ def launch_satellite(
     role: str,
     log_file: str | Path,
 ) -> int:
-    cmd = _build_satellite_launch_command(
-        NAMER.named_exe(program.python_exe, role), program.module,
-        channels=channels, placement=placement)
+    cmd = launch_command(NAMER.named_exe(program.python_exe, role), channels, placement,
+                         module=program.module)
     return _start_a_funestra(cmd, log_file=log_file, sibling_checkouts=program.sibling_checkouts)

@@ -7,7 +7,7 @@ import pytest
 
 from fun_time.win32_desktop import current_desktop_name, input_desktop_name, on_hidden_desktop
 from main_funestra.cli import audio_muted as main_audio_muted
-from satellite.cli import audio_muted as satellite_audio_muted
+from satellite.silence import silenced as satellite_silenced
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops")
 
@@ -21,4 +21,4 @@ def test_the_funestras_silence_themselves_here_without_the_mute_switch(monkeypat
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     args = argparse.Namespace(no_audio=False)
     assert main_audio_muted(args) is True
-    assert satellite_audio_muted(args) is True
+    assert satellite_silenced() is True

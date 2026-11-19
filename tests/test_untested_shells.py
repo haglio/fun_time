@@ -13,7 +13,7 @@ HELD_BY_THE_SHELLS: dict[str, dict[str, type]] = {
     "fun_time_vr/video_thread.py": {"engine": MpvRenderEngine},
 }
 
-CALLS_NOTHING_RUNS = ("main_funestra/app.py", "satellite/app.py", "fun_time_vr/video_thread.py")
+CALLS_NOTHING_RUNS = ("main_funestra/app.py", "fun_time_vr/video_thread.py")
 
 
 def _called_on(module: Path, field: str) -> set[str]:

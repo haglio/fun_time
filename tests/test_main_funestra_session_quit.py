@@ -8,16 +8,15 @@ import pygame
 from funestra.funestra import Channels, Funestra
 from funestra.funestra_setup import FunestraSetup
 from funestra.playlist import PlaylistItem
+from funestra.program import input as program_input
+from funestra.program import window as program_window
+from funestra.program.input import Input
 from funestra.session_quit import SESSION_QUIT
 from funestra.testing import FakeEngine
 
-from main_funestra.input import Input
-
-REPO = Path(__file__).resolve().parents[1]
-
 THE_CALL_EACH_LINK_OF_A_CLOSE_MAKES = {
-    REPO / "main_funestra" / "window.py": "deal",
-    REPO / "main_funestra" / "input.py": "close_requested",
+    Path(program_window.__file__): "deal",
+    Path(program_input.__file__): "close_requested",
 }
 
 
@@ -55,7 +54,7 @@ def test_a_close_with_no_session_around_it_ends_the_one_window_there_is(tmp_path
 
 def test_a_close_passes_both_links_from_the_loop_to_the_session():
     bypassed = [
-        source.relative_to(REPO).as_posix()
+        source.name
         for source, call in THE_CALL_EACH_LINK_OF_A_CLOSE_MAKES.items()
         if not _calls(source, call)
     ]
