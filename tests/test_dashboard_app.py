@@ -34,7 +34,7 @@ from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK, as_hex
 from shared_ui.preview import Preview
 from shared_ui.reference import REFERENCE_WINDOW_TITLE
 from shared_ui.spacing import BUTTON_ICON_INSET, BUTTON_RADIUS_HUD, MARGIN_STANDARD
-from shared_ui.testing import appending_to, icons_lacking
+from shared_ui.testing import appending_to, icons_lacking, questions_answered
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -113,7 +113,9 @@ from fun_time.window_layout import (
 )
 from tests.fun_time_window_fakes import HandDrivenClock
 from tests.held_files import held_by_another_program, let_go_soon
-from tests.integration.integration_support import environment_with_this_checkouts_siblings
+from tests.integration.integration_support import (
+    environment_with_this_checkouts_siblings,
+)
 from tests.made_up_osr2_parts import a_part, center_of, published
 from tests.sleeps import sleeps_in
 
@@ -858,10 +860,10 @@ def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_wi
     dialog.sync_topmost.assert_called_once_with(True)
 
 
-def _answer_the_quit_question(monkeypatch, button):
+def _answer_the_quit_question(monkeypatch, button, while_asked=lambda _box: None):
     asked = []
-    monkeypatch.setattr(QMessageBox, "question",
-                        staticmethod(lambda *args: asked.append(args[1:3]) or button))
+    questions_answered(monkeypatch, button,
+                       lambda box: asked.append((box.title, box.text)) or while_asked(box))
     return asked
 
 
@@ -887,6 +889,15 @@ def test_a_quit_the_loop_heard_is_asked_about_and_ends_the_session_on_yes(
     state_dir = dashboard_app_config.state_dir
     assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "end_session"
     assert (state_dir / SESSION_END_MARKER).exists()
+
+
+def test_the_quit_question_has_yes_as_the_default(dashboard_window, monkeypatch):
+    asked = questions_answered(monkeypatch, QMessageBox.StandardButton.No)
+
+    dashboard_window._apply_presses([QUIT_BUTTON])
+
+    [box] = asked
+    assert box.default == QMessageBox.StandardButton.Yes
 
 
 def test_saying_no_to_a_quit_leaves_fun_time_running(
@@ -917,14 +928,9 @@ def test_closing_the_window_from_windows_asks_first(
 
 def test_a_second_quit_while_the_question_is_up_asks_nothing_more(
         dashboard_window, dashboard_app_config, monkeypatch):
-    asked = []
-
-    def while_asking(*args):
-        asked.append(args[1:3])
-        dashboard_window._apply_presses([QUIT_BUTTON])
-        return QMessageBox.StandardButton.No
-
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(while_asking))
+    asked = _answer_the_quit_question(
+        monkeypatch, QMessageBox.StandardButton.No,
+        lambda _box: dashboard_window._apply_presses([QUIT_BUTTON]))
 
     dashboard_window._apply_presses([QUIT_BUTTON])
 
