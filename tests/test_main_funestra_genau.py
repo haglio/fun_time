@@ -30,6 +30,7 @@ from main_funestra.genau import (
     GenauOutputs,
 )
 from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_orientations
+from tests.disk_looks import DiskLooks
 from tests.genau_fakes import (
     FakeNotifier,
     FakeSink,
@@ -305,6 +306,16 @@ class TestWhatArrivesInItsFolder:
 
         assert world.genau.top_block().video == "beta two"
 
+    def test_without_latest_its_folder_is_not_looked_at_again(self, tmp_path, monkeypatch):
+        world = World(tmp_path)
+        world.genau.set_showing(True)
+        looks = DiskLooks(monkeypatch, under=world.flicks_folder)
+
+        for _tick in range(5):
+            world.tick(LOOK_EVERY_S)
+
+        assert looks.made["scandir"] == 0
+
     def test_while_kino_has_the_window_it_waits_until_genau_has_it_again(self, tmp_path):
         world = World(tmp_path, WorldSetup(latest=True))
 
@@ -568,6 +579,14 @@ class TestTurnedAsAsked:
         world = self._world(tmp_path, WorldSetup(orientations=(True, False)))
 
         assert set(self._shown(world)) == {"alpha one"}
+
+    def test_turning_it_with_favorites_on_reads_each_flicks_record_once(self, tmp_path, monkeypatch):
+        world = self._world(tmp_path, WorldSetup(favorites=("alpha one.mp4", "beta two.mp4"), favorites_only=True))
+        looks = DiskLooks(monkeypatch, under=tmp_path / "metadata")
+
+        world.genau.apply_command(genau_orientations((False, True)))
+
+        assert looks.made["open"] == len(WorldSetup().flicks)
 
     def test_the_favorites_it_keeps_are_the_ones_turned_as_asked(self, tmp_path):
         world = self._world(tmp_path, WorldSetup(favorites=("alpha one.mp4", "beta two.mp4"), favorites_only=True))

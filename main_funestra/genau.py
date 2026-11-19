@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from app_support import favorites
 from funestra.flick_folder import flat_flicks_in, scan_flicks, trash_folder_for
 from funestra.flick_overlay import FlickFrame
 from funestra.funestra_verbs import NEXT, PREV
@@ -29,7 +28,7 @@ from fun_time.genau_engine import (
     build_genau_engine,
 )
 from fun_time.main_list import has_an_enhanced_version
-from fun_time.media_metadata import record_of, recorded_orientation
+from fun_time.media_metadata import RecordsRead, recorded_orientation
 from fun_time.modes import videos_in
 from fun_time.origenerator_trash import tell_origenerator_it_went
 
@@ -99,8 +98,9 @@ class Genau:
         self._showing = False
         self._clock = clock
         browsed = self._browsed()
-        turned = self._turned_as_asked(browsed)
-        kept = self._collections_of(turned)
+        records = self._records()
+        turned = self._turned_as_asked(browsed, records)
+        kept = self._collections_of(turned, records)
         self._engine = build_genau_engine(
             settings,
             channels,
@@ -122,9 +122,9 @@ class Genau:
             seams,
         )
         if not kept:
-            self._engine.narrow(self._scan)
+            self._engine.narrow(lambda: kept)
         self._arrivals = Arrivals(lambda: videos_in(self._folders()))
-        self._arrivals.look()
+        self._look_for_arrivals()
         self._next_look = clock() + LOOK_EVERY_S
 
     def apply_command(self, command: str) -> bool:
@@ -153,8 +153,14 @@ class Genau:
         if self._clock() < self._next_look:
             return
         self._next_look = self._clock() + LOOK_EVERY_S
-        self._arrivals.look()
+        self._look_for_arrivals()
         self._arrivals.hand_to(_GenausFlicks(self))
+
+    def _look_for_arrivals(self) -> None:
+        if self._recent:
+            self._arrivals.look()
+        else:
+            self._arrivals.forget()
 
     def status_fields(self) -> dict[str, str]:
         return {}
@@ -199,14 +205,18 @@ class Genau:
         return self._kept_of(self._browsed())
 
     def _kept_of(self, flicks: list[Path]) -> list[Path]:
-        return self._collections_of(self._turned_as_asked(flicks))
+        records = self._records()
+        return self._collections_of(self._turned_as_asked(flicks, records), records)
 
-    def _turned_as_asked(self, flicks: list[Path]) -> list[Path]:
+    def _records(self) -> RecordsRead:
+        return RecordsRead(self._metadata_root, lambda: self._gallery)
+
+    def _turned_as_asked(self, flicks: list[Path], records: RecordsRead) -> list[Path]:
         if self._orientations == BOTH:
             return flicks
         portrait, landscape = self._orientations
         return [flick for flick in flicks
-                if (portrait if recorded_orientation(self._record_of(flick)) == PORTRAIT
+                if (portrait if recorded_orientation(records.of(flick)) == PORTRAIT
                     else landscape)]
 
     def _browsed(self) -> list[Path]:
@@ -220,22 +230,19 @@ class Genau:
     def _shaped(self, flicks: list[Path]) -> list[Path]:
         return flicks
 
-    def _collections_of(self, flicks: list[Path]) -> list[Path]:
-        return self._enhanced_of(self._favorites_of(flicks))
+    def _collections_of(self, flicks: list[Path], records: RecordsRead) -> list[Path]:
+        return self._enhanced_of(self._favorites_of(flicks, records))
 
-    def _favorites_of(self, flicks: list[Path]) -> list[Path]:
+    def _favorites_of(self, flicks: list[Path], records: RecordsRead) -> list[Path]:
         if not self._favorites or self._metadata_root is None:
             return flicks
-        return [flick for flick in flicks if favorites.is_favorite(self._record_of(flick))]
+        return [flick for flick in flicks if records.favorite(flick)]
 
     def _enhanced_of(self, flicks: list[Path]) -> list[Path]:
         if not self._enhanced:
             return flicks
         enhanced = has_an_enhanced_version([str(flick) for flick in flicks])
         return [flick for flick in flicks if enhanced(str(flick))]
-
-    def _record_of(self, flick: Path) -> dict:
-        return record_of(flick, self._metadata_root, lambda: self._gallery)
 
     def _rescan(self, recent: bool) -> list[Path]:
         self._recent = recent

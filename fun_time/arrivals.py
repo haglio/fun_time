@@ -58,6 +58,10 @@ class Arrivals:
                 self._waiting = still_there + sorted(new, key=FolderListings().modified)
             self._seen |= set(listed)
 
+    def forget(self) -> None:
+        with self._lock:
+            self._seen, self._waiting = None, []
+
     def waiting(self) -> list[str]:
         with self._lock:
             return list(self._waiting)
