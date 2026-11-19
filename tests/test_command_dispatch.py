@@ -23,7 +23,7 @@ from fun_time.crown import Crown
 from fun_time.device_arbiter import TCODE_OFF
 from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.gallery import Gallery
+from fun_time.gallery import Gallery, GalleryKeptOffTheLoop
 from fun_time.genaumacher_save import _genaumacher_project_dir
 from fun_time.hosted_words import routes_to_origenerator
 from fun_time.main_list import MainListSettings
@@ -2813,8 +2813,10 @@ def test_genaus_trash_on_an_ai_favorite_takes_its_star_off_in_the_gallery(tmp_pa
     _show_on_genau(config, flick, locked=True)
     starred = Gallery([a_row("gen one", flick.name, starred=1)])
 
-    with patch("fun_time.lock.the_gallery_in", return_value=starred), \
-            patch("fun_time.lock.unstar_in_the_gallery") as unstar:
+    config.kept_gallery = GalleryKeptOffTheLoop(None, read=lambda _path: starred,
+                                                changed_at=lambda _path: 1.0)
+
+    with patch("fun_time.lock.unstar_in_the_gallery") as unstar:
         dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config)
 
     unstar.assert_called_once_with(str(flick), config.librarys_origenerator)

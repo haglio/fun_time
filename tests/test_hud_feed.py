@@ -21,12 +21,14 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown
 from fun_time.dispatch_loop_setup import LOOP_TICK_S
 from fun_time.fun_time_funestras import FunTimeFunestra
+from fun_time.gallery import Gallery, GalleryKeptOffTheLoop
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
 from fun_time.media_metadata import mark_favorite
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from fun_time.shared_state import BridgeState, SatelliteState
 from tests.bridge_configs import made_up_bridge_config
+from tests.made_up_gallery import a_row
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
@@ -378,6 +380,22 @@ class TestHudPublishing:
         genau.write_text("locked=0\n", encoding="utf-8")
         assert published("kino") is True
         assert published("genau") is False
+
+    def test_the_main_huds_star_on_many_ai_videos_reads_the_gallery_once(self, tmp_path):
+        reads = []
+        kept = GalleryKeptOffTheLoop(
+            None, read=lambda _path: reads.append(1) or Gallery([a_row("gen-1", "video 2.mp4", starred=1)]),
+            changed_at=lambda _path: 1.0)
+        feed = make_feed(tmp_path, config=make_config(tmp_path, kept_gallery=kept))
+
+        stars = []
+        for number in range(5):
+            shown = tmp_path / "2D" / "AI" / f"video {number}.mp4"
+            (tmp_path / "main_player_status.txt").write_text(f"video={shown}\n", encoding="utf-8")
+            feed.publish(BridgeState(main_mode=MainMode.KINO))
+            stars.append(console(tmp_path)["is_favorite"])
+
+        assert (stars, len(reads)) == ([False, False, True, False, False], 1)
 
     def test_the_main_huds_favorites_in_genau_mode_are_genaus_own(self, tmp_path):
         feed = make_feed(tmp_path)
