@@ -16,6 +16,7 @@ from fun_time.loopback_server import (
     LOOPBACK_PORT,
     OMNIPAUSE_PATH,
     USERSCRIPT_NAME,
+    PauseWatch,
     make_server,
 )
 
@@ -120,6 +121,50 @@ def test_a_tab_page_frozen_by_a_pause_hears_it_end_at_its_next_ask(tmp_path):
         paused = False
         with _get(port, OMNIPAUSE_PATH) as resp:
             assert json.loads(resp.read()) == {"omni_paused": False}
+    finally:
+        server.shutdown()
+
+
+def test_a_tab_page_asking_with_what_it_knows_is_answered_the_moment_the_pause_differs():
+    paused = [False]
+    looks = []
+
+    def look_again():
+        looks.append(paused[0])
+        paused[0] = True
+
+    watch = PauseWatch(lambda: paused[0], look_again=look_again, looks=1000)
+
+    assert (watch.once_it_differs_from(False), looks) == (True, [False])
+
+
+def test_a_pause_that_never_changes_is_answered_after_the_longest_wait():
+    looks = []
+    watch = PauseWatch(lambda: True, look_again=lambda: looks.append(1), looks=3)
+
+    assert (watch.once_it_differs_from(True), len(looks)) == (True, 3)
+
+
+def test_a_page_that_says_nothing_of_the_pause_is_answered_at_once():
+    watch = PauseWatch(lambda: True, look_again=lambda: pytest.fail("waited"), looks=3)
+
+    assert watch.once_it_differs_from(None) is True
+
+
+def test_a_tab_page_asking_over_http_is_held_until_the_pause_differs(tmp_path):
+    script = tmp_path / USERSCRIPT_NAME
+    script.write_text("// x\n", encoding="utf-8")
+    paused = [False]
+
+    def look_again():
+        paused[0] = True
+
+    server = make_server(port=0, script_path=script,
+                         watch=PauseWatch(lambda: paused[0], look_again=look_again))
+    port = _serve(server)
+    try:
+        with _get(port, f"{OMNIPAUSE_PATH}?was=0") as resp:
+            assert json.loads(resp.read()) == {"omni_paused": True}
     finally:
         server.shutdown()
 
