@@ -16,7 +16,7 @@ from app_support.win32 import Shortcut as ShortcutToWrite
 from app_support.win32 import mutex_name, write_shortcut
 from shared_ui.preview import Preview
 
-from fun_time import branch_session, preview_marker
+from fun_time import branch_session, origenerator_launch_check, preview_marker
 from fun_time.config import ProjectConfig, load_config
 from fun_time.genau_config import GenauSettings
 from fun_time.project_paths import HOTKEY_SCRIPT_NAME
@@ -617,6 +617,34 @@ def test_a_shortcut_is_written_once_the_hosted_app_has_its_own_state(
         primary_with_launcher.newer, primary=primary_with_launcher.primary)
 
     assert written.exists()
+
+
+def test_a_shortcut_is_refused_when_the_hosted_app_would_not_launch_on_its_checkouts(
+        primary_with_launcher, tmp_path, monkeypatch):
+    hosted = tmp_path / "origenerator-worktree"
+    (hosted / "state").mkdir(parents=True)
+    (hosted / "content.local.json").write_text("{}", encoding="utf-8")
+    (hosted / "state" / "ui_state.json").write_text("{}", encoding="utf-8")
+    state = primary_with_launcher.newer / branch_session.STATE_DIRNAME
+    state.mkdir(exist_ok=True)
+    (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(
+        f"{hosted}\n", encoding="utf-8")
+    asked = []
+
+    def it_cannot_import(checkout, **kwargs):
+        asked.append(checkout)
+        return "ImportError: cannot import name 'ExamplePainter' from 'funestra.example'"
+
+    monkeypatch.setattr(origenerator_launch_check, "what_stops_the_hosted_launch", it_cannot_import)
+
+    with pytest.raises(branch_session.OrigeneratorWouldNotLaunch,
+                       match="ExamplePainter") as refused:
+        branch_session.write_launch_shortcut(
+            primary_with_launcher.newer, primary=primary_with_launcher.primary)
+
+    assert asked == [hosted]
+    assert not list(primary_with_launcher.newer.glob("*.lnk"))
+    assert "Origenerator" in refused.value.for_him
 
 
 def test_the_config_build_is_wired_to_the_seeding(checkouts):

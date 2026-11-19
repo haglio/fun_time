@@ -373,6 +373,35 @@ class OutOfDateForOrigenerator(AppWouldNotStart):
                     "close itself as Fun Time opens and end the session.")
 
 
+class OrigeneratorWouldNotLaunch(AppWouldNotStart):
+    def __init__(self, checkout: Path, said: str):
+        super().__init__(
+            f"The Origenerator at {checkout} stops as it starts on the checkouts this session "
+            f"would run it with: {said}",
+            for_him="That branch would start Origenerator on code it cannot run, so Origenerator "
+                    "would close itself as Fun Time opens and end the session.")
+
+
+def _what_the_next_launch_hosts(
+        worktree: Path, primary: Path, config_path: Path) -> tuple[Path | None, str | None]:
+    if config_path.is_file():
+        paths = _checkouts_the_next_launch_runs(worktree, primary, config_path)
+        hosted, siblings = paths["origenerator_dir"], paths[SIBLING_CHECKOUTS_KEY]
+    else:
+        hosted, siblings = hosted_origenerator_checkout(worktree), _named_checkouts(worktree)
+    return (Path(hosted) if hosted else None), (os.pathsep.join(siblings) or None)
+
+
+def why_the_hosted_app_would_not_launch(
+        worktree: Path, *, primary: Path, config_path: Path) -> AppWouldNotStart | None:
+    hosted, siblings = _what_the_next_launch_hosts(worktree, primary, config_path)
+    if hosted is None:
+        return None
+    from . import origenerator_launch_check  # noqa: PLC0415  (pulls in numpy, the launch must not)
+    said = origenerator_launch_check.what_stops_the_hosted_launch(hosted, sibling_checkouts=siblings)
+    return OrigeneratorWouldNotLaunch(hosted, said) if said else None
+
+
 def _checkouts_older_than_the_pins(
         checkouts: list[str], pyproject: Path) -> list[SiblingOlderThanThePin]:
     if not pyproject.is_file():
@@ -592,6 +621,8 @@ def write_launch_shortcut(
     if missing:
         raise OutOfDateWorktree(worktree, missing)
     stopped = _why_its_app_would_not_start(
+        worktree, primary=primary, config_path=_machine_config(primary)
+    ) or why_the_hosted_app_would_not_launch(
         worktree, primary=primary, config_path=_machine_config(primary))
     if stopped:
         raise stopped

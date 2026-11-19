@@ -56,7 +56,7 @@ def _vendor_the_engine(exe, the_funestra_they_import: str, *, shared: Path | Non
     shutil.copy2(shared, looks_in / ENGINE_DLL)
 
 
-def _its_own_error_without_the_traceback_frames(stderr: str) -> str:
+def its_own_error_without_the_traceback_frames(stderr: str) -> str:
     return "\n".join(line for line in stderr.strip().splitlines()
                      if line.strip() and not line.startswith((" ", "\t", "Traceback")))
 
@@ -82,7 +82,7 @@ def engine_error(config, *, run: Runner = subprocess.run) -> str | None:
     result = _ask(exe, _IMPORT_THE_ENGINE, the_funestra_they_import, run=run)
     if result.returncode == 0:
         return None
-    return _refusal(exe, _its_own_error_without_the_traceback_frames(result.stderr))
+    return _refusal(exe, its_own_error_without_the_traceback_frames(result.stderr))
 
 
 def show_engine_alert(text: str) -> None:
