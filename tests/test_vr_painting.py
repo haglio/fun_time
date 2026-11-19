@@ -162,6 +162,29 @@ class TestAVideoThatStopsDrawing:
         assert caplog.messages == [
             "The main-video video has drawn nothing for 6s while it played on"]
 
+    def test_one_that_draws_on_reads_where_it_is_at_most_once_a_second(self):
+        class Counted(AnEngine):
+            reads = 0
+
+            @property
+            def position_ms(self):
+                Counted.reads += 1
+                return 0.0
+
+            @position_ms.setter
+            def position_ms(self, _value):
+                pass
+
+        clock, engine = _AClock(), Counted()
+        painting = _a_painting(engine, clock=clock)
+
+        for tick in range(120):
+            clock.t = tick / 120
+            engine.has_frame_to_draw = tick % 4 == 0
+            painting.paint(_targets(), None)
+
+        assert Counted.reads == 1
+
     def test_one_that_is_paused_is_not_blamed(self, caplog):
         clock, engine = _AClock(), AnEngine()
         engine.has_frame_to_draw = False

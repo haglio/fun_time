@@ -40,7 +40,7 @@ class FrameWatch:
         self._said = False
 
     def drew(self) -> None:
-        self._gap, self._read_at, self._said = None, None, False
+        self._gap, self._said = None, False
 
     def wants_a_reading(self, now: float) -> bool:
         return self._read_at is None or now - self._read_at >= READ_EVERY_S
