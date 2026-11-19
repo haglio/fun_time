@@ -434,6 +434,19 @@ class TestTheListenerItRuns:
         vc.suspend()
         assert vc.listener_events.keeps_misses() is False
 
+    def test_the_recognizer_reads_nothing_while_voice_is_muted_and_omnipause_leaves_it_reading(
+            self, tmp_path):
+        vc = _controller(tmp_path)
+
+        heard_as = [vc.listener_events.muted()]
+        vc.mute()
+        heard_as.append(vc.listener_events.muted())
+        vc.unmute()
+        vc.suspend()
+        heard_as.append(vc.listener_events.muted())
+
+        assert heard_as == [False, True, False]
+
     def test_it_listens_on_the_configured_model_microphone_and_rate(self, tmp_path):
         vc = VoiceController(
             cmd_file=tmp_path / "cmd.txt",
