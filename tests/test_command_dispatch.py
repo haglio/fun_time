@@ -2103,6 +2103,17 @@ def test_images_only_pressed_for_a_hosted_satellite_reaches_it_with_its_time_alo
     assert not line.endswith(" heard")
 
 
+def test_a_spoken_unlock_reaches_a_hosted_satellite_saying_he_said_it(tmp_path):
+    config = replace(_make_config(tmp_path),
+                     origenerator_when_said=WhenSaid(" @{said_at_epoch_seconds}", " heard"))
+
+    with answering_what_he_said():
+        dispatch_command("portrait_lock_off", _handed_over(FunTimeFunestra.PORTRAIT), config,
+                         given_at=12.0)
+
+    assert _origenerator_cmds(config) == ["portrait_lock_off heard"]
+
+
 def test_a_spoken_lock_reaches_a_hosted_satellite_with_no_time_to_go_back_to_again(tmp_path):
     config = replace(_make_config(tmp_path),
                      origenerator_when_said=WhenSaid(" @{said_at_epoch_seconds}"))

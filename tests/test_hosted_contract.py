@@ -160,7 +160,7 @@ def test_a_line_for_something_said_carries_when_it_was_said_by_the_wall_clock():
     (12.0, ""),
 ])
 def test_a_line_goes_as_it_is_with_no_time_or_to_an_app_that_takes_none(spoken_at, suffix):
-    assert with_when_said("portrait_lock", spoken_at, WhenSaid(suffix, " heard")) == "portrait_lock"
+    assert with_when_said("portrait_lock", spoken_at, WhenSaid(suffix)) == "portrait_lock"
 
 
 def test_a_line_answering_what_he_said_says_so_after_its_time():
@@ -170,6 +170,19 @@ def test_a_line_answering_what_he_said_says_so_after_its_time():
 
     assert line.startswith("portrait_media_videos @")
     assert line.endswith(" heard")
+
+
+def test_a_line_answering_what_he_said_says_so_though_it_goes_with_no_time():
+    with answering_what_he_said():
+        line = with_when_said("portrait_lock_off", None, WhenSaid(" @{said_at_epoch_seconds}", " heard"))
+
+    assert line == "portrait_lock_off heard"
+
+
+@pytest.mark.parametrize("line", ["GO_TO|C:/made up/one.png", "PORTRAIT_SAY:next"])
+def test_a_line_carrying_words_or_a_file_never_says_he_said_it(line):
+    with answering_what_he_said():
+        assert with_when_said(line, None, WhenSaid(" @{said_at_epoch_seconds}", " heard")) == line
 
 
 def test_a_line_pressed_carries_its_time_and_no_word_that_he_said_it():
