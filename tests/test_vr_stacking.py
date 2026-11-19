@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fun_time_vr import stacking
 from fun_time_vr.pointer import Screen
 from fun_time_vr.scene import Placement
 from fun_time_vr.stacking import Pane, Stacking
@@ -62,3 +63,32 @@ def test_two_panes_hanging_in_the_very_same_place_stand_as_they_were_taken():
     stacking.take("landscape")
 
     assert _names(stacking.arrange(panes)) == ["portrait", "landscape"]
+
+
+def test_panes_that_have_not_moved_and_nobody_has_taken_are_not_weighed_again(monkeypatch):
+    weighed: list[int] = []
+    encloses = stacking.encloses
+    monkeypatch.setattr(stacking, "encloses", lambda *a, **k: weighed.append(1) or encloses(*a, **k))
+    order = Stacking()
+    panes = [Pane((_screen("main"),)), Pane((_screen("dash", 10.0),))]
+
+    first = order.arrange(panes)
+    once = len(weighed)
+    again = [order.arrange(list(panes)) for _ in range(5)]
+
+    assert once > 0
+    assert len(weighed) == once
+    assert all(_names(arranged) == _names(first) for arranged in again)
+
+
+def test_a_pane_moved_or_taken_is_weighed_again():
+    order = Stacking()
+    main, dash = Pane((_screen("main"),)), Pane((_screen("dash", 10.0),))
+    order.arrange([main, dash])
+
+    order.take("main")
+    taken = order.arrange([main, dash])
+    moved = order.arrange([main, Pane((_screen("dash", 12.0),))])
+
+    assert _names(taken) == ["dash", "main"]
+    assert _names(moved) == ["dash", "main"]
