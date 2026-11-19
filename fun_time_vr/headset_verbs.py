@@ -7,7 +7,6 @@ from pathlib import Path
 from funestra.control_registry import Control, Verb, bind, look_up
 
 from fun_time.event_log import SOURCE_MAIN, flash_message
-from fun_time.media_metadata import recorded_for
 from fun_time.vr_main_funestra_verbs import (
     CYCLE_PROJECTION,
     CYCLE_PROJECTION_BACK,
@@ -21,7 +20,7 @@ from fun_time.vr_main_funestra_verbs import (
 )
 
 from .layout import clamp_tilt
-from .projection import ProjectionMemory, next_projection, previous_projection
+from .projection import KeptForAVideo, ProjectionMemory, next_projection, previous_projection
 from .video_scenes import scene_starts_ms
 from .wraps import Wrap, immersive_wrap
 
@@ -59,7 +58,6 @@ class HeadsetVerbs:
         tilt_deg: float = 0.0,
     ) -> None:
         self._playback = playback
-        self._metadata_root = metadata_root
         self._vr_dirs = tuple(vr_dirs)
         self._remembered = ProjectionMemory(metadata_root, self._vr_dirs)
         self._look = None
@@ -122,18 +120,18 @@ class HeadsetVerbs:
 
     def _arrive(self) -> None:
         video = str(self._video)
-        self._projections[video] = self._remembered.resolve(video)
-        self._restore_fov_and_height(video)
-        self._look_at_the_frame(self._video)
-        self._scene_starts = scene_starts_ms(
-            recorded_for(self._video, self._metadata_root, outlying_dirs=self._vr_dirs))
+        kept = self._remembered.kept_for(video)
+        self._projections[video] = kept.resolve()
+        self._restore_fov_and_height(video, kept)
+        self._look_at_the_frame(self._video, kept)
+        self._scene_starts = scene_starts_ms(kept.record)
 
-    def _restore_fov_and_height(self, video: str) -> None:
+    def _restore_fov_and_height(self, video: str, kept: KeptForAVideo) -> None:
         self._fovs.pop(video, None)
         self._heights.pop(video, None)
-        if (fov := self._remembered.saved_fov(video)) is not None:
+        if (fov := kept.saved_fov) is not None:
             self._fovs[video] = fov
-        if (height := self._remembered.saved_height(video)) is not None:
+        if (height := kept.saved_height) is not None:
             self._heights[video] = height
         self._dial_seen, self._dial_changed_at = self._dial(), None
 
@@ -158,10 +156,10 @@ class HeadsetVerbs:
         self._look = look
         self._look_at_the_frame(self._video)
 
-    def _look_at_the_frame(self, video: Path) -> None:
+    def _look_at_the_frame(self, video: Path, kept: KeptForAVideo | None = None) -> None:
         if self._look is None:
             return
-        if self._remembered.wants_a_look(str(video)):
+        if (kept or self._remembered.kept_for(str(video))).wants_a_look():
             self._look.look_at(video, self._shape_found)
         else:
             self._look.stop_looking()
