@@ -53,6 +53,7 @@ from fun_time.hosted_contract import (
 from fun_time.log_panel_model import ui_state_path
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item, source_roots
+from fun_time.read_when_changed import ReadWhenChanged
 from fun_time.session_handoff import headset_hold_asked
 from fun_time.shared_state import BridgeState, read_shared_state, shared_state_path
 from fun_time.unlogged_messages import UnloggedMessages
@@ -914,7 +915,7 @@ class _DashUnit:
                  reference_flag: Path) -> None:
         self._main_unit = main_unit
         self._messages = messages
-        self._state_file = Path(commands.dashboard_state_file)
+        self._snapshot = ReadWhenChanged(Path(commands.dashboard_state_file), load_dashboard_snapshot)
         self._reference_flag = reference_flag
         self._spot_over_a_flat_video = _at_the_dashs_own_width(
             remembered.get(DASH, self.SPOTS[DASH]))
@@ -984,7 +985,7 @@ class _DashUnit:
                 self._pointer.drag(*at)
             elif event.kind == RELEASE:
                 self._pointer.release()
-        snapshot = load_dashboard_snapshot(self._state_file)
+        snapshot = self._snapshot.latest()
         self._pointer.session_state(
             omni_paused=snapshot is not None and snapshot.omni_paused,
             voice_active=snapshot is None or snapshot.voice_active,
@@ -1301,7 +1302,7 @@ class _GalleryUnit:
                  shared_state_file: Path) -> None:
         self._panel = GalleryPanel(frames_file=Path(commands.origenerator_frames_file),
                                    input_file=Path(commands.origenerator_input_file))
-        self._shared_state_file = shared_state_file
+        self._shared_state = ReadWhenChanged(shared_state_file, read_shared_state)
         self._presses = _Presses(GALLERY)
         self._lock = threading.Lock()
         self._image = None
@@ -1339,7 +1340,7 @@ class _GalleryUnit:
             self._scrolled += notches
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        state = read_shared_state(self._shared_state_file)
+        state = self._shared_state.latest()
         wanted = state is not None and state.origenerator_core_ready
         events = list(self._presses.drain())
         self.showing = wanted
