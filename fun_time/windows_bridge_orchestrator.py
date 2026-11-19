@@ -127,6 +127,7 @@ from .win32 import (
     windows_obscuring,
 )
 from .win32_events import PressAndCaretWatch
+from .win32_process import is_process_alive
 from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -769,9 +770,13 @@ def activate_origenerator_under_the_loading_screen(
     if not runner.opening.activates:
         return runner.answering.state.rfb_mode
     started = time.monotonic()
+    pid = runner.window_work.windows.pids.origenerator
 
     def wait_for_the_app(has_answered: Callable[[], bool]) -> bool:
         while not has_answered():
+            if pid and not is_process_alive(pid):
+                logger.error("Origenerator (pid %d) closed itself while Fun Time waited for it", pid)
+                return False
             waited = time.monotonic() - started
             if waited >= ORIGENERATOR_BOOT_BUDGET_S:
                 return False

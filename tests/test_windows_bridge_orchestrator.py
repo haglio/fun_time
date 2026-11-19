@@ -3165,6 +3165,17 @@ class TestARoomLeftInOrigeneratorMode:
         assert {"killed 200", "killed 300", "killed 400", "killed 800"} <= set(events), (
             "what the session had launched was left running")
 
+    def test_an_app_that_closed_itself_ends_the_start_without_waiting_out_the_budget(
+            self, cfg_factory, tmp_path):
+        with sleeps_in(windows_bridge_orchestrator) as slept, \
+             patch.object(windows_bridge_orchestrator, "is_process_alive",
+                          side_effect=lambda pid: pid != _fake_startup_result().origenerator_pid):
+            _events, over = self._session(cfg_factory, tmp_path, the_app_answers=False)
+
+        assert over == SessionOver(1, why=ORIGENERATOR_NEVER_CAME_UP)
+        assert slept.call_count == 0, (
+            "Fun Time went on waiting for an Origenerator whose process had already gone")
+
     def test_the_wait_writes_the_loading_screen_progress_more_often_than_its_staleness_guard(self):
         assert windows_bridge_orchestrator.ORIGENERATOR_BOOT_POLL_S < STALE_TIMEOUT_S
 
