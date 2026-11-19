@@ -18,7 +18,7 @@ class _Made:
     def __init__(self) -> None:
         self.closed = False
 
-    def upload(self, _rgba) -> None:
+    def upload(self, _rgba, **_how) -> None:
         pass
 
     def rehang_at(self, _placement, _aspect) -> None:

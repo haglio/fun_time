@@ -11,7 +11,6 @@ from .pointer import HANDLE_DEG, PRESS, PressEvent, Screen
 from .room import Hanging
 from .satellite_hud import HUD_GAP_DEG
 from .scene import Footprint, Placement, attached_to
-from .surfaces import red_and_blue_swapped
 
 SIDE = "side"
 
@@ -74,7 +73,7 @@ class HudSides:
         shown = next((side for side in self._hung if side.edge is self.pointed_at), None)
         if shown is not None:
             if self._shown is None or shown.bgra is not self._shown.bgra:
-                self._texture.upload(red_and_blue_swapped(shown.bgra))
+                self._texture.upload(shown.bgra, bgra=True)
             self._mesh.rehang_at(shown.screen.placement, shown.screen.aspect)
         self._shown = shown
 
