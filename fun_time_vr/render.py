@@ -9,6 +9,7 @@ import math
 import numpy as np
 from OpenGL import GL
 
+from .perf import UPLOADED, UploadedBytes
 from .wraps import IMMERSIVE_FRAGMENT_SHADER, Wrap
 
 _RGBA_CHANNELS = 4
@@ -156,7 +157,8 @@ class RenderTarget:
 
 
 class FrameTexture:
-    def __init__(self) -> None:
+    def __init__(self, *, uploaded: UploadedBytes = UPLOADED) -> None:
+        self._uploaded = uploaded
         self.width = 0
         self.height = 0
         self.texture = int(GL.glGenTextures(1))
@@ -172,6 +174,7 @@ class FrameTexture:
         if width <= 0 or height <= 0:
             return
         rows = np.ascontiguousarray(pixels[::-1])
+        self._uploaded.note(rows.nbytes)
         source = GL.GL_RGBA if channels == _RGBA_CHANNELS else GL.GL_RGB
         GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)

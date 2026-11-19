@@ -31,7 +31,7 @@ from .matrices import (
     yaw_of_orientation,
     yaw_rotation_matrix,
 )
-from .perf import FramePerf
+from .perf import UPLOADED, FrameClock, FramePerf, UploadedBytes
 from .render import SceneRenderer
 
 logger = logging.getLogger(__name__)
@@ -195,12 +195,14 @@ def closing_screen_over_the_teardown(headset: Headset, loading_screen: LoadingSc
 
 class FrameLoop:
     def __init__(self, headset: Headset, the_room: TheRoom, *, use_layers: bool,
-                 clock: Clock = time.monotonic, sleep: Sleep = time.sleep) -> None:
+                 clock: Clock = time.monotonic, sleep: Sleep = time.sleep,
+                 stopwatch: Clock = time.perf_counter, uploaded: UploadedBytes = UPLOADED) -> None:
         self._headset = headset
         self._room = the_room
         self._use_layers = use_layers
         self._clock = clock
         self._sleep = sleep
+        self._timing = FrameClock(headset.perf, uploaded=uploaded, stopwatch=stopwatch)
         self.arranging = Arrangement(the_room)
 
     def show_the_room(self, glfw) -> None:
@@ -228,24 +230,23 @@ class FrameLoop:
         self._sleep(0.01)
 
     def show_a_frame(self, *, elapsed_s: float, now: float) -> None:
-        headset, the_room = self._headset, self._room
-        session, perf = headset.session, headset.perf
+        headset, the_room, timing = self._headset, self._room, self._timing
+        session = headset.session
         loading_screen = the_room.loading_screen
-        t0 = time.perf_counter()
+        timing.waiting()
         should_render, display_time, views = session.frame_begin()
-        t1 = time.perf_counter()
+        timing.waited(session.display_period_ms)
         the_room.render_latest_frames()
         the_room.loading_screen_watch.frame_began(
             blank=the_room.still_blank(), focused=session.focused,
             views_tracked=session.views_tracked)
-        t2 = time.perf_counter()
+        timing.lap("frames")
         quads_over_our_layer: list[QuadLayer] = []
         project = covered = False
-        t3 = t2
         if should_render and views and loading_screen.showing:
             covered = project = True
             the_room.loading_screen_watch.drawing(now)
-            t3 = time.perf_counter()
+            timing.lap("layers")
             draw_loading_screen(headset, loading_screen, views)
         elif should_render and views:
             if session.focused:
@@ -255,19 +256,16 @@ class FrameLoop:
             quads_over_our_layer, as_quads = (
                 self.quads_the_runtime_holds_steady(arranged) if self._use_layers else ([], set()))
             project = True
-            t3 = time.perf_counter()
+            timing.lap("layers")
             draw_eyes(headset, arranged, the_room.pointing, views, as_quads=as_quads)
-        t4 = time.perf_counter()
+        else:
+            timing.lap("layers")
+        timing.lap("eyes")
         session.frame_end(display_time, views, project=project, quads=quads_over_our_layer)
-        t5 = time.perf_counter()
+        timing.lap("end")
         the_room.loading_screen_watch.frame_ended(
             covered=covered, focused=session.focused, should_render=should_render, now=now)
-        perf.note("wait", (t1 - t0) * 1e3)
-        perf.note("frames", (t2 - t1) * 1e3)
-        perf.note("layers", (t3 - t2) * 1e3)
-        perf.note("eyes", (t4 - t3) * 1e3)
-        perf.note("end", (t5 - t4) * 1e3)
-        perf.frame_done()
+        timing.ended()
 
     def quads_the_runtime_holds_steady(self, arranged: Arranged) -> tuple[list[QuadLayer], set[str]]:
         quads: list[QuadLayer] = []

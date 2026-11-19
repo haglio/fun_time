@@ -62,7 +62,7 @@ class VRSession(SessionStates):
         self._ensure_quad = quads.ensure
         self._quads_frame_ended = quads.frame_ended
         self._close_quads = quads.close
-        self._period_logged = False
+        self.display_period_ms: float | None = None
         self.view_config_views: list[xr.ViewConfigurationView] = []
         self._action_set = None
         self._actions: dict[str, xr.Action] = {}
@@ -287,9 +287,9 @@ class VRSession(SessionStates):
     def frame_begin(self) -> tuple[bool, int, list[xr.View]]:
         frame_state = self._xr.wait_frame(self._session, xr.FrameWaitInfo())
         self._xr.begin_frame(self._session, xr.FrameBeginInfo())
-        if not self._period_logged and frame_state.predicted_display_period:
-            self._period_logged = True
+        if self.display_period_ms is None and frame_state.predicted_display_period:
             period_ms = frame_state.predicted_display_period / 1e6
+            self.display_period_ms = period_ms
             logger.info(
                 "Display period %.2f ms (%.1f Hz)", period_ms, 1000.0 / period_ms
             )
