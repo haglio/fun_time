@@ -1548,6 +1548,17 @@ def test_main_funestra_record_commands_write_main_funestra_cmd_in_main_funestra_
         config.main_funestra.cmd_file.unlink()
 
 
+def test_main_funestra_record_commands_carry_when_r_was_pressed(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.KINO)
+
+    for command in ("main_funestra_record_down", "main_funestra_record_up"):
+        dispatch_command(command, state, config, given_at=812.25)
+
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == [
+        "RECORD_DOWN 812.250", "RECORD_UP 812.250"]
+
+
 def test_main_funestra_record_commands_work_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)

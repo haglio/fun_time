@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from dataclasses import replace
 
 from . import (
     audio_commands,
@@ -60,6 +61,7 @@ def dispatch_command(
 ) -> Result:
     if isinstance(command, str):
         command = parse_command(command)
+    command = replace(command, given_at=given_at)
     state = with_the_target_it_names(command, state)
     if (aimed := the_satellite_a_bare_line_reaches(command, state)) is not None:
         return dispatch_command(aimed, state, config, target_path=target_path,

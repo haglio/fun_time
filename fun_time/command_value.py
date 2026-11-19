@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
 
@@ -81,6 +81,7 @@ class Command:
     action: str
     argument: str = ""
     text: str = ""
+    given_at: float | None = field(default=None, compare=False)
 
     @classmethod
     def to(cls, funestra: FunTimeFunestra, action: str) -> Command:

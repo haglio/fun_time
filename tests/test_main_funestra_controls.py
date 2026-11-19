@@ -30,8 +30,8 @@ class SpyPlayback:
 def _controls(**over) -> tuple[KinoControls, dict[str, Spy]]:
     spies = {name: Spy() for name in ("snippet", "versions", "modes", "jumps")}
     reloaded: list[int] = []
-    controls = KinoControls(
-        playback=SpyPlayback(), reload_playlist=lambda: reloaded.append(1), **spies, **over)
+    controls = KinoControls(**{
+        "playback": SpyPlayback(), "reload_playlist": lambda: reloaded.append(1), **spies, **over})
     spies["reloaded"] = reloaded
     return controls, spies
 
@@ -45,6 +45,32 @@ class TestTheSnippetGestures:
 
         assert spies["snippet"].calls == [
             ("record_down", 2500), ("record_up", 2500), ("record_tap", 2500)]
+
+    @pytest.mark.parametrize(("paused", "marked"), [(False, 2000), (True, 2500)])
+    def test_each_gesture_is_marked_where_the_playhead_was_when_r_was_pressed(self, paused, marked):
+        class PlayingAtTwiceTheSpeed(SpyPlayback):
+            is_paused = paused
+            speed = 2.0
+
+        controls, spies = _controls(playback=PlayingAtTwiceTheSpeed(), clock=lambda: 100.25)
+
+        for verb in (RECORD_DOWN, RECORD_UP, RECORD_TAP):
+            apply_command(f"{verb} 100.0", controls)
+
+        assert spies["snippet"].calls == [
+            ("record_down", marked), ("record_up", marked), ("record_tap", marked)]
+
+    def test_a_press_time_no_clock_here_can_place_marks_the_playhead_as_it_is(self):
+        class Playing(SpyPlayback):
+            is_paused = False
+            speed = 1.0
+
+        controls, spies = _controls(playback=Playing(), clock=lambda: 100.0)
+
+        apply_command(f"{RECORD_DOWN} 9000.0", controls)
+        apply_command(f"{RECORD_UP} 100.5", controls)
+
+        assert spies["snippet"].calls == [("record_down", 2500), ("record_up", 2500)]
 
     def test_cancelling_reaches_the_snippet(self):
         controls, spies = _controls()
@@ -130,7 +156,7 @@ class TestTheVerbsFunTimeCanSend:
 
         assert apply_command(command, controls) is True
 
-    @pytest.mark.parametrize("command", ["RECORD_TAP 1", "CYCLE_VERSION 2", "END_COMPILATION now"])
+    @pytest.mark.parametrize("command", ["SNIPPET_CANCEL 1", "CYCLE_VERSION 2", "END_COMPILATION now"])
     def test_a_value_on_a_verb_that_takes_none_is_refused(self, command):
         controls, _spies = _controls()
 
