@@ -122,7 +122,7 @@ def test_no_gallery_or_a_missing_one_knows_no_video(tmp_path):
 def _settings_with_projects_in(tmp_path: Path, monkeypatch) -> Path:
     projects = tmp_path / "projects"
     settings = tmp_path / "settings.json"
-    settings.write_text(json.dumps({**haglio_settings.EXAMPLE, "project_roots": [str(projects)]}),
+    settings.write_text(json.dumps({**haglio_settings.load(), "project_roots": [str(projects)]}),
                         encoding="utf-8")
     monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))
     return projects

@@ -306,7 +306,7 @@ class TestGenausFolders:
         empty = tmp_path / "empty_genau"
         empty.mkdir()
         settings = tmp_path / "settings.json"
-        settings.write_text(json.dumps({**haglio_settings.EXAMPLE, "genau_dir": str(empty),
+        settings.write_text(json.dumps({**haglio_settings.load(), "genau_dir": str(empty),
                                         "genau_flick_words": {"one": "pip", "many": "pips"}}),
                             encoding="utf-8")
         monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))

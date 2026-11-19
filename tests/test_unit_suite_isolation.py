@@ -7,6 +7,7 @@ import threading
 import time
 
 import pytest
+from app_support import haglio_settings
 
 from fun_time import (
     closing_screen,
@@ -20,6 +21,7 @@ from fun_time import (
 )
 from fun_time_vr import orchestrator as vr_orchestrator
 from fun_time_vr import vr_runtime
+from tests import process_setup
 from tests.conftest import TMP_ROOT
 from tests.headset_refusal import his_headset_refused
 
@@ -103,3 +105,8 @@ def test_pytests_own_factory_makes_its_folders_outside_the_suites_scratch(
         tmp_path, tmp_path_factory):
     assert TMP_ROOT in tmp_path.parents
     assert TMP_ROOT not in tmp_path_factory.getbasetemp().parents
+
+
+def test_the_suites_settings_name_no_folder_outside_the_suites_own_scratch():
+    assert haglio_settings.reaching_outside(haglio_settings.load(), process_setup.SCRATCH) == []
+    assert all(root.is_relative_to(process_setup.SCRATCH) for root in haglio_settings.project_roots())
