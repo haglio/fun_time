@@ -155,6 +155,7 @@ from fun_time_vr.perf import FramePerf
 from fun_time_vr.pointer import (
     DRAG,
     HANDLE_DEG,
+    MOVE,
     PRESS,
     RELEASE,
     SURFACE,
@@ -2627,6 +2628,23 @@ class TestWhatThePointerDraws:
 
     def test_a_controller_that_loses_tracking_stops_being_drawn(self):
         assert self._drawn((Frame(), [_IN_HAND]), (Frame(), [])) == []
+
+    def test_the_handles_of_a_screen_that_has_not_moved_are_sent_to_the_card_once(self):
+        dash = Screen(DASH, _UNDER_THE_DASH, 2.0, movable=True)
+        resting, on_a_handle = Hover(DASH, SURFACE, 0.5, 0.5), Hover(DASH, MOVE, 0.5, 1.02)
+        renderer = _FakeChromeRenderer()
+        with patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
+            pointing = _PointerDrawing()
+            for hover in (resting, on_a_handle, resting, resting):
+                pointing.update(Frame(hover=hover), [dash], [])
+            sent = sum(len(mesh.uploads) for mesh in pointing._handles)
+            moved = Screen(DASH, Placement(10.0, 38.0, 54.0), 2.0, movable=True)
+            pointing.update(Frame(hover=resting), [moved], [])
+            pointing.draw(renderer, np.eye(4, dtype=np.float32))
+
+        assert sent == 1
+        assert sum(len(mesh.uploads) for mesh in pointing._handles) == 2
+        assert renderer.drawn == ["flat"]
 
 
 def _buttons_not_hanging_names(funestra: str) -> HudButtons:

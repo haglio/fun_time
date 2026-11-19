@@ -1537,6 +1537,8 @@ class _PointerDrawing:
         self._controllers = ScreenMesh()
         self._visible: list[tuple[ScreenMesh, tuple[float, float, float, float]]] = []
         self._holding = False
+        self._handles_for: tuple[Placement, float, bool] | None = None
+        self._handle_kinds: list[tuple[ScreenMesh, str]] = []
 
     def update(
         self, frame: Frame, screens: Sequence[Screen],
@@ -1546,15 +1548,10 @@ class _PointerDrawing:
         if frame.hover is not None:
             screen = next((s for s in screens if s.name == frame.hover.screen), None)
             if screen is not None and screen.movable:
-                strips = handle_vertices(
-                    screen.placement, aspect=screen.aspect, resizable=screen.resizable)
-                meshes = iter(self._handles)
-                for kind, kind_strips in strips.items():
-                    color = HOT_HANDLE_COLOR if frame.hover.handle == kind else HANDLE_COLOR
-                    for strip in kind_strips:
-                        mesh = next(meshes)
-                        mesh.upload(strip)
-                        self._visible.append((mesh, color))
+                self._hang_the_handles_of(screen)
+                self._visible += [
+                    (mesh, HOT_HANDLE_COLOR if frame.hover.handle == kind else HANDLE_COLOR)
+                    for mesh, kind in self._handle_kinds]
         if frame.ray is not None:
             reach = frame.point.distance if frame.point is not None else LASER_REACH_M
             self._laser.upload(laser_vertices(frame.ray, length=reach))
@@ -1566,6 +1563,20 @@ class _PointerDrawing:
         self._holding = len(controllers) > 0
         if self._holding:
             self._controllers.upload(controllers)
+
+    def _hang_the_handles_of(self, screen: Screen) -> None:
+        shape = (screen.placement, screen.aspect, screen.resizable)
+        if shape == self._handles_for:
+            return
+        self._handles_for = shape
+        meshes = iter(self._handles)
+        self._handle_kinds = []
+        for kind, kind_strips in handle_vertices(
+                screen.placement, aspect=screen.aspect, resizable=screen.resizable).items():
+            for strip in kind_strips:
+                mesh = next(meshes)
+                mesh.upload(strip)
+                self._handle_kinds.append((mesh, kind))
 
     def draw(self, renderer: SceneRenderer, view_proj: np.ndarray) -> None:
         for mesh, color in self._visible:
