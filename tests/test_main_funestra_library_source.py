@@ -7,9 +7,11 @@ import pygame
 import pytest
 
 import main_funestra.library_source
+from main_funestra.clip_nav import ClipNav
 from main_funestra.library import LibraryEntry
 from main_funestra.library_source import PHASE_DISCOVER, LibrarySource, build_library_source
 from main_funestra.loading import LoadingCanceled, stop_if_asked
+from tests.disk_looks import DiskLooks
 
 
 def _make_video(path: Path, body: str = "x") -> Path:
@@ -51,6 +53,24 @@ class TestTheVersionIndexIsBuiltOnce:
 
         assert len(reads) == 3, "one walk, not one per reader"
         assert the_sessions_index is the_playlists_collapse
+
+
+    def test_the_clip_jumps_read_no_sidecar_the_version_index_has_read(self, tmp_path, monkeypatch):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        lib.mkdir(parents=True)
+        entries = [LibraryEntry(video=_make_video(lib / f"video {number}.mp4"), funscript=None, size=1)
+                   for number in range(5)]
+        for entry in entries:
+            meta.mkdir(parents=True, exist_ok=True)
+            (meta / f"{entry.video.stem}.json").write_text(json.dumps({"title": entry.video.stem}),
+                                                           encoding="utf-8")
+        source = LibrarySource(entries=entries, metadata_root=meta)
+        looks = DiskLooks(monkeypatch, under=meta)
+
+        index = source.version_index
+        nav = ClipNav.of(source.records)
+
+        assert (len(index), nav.title_of(entries[3].video), looks.made["open"]) == (5, "video 3", 5)
 
 
 class TestBuildProgress:

@@ -5,8 +5,13 @@ from pathlib import Path
 
 from app_support import video_ids
 
+from fun_time.media_metadata import recorded_for
 from main_funestra.clip_nav import ClipNav
 from tests.clip_records import ClipRecord
+
+
+def _built(videos, metadata_root) -> ClipNav:
+    return ClipNav.of({video: recorded_for(video, metadata_root) for video in videos})
 
 
 def _sidecar(lib: Path, meta: Path, rel: str, payload: dict) -> Path:
@@ -40,7 +45,7 @@ class TestClipNav:
             _clip(lib, meta, "w/Bryn Vance - Taylor Rain.mp4", ClipRecord("Vol10", 1, "Taylor Rain's Offroad Adventure", "Bryn Vance")),
         ]
         full = _sidecar(lib, meta, "other/Alpha Scene 2 - Ann Bly 1080p.mp4", {})
-        nav = ClipNav.build([*clips, full], meta)
+        nav = _built([*clips, full], meta)
         return nav, clips, full
 
     def test_compilation_of_names_the_volume_a_clip_came_from(self, tmp_path):
@@ -82,7 +87,7 @@ class TestClipNav:
         clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill"))
         stranger = _sidecar(lib, meta, "other/Nora Quill - 9934197-720p.mp4", {})
         other = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
-        nav = ClipNav.build([clip, stranger, other], meta)
+        nav = _built([clip, stranger, other], meta)
         assert nav.clip_of(stranger) is None
         assert nav.full_vid_of(clip) is None
 
@@ -92,7 +97,7 @@ class TestClipNav:
         upscaled = _clip(lib, meta, "w/Jane Doe - Scene Two_apo8_iris2.mp4", ClipRecord("Vol6", 1, "Scene Two", "Jane Doe"))
         upscaled.write_bytes(b"x" * 500)
         other = _clip(lib, meta, "w/Marlow Sterne - Alpha 1.mp4", ClipRecord("Vol6", 2, "Alpha Scene 1", "Marlow Sterne"))
-        nav = ClipNav.build([original, upscaled, other], meta)
+        nav = _built([original, upscaled, other], meta)
 
         playlist = nav.compilation_playlist(original)
 
@@ -102,7 +107,7 @@ class TestClipNav:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", ClipRecord("Vol4", 4, "Scene Five 3", "Iris Fenn"))
         scene = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
-        nav = ClipNav.build([clip, scene], meta)
+        nav = _built([clip, scene], meta)
 
         assert nav.full_vid_of(clip) == scene
 
@@ -112,8 +117,8 @@ class TestClipNav:
         one = _sidecar(lib, meta, "other/Nora-Quill-1_540-aa11bb22.mp4", {})
         another = _sidecar(lib, meta, "other/Nora-Quill-2_1080-cc33dd44.mp4", {})
 
-        assert ClipNav.build([clip, one], meta).full_vid_of(clip) == one
-        assert ClipNav.build([clip, one, another], meta).full_vid_of(clip) is None
+        assert _built([clip, one], meta).full_vid_of(clip) == one
+        assert _built([clip, one, another], meta).full_vid_of(clip) is None
 
     def test_re_encodes_of_one_scene_are_not_ambiguous(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
@@ -121,14 +126,14 @@ class TestClipNav:
         plain = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
         upscaled = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT_iris2.mp4", {})
         upscaled.write_bytes(b"x" * 400)
-        nav = ClipNav.build([clip, plain, upscaled], meta)
+        nav = _built([clip, plain, upscaled], meta)
 
         assert nav.full_vid_of(clip) == upscaled
 
     def test_clip_jump_never_returns_the_file_you_are_on(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", ClipRecord("Vol6", 9, "Alpha Scene 2", "Ann Bly"))
-        nav = ClipNav.build([clip], meta)
+        nav = _built([clip], meta)
 
         assert nav.clip_of(clip) is None
 
@@ -136,7 +141,7 @@ class TestClipNav:
         _nav, clips, full = self._nav(tmp_path)
         lib = tmp_path / "videos" / "videos"
         stranger = _sidecar(lib, tmp_path / "videos" / "metadata", "other/Some Random Movie.mp4", {})
-        nav2 = ClipNav.build([*clips, full, stranger], tmp_path / "videos" / "metadata")
+        nav2 = _built([*clips, full, stranger], tmp_path / "videos" / "metadata")
         assert nav2.clip_of(stranger) is None
 
 
@@ -146,7 +151,7 @@ class TestTheSceneEvolverMatchedByFrames:
         named_for_her = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         where_her_frames_are = _sidecar(lib, meta, "other/redacted_540-EhWGJW62.mp4", {})
         clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill", full_video_id=_scene_id(lib, meta, where_her_frames_are), scene_offset=808.2))
-        nav = ClipNav.build([clip, named_for_her, where_her_frames_are], meta)
+        nav = _built([clip, named_for_her, where_her_frames_are], meta)
 
         assert nav.full_vid_of(clip) == where_her_frames_are
 
@@ -155,7 +160,7 @@ class TestTheSceneEvolverMatchedByFrames:
         scene = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         mine = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill", full_video_id=_scene_id(lib, meta, scene), scene_offset=808.2))
         other = _clip(lib, meta, "w/Nora Quill - Crooked Lane.mp4", ClipRecord("Vol2", 3, "Crooked Lane", "Nora Quill", full_video_id=_scene_id(lib, meta, lib / "other" / "redacted_540-EhWGJW62.mp4"), scene_offset=12.0))
-        nav = ClipNav.build([mine, other, scene], meta)
+        nav = _built([mine, other, scene], meta)
 
         assert nav.clip_of(scene) == mine
 
@@ -166,7 +171,7 @@ class TestTheSceneEvolverMatchedByFrames:
         upscale.write_bytes(b"x" * 400)
         decoy = _sidecar(lib, meta, "other/Nora-Quill-2_1080-QQ7mnbEt.mp4", {})
         clip = _clip(lib, meta, "w/Nora Quill - Nights of Nonsense 8.mp4", ClipRecord("Vol1", 9, "Nights of Nonsense 8", "Nora Quill", full_video_id=_scene_id(lib, meta, plain), scene_offset=808.2))
-        nav = ClipNav.build([clip, plain, upscale, decoy], meta)
+        nav = _built([clip, plain, upscale, decoy], meta)
 
         assert nav.clip_of(upscale) == clip
         assert nav.full_vid_of(clip) == upscale
@@ -178,7 +183,7 @@ class TestTheSceneEvolverMatchedByFrames:
         upscale = _sidecar(lib, meta, "other/redacted Beta Cut 4k 60fps.mp4", family)
         upscale.write_bytes(b"x" * 600)
         clip = _clip(lib, meta, "w/redacted - Scene Three 8.mp4", ClipRecord("Vol7", 4, "Scene Three 8", "redacted", full_video_id=_scene_id(lib, meta, original), scene_offset=1109.6))
-        nav = ClipNav.build([clip, original, upscale], meta)
+        nav = _built([clip, original, upscale], meta)
 
         assert nav.full_vid_of(clip) == upscale
         assert nav.clip_of(upscale) == clip
@@ -191,7 +196,7 @@ class TestMatchingOnNames:
         named_for_her.write_bytes(b"x" * 400)
         crooked_lane = _clip(lib, meta, "w/Nora Quill - Crooked Lane.mp4", ClipRecord("Vol2", 3, "Crooked Lane", "Nora Quill"))
         scene = _sidecar(lib, meta, "other/Nora Quill - Crooked Lane 1080p.mp4", {})
-        nav = ClipNav.build([named_for_her, crooked_lane, scene], meta)
+        nav = _built([named_for_her, crooked_lane, scene], meta)
 
         assert nav.clip_of(scene) == crooked_lane
 
@@ -201,7 +206,7 @@ class TestMatchingOnNames:
         scene = _sidecar(lib, meta, "other/Alpha Scene 2 - Ann Bly 1080p.mp4", {})
         hers_too = _sidecar(lib, meta, "other/Ann Bly - 7781-720p.mp4", {})
         hers_too.write_bytes(b"x" * 400)
-        nav = ClipNav.build([clip, scene, hers_too], meta)
+        nav = _built([clip, scene, hers_too], meta)
 
         assert nav.full_vid_of(clip) == scene
         assert nav.clip_of(hers_too) is None
@@ -211,7 +216,7 @@ class TestMatchingOnNames:
         clip = _clip(lib, meta, "w/Jane Doe - Scene Five 3.mp4", ClipRecord("Vol4", 4, "Scene Five 3", "Jane Doe"))
         alpha = _sidecar(lib, meta, "other/Jane-Doe-Alpha_540-aa11bb22.mp4", {})
         alpha_beta = _sidecar(lib, meta, "other/Jane-Doe-Alpha-Beta_540-cc33dd44.mp4", {})
-        nav = ClipNav.build([clip, alpha, alpha_beta], meta)
+        nav = _built([clip, alpha, alpha_beta], meta)
 
         assert nav.full_vid_of(clip) is None
         assert nav.clip_of(alpha) is None
@@ -223,7 +228,7 @@ def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):
     plain = _sidecar(lib, meta, "other/Nora-Quill_540-izB4YKFa.mp4", {})
     upscale = _sidecar(lib, meta, "other/Nora-Quill_540-izB4YKFa_apo8_iris2.mp4", {})
     upscale.write_bytes(b"x" * 400)
-    nav = ClipNav.build([clip, plain, upscale], meta)
+    nav = _built([clip, plain, upscale], meta)
 
     assert nav.full_vid_of(clip) == upscale
     assert nav.clip_of(plain) == clip
@@ -235,7 +240,7 @@ class TestAClipCutStraightFromItsScene:
         scene = _sidecar(lib, meta, "other/Beta Scene 4k.mp4", {})
         portrait = _sidecar(lib, meta, "other/Beta Scene portrait.mp4",
                             {"clip": {"full_video_id": _scene_id(lib, meta, scene)}})
-        return ClipNav.build([scene, portrait], meta), scene, portrait
+        return _built([scene, portrait], meta), scene, portrait
 
     def test_it_has_no_compilation_to_play(self, tmp_path):
         nav, _scene, portrait = self._pair(tmp_path)
@@ -256,7 +261,7 @@ class TestAFileThatVanishedMidScan:
         gone = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
         here = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT_iris2.mp4", {})
         here.write_bytes(b"x" * 400)
-        nav = ClipNav.build([clip, gone, here], meta)
+        nav = _built([clip, gone, here], meta)
         gone.unlink()
 
         assert nav.full_vid_of(clip) == here
@@ -266,7 +271,7 @@ class TestTitles:
     def test_the_colon_windows_keeps_out_of_the_file_name_survives_in_the_record(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = _clip(lib, meta, "w/Jane Doe - Alpha Study Part Two.mp4", ClipRecord("Vol2", 3, "Alpha Study: Part Two", "Jane Doe"))
-        nav = ClipNav.build([clip], meta)
+        nav = _built([clip], meta)
 
         assert nav.title_of(clip) == "Jane Doe - Alpha Study: Part Two"
 
@@ -274,7 +279,7 @@ class TestTitles:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         scene = _sidecar(lib, meta, "other/Jane-Doe_540-hQ2vLm8t.mp4",
                          {"title": "Jane Doe - Alpha Study 3"})
-        nav = ClipNav.build([scene], meta)
+        nav = _built([scene], meta)
 
         assert nav.title_of(scene) == "Jane Doe - Alpha Study 3"
 
@@ -282,14 +287,14 @@ class TestTitles:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         scene = _sidecar(lib, meta, "other/Jane-Doe_540-hQ2vLm8t_apo8_iris2.mp4",
                          {"version": {"group": "Jane-Doe_540-hQ2vLm8t"}})
-        nav = ClipNav.build([scene], meta)
+        nav = _built([scene], meta)
 
         assert nav.title_of(scene) == "Jane-Doe_540-hQ2vLm8t"
 
     def test_a_video_with_nothing_recorded_at_all_keeps_its_filename(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         scene = _sidecar(lib, meta, "other/Jane-Doe_540-hQ2vLm8t.mp4", {})
-        nav = ClipNav.build([scene], meta)
+        nav = _built([scene], meta)
 
         assert nav.title_of(scene) == "Jane-Doe_540-hQ2vLm8t"
 
@@ -298,7 +303,7 @@ class TestTitles:
         performer_only = _clip(lib, meta, "w/Jane Doe - 1.mp4", ClipRecord("Vol2", 1, "", "Jane Doe"))
         source_only = _clip(lib, meta, "w/Alpha Study 4.mp4", ClipRecord("Vol2", 2, "Alpha Study 4", ""))
         neither = _clip(lib, meta, "w/hQ2vLm8t.mp4", ClipRecord("Vol2", 3, "", ""))
-        nav = ClipNav.build([performer_only, source_only, neither], meta)
+        nav = _built([performer_only, source_only, neither], meta)
 
         assert nav.title_of(performer_only) == "Jane Doe"
         assert nav.title_of(source_only) == "Alpha Study 4"

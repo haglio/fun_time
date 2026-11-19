@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from app_support import video_ids
 from app_support.video_names import clip_title, stable_title, version_group_of
-
-from fun_time.media_metadata import recorded_for
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -50,14 +48,13 @@ class ClipNav:
     _by_id: dict[str, Path]
 
     @classmethod
-    def build(cls, videos: Iterable[Path], metadata_root: Path | None) -> ClipNav:
+    def of(cls, records: Mapping[Path, dict]) -> ClipNav:
         clips: dict[Path, dict] = {}
         non_clips: list[Path] = []
         evolver_families: dict[Path, str] = {}
         titles: dict[Path, str] = {}
         by_id: dict[str, Path] = {}
-        for video in videos:
-            payload = recorded_for(video, metadata_root)
+        for video, payload in records.items():
             given = video_ids.recorded_id(payload)
             if given is not None:
                 by_id[given] = video

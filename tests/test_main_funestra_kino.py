@@ -11,6 +11,7 @@ from funestra.playback_setup import PlaybackSetup
 from funestra.playlist import PlaylistItem
 from funestra.testing import FakeEngine
 
+from fun_time.media_metadata import recorded_for
 from main_funestra.cli import build_parser, kino_on
 from main_funestra.clip_nav import ClipNav
 from main_funestra.kino import Kino, KinoLibrary
@@ -24,6 +25,10 @@ class FakeSource:
         self.entries = entries
         self.version_index = version_index or {}
         self.metadata_root = metadata_root
+
+    @property
+    def records(self) -> dict[Path, dict]:
+        return {entry.video: recorded_for(entry.video, self.metadata_root) for entry in self.entries}
 
 
 class FakeMessages:
@@ -70,7 +75,7 @@ class World:
         self.messages = FakeMessages()
         self.resolved: list[list[PlaylistItem]] = [[PlaylistItem(self.second), PlaylistItem(self.first)]]
         library = KinoLibrary(
-            source=self.source, clip_nav=ClipNav.build([self.first, self.second], meta),
+            source=self.source, clip_nav=ClipNav.of(self.source.records),
             resolve_playlist=lambda: self.resolved[-1])
         self.kino = Kino(
             self.playback, library=library, messages=self.messages, memory=self.memory,
@@ -120,7 +125,7 @@ class TestItsVerbs:
         world = World(tmp_path)
         world.source.version_index = {world.first: family, upscale: family}
         library = KinoLibrary(
-            source=world.source, clip_nav=ClipNav.build([world.first], None), resolve_playlist=list)
+            source=world.source, clip_nav=ClipNav.of({world.first: {}}), resolve_playlist=list)
         kino = Kino(world.playback, library=library, messages=world.messages,
                     memory=world.memory, remembered=RememberedMode())
 
@@ -208,6 +213,16 @@ class TestWhatItSays:
 
         assert hud.video == "Jane Doe - scene 1"
         assert (hud.position, hud.total) == (1, 2)
+
+    def test_the_main_hud_counts_the_list_without_copying_it(self, tmp_path, monkeypatch):
+        world = World(tmp_path)
+        copies = []
+        monkeypatch.setattr(type(world.playback), "playlist",
+                            property(lambda playback: copies.append(1) or []))
+
+        hud = world.kino.top_block()
+
+        assert (hud.total, copies) == (2, [])
 
     def test_the_status_carries_the_videos_place_in_the_library(self, tmp_path):
         world = World(tmp_path)
