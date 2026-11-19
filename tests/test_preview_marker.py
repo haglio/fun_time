@@ -37,7 +37,15 @@ def test_the_live_session_is_plain_fun_time():
 
 
 def test_a_branch_session_gets_a_taskbar_button_of_its_own():
-    assert preview_marker.session_identity(_A_PREVIEW) == f"{APP_USER_MODEL_ID}.Preview"
+    assert preview_marker.session_identity(_A_PREVIEW).startswith(f"{APP_USER_MODEL_ID}.Preview.")
+
+
+def test_each_checkout_previews_under_a_taskbar_name_no_other_checkout_has(monkeypatch):
+    monkeypatch.setattr(preview_marker, "PROJECT_DIR", Path("C:/worktrees/one"))
+    one = preview_marker.session_identity(_A_PREVIEW)
+    monkeypatch.setattr(preview_marker, "PROJECT_DIR", Path("C:/worktrees/two"))
+
+    assert preview_marker.session_identity(_A_PREVIEW) != one
 
 
 def test_the_live_session_joins_its_pinned_button():
@@ -79,7 +87,7 @@ def _dressed(monkeypatch, *, branch_session: bool) -> list:
         monkeypatch.delenv(preview_marker.FLAG, raising=False)
     monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: _A_PREVIEW)
     monkeypatch.setattr(preview_marker, "described_taskbar_app",
-                        {f"{APP_USER_MODEL_ID}.Preview": _DESCRIBED}.get)
+                        {preview_marker.session_identity(_A_PREVIEW): _DESCRIBED}.get)
     worn: list = []
     monkeypatch.setattr(preview_marker, "dress_window",
                         lambda hwnd, app_id, app: worn.append((hwnd, app_id, app)))
@@ -89,7 +97,7 @@ def _dressed(monkeypatch, *, branch_session: bool) -> list:
 
 def test_a_branch_sessions_window_wears_the_button_the_session_described(monkeypatch):
     assert _dressed(monkeypatch, branch_session=True) == [
-        (4242, f"{APP_USER_MODEL_ID}.Preview", _DESCRIBED)]
+        (4242, preview_marker.session_identity(_A_PREVIEW), _DESCRIBED)]
 
 
 def test_a_live_sessions_window_leaves_its_button_to_the_pinned_shortcut(monkeypatch):

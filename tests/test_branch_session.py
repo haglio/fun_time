@@ -22,7 +22,6 @@ from fun_time.genau_config import GenauSettings
 from fun_time.project_paths import HOTKEY_SCRIPT_NAME
 from fun_time.shortcuts import Shortcut, read_shortcuts
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
-from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from tests.git_repo import git
 
 
@@ -1259,7 +1258,7 @@ class TestABranchSessionHasNoPinnedShortcutToDescribeItsButton:
     def test_a_branch_session_names_its_button_and_inks_its_letter(self, monkeypatch, tmp_path):
         (app_id, app), = self._described(monkeypatch, tmp_path, branch_session_flag=True).items()
 
-        assert app_id == f"{APP_USER_MODEL_ID}.Preview"
+        assert app_id == preview_marker.session_identity(Preview(feature="a feature"))
         assert app.name == "Fun Time \u2014 preview of a feature"
         assert app.icon.parent == tmp_path / "inked"
 

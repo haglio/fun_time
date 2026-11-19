@@ -1275,7 +1275,7 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
         command = self._launched(
             launch_main_funestra, **_a_main_funestra_launch(tmp_path, state_dir=tmp_path))
 
-        assert self._identity(command) == f"{APP_USER_MODEL_ID}.Preview"
+        assert self._identity(command) == preview_marker.session_identity(Preview(feature=None))
         assert Path(command[command.index("--icon") + 1]).parent == tmp_path / "inked"
 
 

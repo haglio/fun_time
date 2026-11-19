@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -29,7 +30,10 @@ def app_title(shown: Preview | None) -> str:
 
 
 def session_identity(shown: Preview | None) -> str:
-    return taskbar_identity(APP_USER_MODEL_ID, shown)
+    shared = taskbar_identity(APP_USER_MODEL_ID, shown)
+    if shown is None:
+        return shared
+    return f"{shared}.{hashlib.md5(str(PROJECT_DIR).lower().encode()).hexdigest()[:12]}"
 
 
 def icon_file(source: Path, shown: Preview | None) -> Path:
