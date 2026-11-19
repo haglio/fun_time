@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -16,6 +18,8 @@ USERSCRIPT_NAME = "regen_autofill.user.js"
 EXAMPLE_USERSCRIPT_NAME = "regen_autofill.example.user.js"
 
 OMNIPAUSE_PATH = "/omnipause"
+LOOK_EVERY_S = 0.02
+LONGEST_WAIT_S = 20.0
 WHAT_TAMPERMONKEY_EXPECTS_AT_A_USER_JS_URL = "text/javascript; charset=utf-8"
 
 
@@ -29,14 +33,39 @@ def omnipause_url(port: int = LOOPBACK_PORT) -> str:
     return f"http://127.0.0.1:{port}{OMNIPAUSE_PATH}"
 
 
-def _make_handler(script_path: Path, omni_paused: Callable[[], bool]):
+def _what_the_page_was_told(query: str) -> bool | None:
+    return {"was=0": False, "was=1": True}.get(query)
+
+
+def _a_moment() -> None:
+    time.sleep(LOOK_EVERY_S)
+
+
+@dataclass(frozen=True)
+class PauseWatch:
+    omni_paused: Callable[[], bool] = lambda: False
+    look_again: Callable[[], None] = _a_moment
+    looks: int = round(LONGEST_WAIT_S / LOOK_EVERY_S)
+
+    def once_it_differs_from(self, was: bool | None) -> bool:
+        paused = self.omni_paused()
+        for _ in range(self.looks):
+            if paused != was:
+                break
+            self.look_again()
+            paused = self.omni_paused()
+        return paused
+
+
+def _make_handler(script_path: Path, watch: PauseWatch):
     request_path = "/" + USERSCRIPT_NAME
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            path = self.path.split("?", 1)[0]
+            path, _, query = self.path.partition("?")
             if path == OMNIPAUSE_PATH:
-                body = json.dumps({"omni_paused": omni_paused()}).encode("utf-8")
+                paused = watch.once_it_differs_from(_what_the_page_was_told(query))
+                body = json.dumps({"omni_paused": paused}).encode("utf-8")
                 self._respond(body, "application/json", allow_any_origin=True)
                 return
             if path != request_path:
@@ -68,10 +97,12 @@ def make_server(
     port: int = LOOPBACK_PORT,
     script_path: Path | None = None,
     omni_paused: Callable[[], bool] = lambda: False,
+    *,
+    watch: PauseWatch | None = None,
 ) -> ThreadingHTTPServer:
     return ThreadingHTTPServer(
         ("127.0.0.1", port),
-        _make_handler(script_path or userscript_path(), omni_paused),
+        _make_handler(script_path or userscript_path(), watch or PauseWatch(omni_paused)),
     )
 
 
