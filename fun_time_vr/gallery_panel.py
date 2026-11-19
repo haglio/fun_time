@@ -65,8 +65,10 @@ class GalleryPanel:
             return (f"The hosted app has published no frame at all in "
                     f"{now - self._looked_since:.0f}s, so its screen in the room "
                     f"is blank")
+        if now - self._answered_at < QUIET_S:
+            return None
         waiting = self._lines_waiting()
-        if not waiting or now - self._answered_at < QUIET_S:
+        if not waiting:
             return None
         self._said_it_went_quiet = True
         return (f"The hosted app has gone quiet: no new frame for "
