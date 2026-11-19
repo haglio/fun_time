@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from app_support.file_channel import read_key_values
 from funestra.status import parse_status
 
 from .config import FunestraChannel
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import ScriptedStatus, read_main_funestra_status, scripted_fields
+from .status_values import read_status_values
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,7 @@ class SatelliteStatus(ScriptedStatus):
 def read_satellite_status(status_file: Path, *,
                           fallback: SatelliteStatus | None = None) -> SatelliteStatus:
     try:
-        fields = read_key_values(Path(status_file))
+        fields = read_status_values(Path(status_file))
     except OSError:
         return fallback or SatelliteStatus()
     return _satellite_status_from(fields)
@@ -50,7 +50,7 @@ def _satellite_status_from(fields: dict) -> SatelliteStatus:
 
 def published_satellite_status(status_file: Path) -> SatelliteStatus | None:
     try:
-        fields = read_key_values(Path(status_file))
+        fields = read_status_values(Path(status_file))
     except OSError:
         return None
     return _satellite_status_from(fields) if "speed" in fields else None

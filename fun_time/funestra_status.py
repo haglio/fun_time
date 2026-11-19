@@ -9,6 +9,8 @@ from funestra.status import FunestraStatus, parse_status
 
 from main_funestra.snippet_controller import SnippetState
 
+from .status_values import read_status_values
+
 
 @dataclass(frozen=True)
 class ScriptedStatus(FunestraStatus):
@@ -62,10 +64,8 @@ _A_MAIN_FUNESTRA_WITH_NOTHING_TO_SAY = FunestraStatus(locked=MAIN_FUNESTRA_OPENS
 
 
 def read_main_funestra_status(path: Path, *, fallback: MainFunestraStatus | None = None) -> MainFunestraStatus:
-    if not path.exists():
-        return fallback or MainFunestraStatus()
     try:
-        return _main_funestra_status_from(read_key_values(path))
+        return _main_funestra_status_from(read_status_values(path))
     except (OSError, ValueError):
         return fallback or MainFunestraStatus()
 
@@ -87,7 +87,7 @@ def _main_funestra_status_from(values: dict) -> MainFunestraStatus:
 
 def published_main_funestra_status(path: Path) -> MainFunestraStatus | None:
     try:
-        values = read_key_values(path)
+        values = read_status_values(path)
         return _main_funestra_status_from(values) if "speed" in values else None
     except (OSError, ValueError):
         return None
@@ -119,17 +119,15 @@ def _status_bool(values: dict[str, str], key: str, *, on_at_rest: bool = False) 
 
 
 def read_genau_status(path: Path) -> GenauStatus:
-    if not path.exists():
-        return GenauStatus()
     try:
-        return _genau_status_from(read_key_values(path))
+        return _genau_status_from(read_status_values(path))
     except (OSError, ValueError):
         return GenauStatus()
 
 
 def published_genau_status(path: Path) -> GenauStatus | None:
     try:
-        values = read_key_values(path)
+        values = read_status_values(path)
         return _genau_status_from(values) if "locked" in values else None
     except (OSError, ValueError):
         return None
@@ -159,7 +157,7 @@ def origenerator_has_published(path: Path) -> bool:
     if not path.exists():
         return False
     try:
-        read_key_values(path)
+        read_status_values(path)
     except (OSError, ValueError):
         return False
     return True
@@ -171,13 +169,13 @@ START_FAILED = "start_failed"
 
 def origenerator_start_failure(path: Path) -> str:
     try:
-        return read_key_values(path).get(START_FAILED, "").strip()
+        return read_status_values(path).get(START_FAILED, "").strip()
     except (OSError, ValueError):
         return ""
 
 
 def origenerator_core_waits(path: Path) -> bool:
     try:
-        return read_key_values(path).get(CORE_READY, "").strip() == "0"
+        return read_status_values(path).get(CORE_READY, "").strip() == "0"
     except (OSError, ValueError):
         return False

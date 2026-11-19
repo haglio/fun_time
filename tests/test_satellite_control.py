@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from app_support.testing import no_wait_for_a_held_file
 
+from fun_time import status_values
 from fun_time.satellite_control import (
     SatelliteStatus,
     published_satellite_status,
@@ -41,10 +42,11 @@ class TestReadSatelliteStatus:
               no_wait_for_a_held_file()):
             assert read_satellite_status(tmp_path / "s.txt").video == "C:/clips/a.mp4"
 
-    def test_a_file_held_past_every_reread_reads_empty(self, tmp_path):
-        held = PermissionError(13, "Permission denied")
-        with patch("fun_time.satellite_control.read_key_values", side_effect=held):
-            assert read_satellite_status(tmp_path / "s.txt") == SatelliteStatus()
+    def test_a_file_held_past_every_reread_reads_empty(self, tmp_path, monkeypatch):
+        def held(_path):
+            raise PermissionError(13, "Permission denied")
+        monkeypatch.setattr(status_values, "STATUS_VALUES", status_values.StatusValues(read=held))
+        assert read_satellite_status(tmp_path / "s.txt") == SatelliteStatus()
 
     def test_a_file_that_cannot_be_read_reads_as_the_status_handed_as_fallback(self, tmp_path):
         last_known = SatelliteStatus(video="C:/clips/last.mp4")
@@ -73,11 +75,16 @@ class TestReadSatelliteStatus:
         status.write_text("video=v\nspeed=1.5\n", encoding="utf-8")
         assert published_satellite_status(status).video == "v"
 
-    def test_a_funestra_that_has_not_published_yet_is_not_waited_for(self, tmp_path):
-        with patch("fun_time.satellite_control.read_key_values",
-                   side_effect=FileNotFoundError(2, "No such file")) as read:
-            assert read_satellite_status(tmp_path / "s.txt") == SatelliteStatus()
-        assert read.call_count == 1
+    def test_a_funestra_that_has_not_published_yet_is_not_waited_for(self, tmp_path, monkeypatch):
+        reads = []
+
+        def not_there(path):
+            reads.append(path)
+            raise FileNotFoundError(2, "No such file")
+        monkeypatch.setattr(status_values, "STATUS_VALUES",
+                            status_values.StatusValues(read=not_there))
+        assert read_satellite_status(tmp_path / "s.txt") == SatelliteStatus()
+        assert len(reads) == 1
 
     def test_fraction_is_position_over_duration(self, tmp_path):
         status = tmp_path / "s.txt"
