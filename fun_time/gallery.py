@@ -128,15 +128,43 @@ def _last_written(db_path: Path | None) -> tuple[float, ...]:
     return tuple(stamps)
 
 
+_SET_WHEN_A_ROW_IS_MADE = frozenset({"positive_prompt", "negative_prompt", "params_json"})
+
+
+def what_fun_time_reads(db_path: Path | None) -> tuple | None:
+    if db_path is None:
+        return None
+    try:
+        conn = gallery_rows.connect_read_only(db_path)
+    except (OSError, sqlite3.Error):
+        return None
+    try:
+        present = {column[1] for column in conn.execute("PRAGMA table_info(generations)")}
+        read = [column for column in (*_COLUMNS, *_OPTIONAL)
+                if column in present and column not in _SET_WHEN_A_ROW_IS_MADE]
+        sums = [f"total(octet_length({column})), "
+                f"total(CASE WHEN typeof({column}) IN ('integer', 'real') THEN {column} END)"
+                for column in read]
+        return conn.execute(
+            f"SELECT count(*), max(rowid), {', '.join(sums)} FROM generations").fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+
+
 class GalleryKeptOffTheLoop:
     def __init__(self, db_path: Path | None, *,
                  read: Callable[[Path | None], Gallery] = Gallery.read,
-                 changed_at: Callable[[Path | None], object] = _last_written) -> None:
+                 changed_at: Callable[[Path | None], object] = _last_written,
+                 what_it_reads: Callable[[Path | None], object] = what_fun_time_reads) -> None:
         self._db_path = db_path
         self._read = read
         self._changed_at = changed_at
+        self._what_it_reads = what_it_reads
         self._kept: Gallery | None = None
         self._read_as_of: object = None
+        self._read_what: object = None
 
     def latest(self) -> Gallery:
         kept = self._kept
@@ -149,8 +177,12 @@ class GalleryKeptOffTheLoop:
         as_of = self._changed_at(self._db_path)
         if self._kept is not None and as_of == self._read_as_of:
             return
-        self._kept = self._read(self._db_path)
+        what = self._what_it_reads(self._db_path)
         self._read_as_of = as_of
+        if self._kept is not None and what is not None and what == self._read_what:
+            return
+        self._kept = self._read(self._db_path)
+        self._read_what = what
 
 
 class GalleryFlips:
