@@ -88,34 +88,67 @@ def previous_projection(current: str) -> str:
 
 
 @dataclass(frozen=True)
+class KeptForAVideo:
+    video_path: str
+    vr_dirs: tuple[Path | str, ...]
+    record: dict
+
+    def _kept(self, field: str) -> object:
+        block = self.record.get(_SIDECAR_BLOCK)
+        return block.get(field) if isinstance(block, dict) else None
+
+    @property
+    def saved(self) -> str | None:
+        value = self._kept(_PROJECTION_FIELD)
+        return value if value in NAMED_PROJECTIONS else None
+
+    @property
+    def saved_fov(self) -> float | None:
+        return _positive_number(self._kept(_FOV_FIELD))
+
+    @property
+    def saved_height(self) -> float | None:
+        return _positive_number(self._kept(_HEIGHT_FIELD))
+
+    def resolve(self) -> str:
+        if self.saved:
+            return self.saved
+        named = default_projection(self.video_path, self.vr_dirs)
+        if named == EQUIRECT_180_SBS and self._kept(_SHAPE_FIELD) == FISHEYE_CIRCLE:
+            return FISHEYE_180_SBS
+        return named
+
+    def wants_a_look(self) -> bool:
+        return (default_projection(self.video_path, self.vr_dirs) == EQUIRECT_180_SBS
+                and not self.saved and not self._kept(_SHAPE_FIELD))
+
+
+@dataclass(frozen=True)
 class ProjectionMemory:
     metadata_root: Path | None
     vr_dirs: tuple[Path | str, ...] = ()
 
+    def kept_for(self, video_path: str) -> KeptForAVideo:
+        return KeptForAVideo(video_path, self.vr_dirs, recorded_for(
+            video_path, self.metadata_root, outlying_dirs=self.vr_dirs))
+
     def resolve(self, video_path: str) -> str:
-        chosen = self.saved(video_path)
-        if chosen:
-            return chosen
-        named = default_projection(video_path, self.vr_dirs)
-        if named == EQUIRECT_180_SBS and self._kept(video_path, _SHAPE_FIELD) == FISHEYE_CIRCLE:
-            return FISHEYE_180_SBS
-        return named
+        return self.kept_for(video_path).resolve()
 
     def saved(self, video_path: str) -> str | None:
-        value = self._kept(video_path, _PROJECTION_FIELD)
-        return value if value in NAMED_PROJECTIONS else None
+        return self.kept_for(video_path).saved
 
     def save(self, video_path: str, projection: str) -> bool:
         return self._keep(video_path, _PROJECTION_FIELD, projection)
 
     def saved_fov(self, video_path: str) -> float | None:
-        return _positive_number(self._kept(video_path, _FOV_FIELD))
+        return self.kept_for(video_path).saved_fov
 
     def save_fov(self, video_path: str, degrees: float) -> bool:
         return self._keep(video_path, _FOV_FIELD, degrees)
 
     def saved_height(self, video_path: str) -> float | None:
-        return _positive_number(self._kept(video_path, _HEIGHT_FIELD))
+        return self.kept_for(video_path).saved_height
 
     def save_height(self, video_path: str, height: float) -> bool:
         return self._keep(video_path, _HEIGHT_FIELD, height)
@@ -124,14 +157,7 @@ class ProjectionMemory:
         return self._keep(video_path, _SHAPE_FIELD, shape)
 
     def wants_a_look(self, video_path: str) -> bool:
-        return (default_projection(video_path, self.vr_dirs) == EQUIRECT_180_SBS
-                and not self.saved(video_path)
-                and not self._kept(video_path, _SHAPE_FIELD))
-
-    def _kept(self, video_path: str, field: str) -> object:
-        block = recorded_for(video_path, self.metadata_root,
-                             outlying_dirs=self.vr_dirs).get(_SIDECAR_BLOCK)
-        return block.get(field) if isinstance(block, dict) else None
+        return self.kept_for(video_path).wants_a_look()
 
     def _keep(self, video_path: str, field: str, value: str | float) -> bool:
         sidecar = self._sidecar(video_path)

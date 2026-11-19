@@ -11,6 +11,7 @@ from funestra.playback_setup import PlaybackSetup
 from funestra.testing import FakeEngine
 
 from fun_time.event_log import MESSAGE, SOURCE_MAIN
+from fun_time.media_metadata import metadata_path_for
 from fun_time_vr.frame_shape import FISHEYE_CIRCLE
 from fun_time_vr.headset_verbs import DIAL_STILL_S, TILT_STEP_DEG, HeadsetVerbs
 from fun_time_vr.layout import TILT_LIMIT_DEG
@@ -22,6 +23,7 @@ from fun_time_vr.projection import (
     ProjectionMemory,
 )
 from fun_time_vr.wraps import immersive_wrap
+from tests.disk_looks import DiskLooks
 
 HOUR_MS = 3_600_000.0
 
@@ -69,6 +71,17 @@ def headset(tmp_path):
 def _step(headset, delta: int = 1) -> None:
     headset.playback.step(delta)
     headset.verbs.tick(now=0.0)
+
+
+def test_arriving_at_a_video_reads_its_record_once(headset, monkeypatch):
+    record = metadata_path_for(headset.files[1], headset.metadata)
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text(json.dumps({"title": "scene two"}), encoding="utf-8")
+    looks = DiskLooks(monkeypatch, under=headset.metadata)
+
+    _step(headset)
+
+    assert looks.made["open"] == 1
 
 
 def test_a_verb_that_is_not_the_headsets_own_is_refused(headset):
