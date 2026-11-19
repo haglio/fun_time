@@ -3188,6 +3188,8 @@ class TestTheSatellitesAreWaitedForOnceOrigeneratorHasThem:
             activate_origenerator=lambda *, wait_for_the_app: events.append(
                 "Origenerator took the Satellites"),
             answering=SimpleNamespace(state=SimpleNamespace(rfb_mode=RfbMode.RFB)),
+            window_work=SimpleNamespace(windows=SimpleNamespace(
+                pids=SimpleNamespace(origenerator=0))),
             satellites_status_files=lambda: [
                 tmp_path / "portrait_status.txt", tmp_path / "landscape_status.txt"],
         )
