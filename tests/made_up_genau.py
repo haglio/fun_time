@@ -33,7 +33,7 @@ def write_settings_naming_genau(folder: Path, genau: Path, audio: Path, *,
                                 kino: Path | None = None) -> Path:
     settings = folder / SETTINGS_NAME
     settings.write_text(json.dumps({
-        **haglio_settings.EXAMPLE, "genau_dir": str(genau), "genau_audio_dir": str(audio),
+        **haglio_settings.load(), "genau_dir": str(genau), "genau_audio_dir": str(audio),
         **({} if kino is None else {"kino_dir": str(kino)}),
     }), encoding="utf-8")
     return settings

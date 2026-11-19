@@ -1,4 +1,7 @@
 import os
+import shutil
+import tempfile
+from pathlib import Path
 
 from app_support import haglio_settings
 from hypothesis import settings
@@ -18,9 +21,14 @@ NO_DISPLAY_UNLESS_A_DEVELOPER_SETS_ONE_TO_WATCH = {
 for names_the_display, shows_nothing in NO_DISPLAY_UNLESS_A_DEVELOPER_SETS_ONE_TO_WATCH.items():
     os.environ.setdefault(names_the_display, shows_nothing)
 os.environ["FUN_TIME_MUTE_AUDIO"] = "1"
-os.environ[haglio_settings.SETTINGS_ENV] = haglio_settings.THE_EXAMPLE
+SCRATCH = Path(tempfile.mkdtemp(prefix="fun_time-suite-"))
+haglio_settings.run_on(haglio_settings.example_inside(SCRATCH), SCRATCH, os.environ)
 
 forget_the_enclosing_repository(os.environ)
 
 settings.register_profile("on_a_machine_other_runs_share", deadline=None)
 settings.load_profile("on_a_machine_other_runs_share")
+
+
+def pytest_unconfigure(config):
+    shutil.rmtree(SCRATCH, ignore_errors=True)
