@@ -9,6 +9,7 @@ from pathlib import Path
 from funestra.modes import MainMode
 
 from . import preview_marker
+from .chrome_tabs import StartupTabCloser
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_deaths import (
     FunestraDied,
@@ -48,6 +49,7 @@ from .window_layout import (
 from .window_names import MANAGED_WINDOWS, window_is_topmost
 from .windows_bridge_random_faves_browser import (
     CHROME_WINDOW_CLASS,
+    close_tabs_it_did_not_open_while_it_starts,
     launch_random_faves_browser,
 )
 from .windows_bridge_startup import (
@@ -136,6 +138,7 @@ class _LaunchedChildren:
     pids: list[int] = field(default_factory=list)
     funestras: list[LaunchedFunestra] = field(default_factory=list)
     rfb_hwnd: int = 0
+    rfb_tab_closer: StartupTabCloser | None = None
     dashboard_pid: int = 0
     origenerator_pid: int = 0
     origenerator_taken_over: bool = False
@@ -181,6 +184,9 @@ def run_startup_sequence(
         stopped.origenerator_taken_over = launched.origenerator_taken_over
         stopped.origenerator_pid = launched.origenerator_pid
         raise
+    finally:
+        if launched.rfb_tab_closer is not None:
+            launched.rfb_tab_closer.stop()
 
 
 @dataclass(frozen=True)
@@ -484,6 +490,9 @@ def _run_startup_phases(
     with timed_step(logger, "opening the Random Faves Browser"):
         rfb_hwnd = _maybe_launch_random_faves_browser(m.random_faves_browser, plan, env=env)
     launched.rfb_hwnd = rfb_hwnd
+    if rfb_hwnd:
+        launched.rfb_tab_closer = close_tabs_it_did_not_open_while_it_starts(
+            rfb_hwnd, m.random_faves_browser.manifest_file)
 
     progress.advance("companions")
     with timed_step(logger, "launching the dashboard and the sound companion"):

@@ -10,6 +10,8 @@ from app_support.threading_utils import wait_until
 from fun_time.chrome_tabs import (
     TAB_STRIP_ATTEMPTS,
     ChromeTabSwitcher,
+    StartupTabCloser,
+    close_the_tabs_past_the_browsers_own,
     find_tab_strip,
     tab_after_the_active_one,
 )
@@ -26,6 +28,7 @@ class FakeNode:
     kids: list[FakeNode] = field(default_factory=list)
     walked_into: bool = False
     on_switch: Callable[[FakeNode], None] | None = None
+    on_close: Callable[[FakeNode], None] | None = None
 
     def children(self) -> list[FakeNode]:
         self.walked_into = True
@@ -34,6 +37,10 @@ class FakeNode:
     def switch_to(self) -> None:
         assert self.on_switch is not None
         self.on_switch(self)
+
+    def close(self) -> None:
+        assert self.on_close is not None
+        self.on_close(self)
 
 
 def _tabs(*names: str, active: str) -> list[FakeNode]:
@@ -76,20 +83,121 @@ class FakeChrome:
         self.tabs = _tabs(*names, active=active)
         for tab in self.tabs:
             tab.on_switch = self._switch
+            tab.on_close = self._close
         self.strip = FakeNode("strip", kids=self.tabs)
         self.window = FakeNode("window", kids=[FakeNode("toolbar", kids=[self.strip])])
         self.opened_on: list[threading.Thread] = []
         self.switched: list[str] = []
+        self.closed: list[str] = []
 
     def open_window(self, hwnd: int) -> FakeNode:
         assert hwnd == RFB_HWND
         self.opened_on.append(threading.current_thread())
         return self.window
 
+    def _close(self, tab: FakeNode) -> None:
+        self.strip.kids.remove(tab)
+        self.closed.append(tab.name)
+
     def _switch(self, tab: FakeNode) -> None:
         for each in self.tabs:
             each.is_active = each is tab
         self.switched.append(tab.name)
+
+
+def test_the_tabs_past_the_browsers_own_are_closed_last_first():
+    chrome = FakeChrome("a", "b", "extension page", "another", active="a")
+
+    close_the_tabs_past_the_browsers_own(chrome.strip, own_tabs=2)
+
+    assert chrome.closed == ["another", "extension page"]
+    assert [tab.name for tab in chrome.strip.kids] == ["a", "b"]
+
+
+def test_a_window_holding_only_its_own_tabs_has_none_closed():
+    chrome = FakeChrome("a", "b", active="a")
+
+    close_the_tabs_past_the_browsers_own(chrome.strip, own_tabs=2)
+
+    assert chrome.closed == []
+
+
+def _an_extra_tab_turns_up_in(chrome: FakeChrome, name: str) -> None:
+    tab = FakeNode(name, is_tab=True, on_close=chrome._close)
+    chrome.strip.kids = [*chrome.strip.kids, tab]
+
+
+class _Clock:
+    def __init__(self, *readings: float) -> None:
+        self._readings = iter(readings)
+
+    def __call__(self) -> float:
+        return next(self._readings)
+
+
+def _closer_for(chrome: FakeChrome, *, clock: _Clock, open_window=None) -> StartupTabCloser:
+    return StartupTabCloser(RFB_HWND, own_tabs=2, open_window=open_window or chrome.open_window,
+                            watch_s=10, look_every_s=0, clock=clock)
+
+
+def test_a_tab_that_turns_up_while_the_browser_starts_is_closed():
+    chrome = FakeChrome("a", "b", active="a")
+    looks: list[int] = []
+
+    def a_clock_that_brings_an_extra_tab_after_the_first_look() -> float:
+        looks.append(len(looks))
+        if len(looks) == 3:
+            _an_extra_tab_turns_up_in(chrome, "extension page")
+        return [0, 1, 2, 3, 11][len(looks) - 1]
+
+    StartupTabCloser(RFB_HWND, own_tabs=2, open_window=chrome.open_window, watch_s=10,
+                     look_every_s=0, clock=a_clock_that_brings_an_extra_tab_after_the_first_look).watch()
+
+    assert chrome.closed == ["extension page"]
+
+
+def test_once_the_start_is_over_no_tab_is_looked_at():
+    chrome = FakeChrome("a", "b", "a tab he opened", active="a")
+
+    _closer_for(chrome, clock=_Clock(0, 11)).watch()
+
+    assert (chrome.opened_on, chrome.closed) == ([], [])
+
+
+def test_a_stopped_closer_looks_at_no_tab():
+    chrome = FakeChrome("a", "b", "a tab Fun Time opened", active="a")
+    closer = _closer_for(chrome, clock=_Clock(0, 1))
+
+    closer.stop()
+    closer.watch()
+
+    assert (chrome.opened_on, chrome.closed) == ([], [])
+
+
+def test_a_browser_that_refuses_while_it_starts_is_asked_again():
+    chrome = FakeChrome("a", "b", "extension page", active="a")
+    refused: list[int] = []
+
+    def open_window(hwnd: int) -> FakeNode:
+        if not refused:
+            refused.append(hwnd)
+            raise OSError("not answering yet")
+        return chrome.open_window(hwnd)
+
+    _closer_for(chrome, clock=_Clock(0, 1, 2, 11), open_window=open_window).watch()
+
+    assert chrome.closed == ["extension page"]
+
+
+def test_the_closer_watches_on_a_thread_of_its_own_that_stopping_ends():
+    chrome = FakeChrome("a", "b", active="a")
+    closer = StartupTabCloser(RFB_HWND, own_tabs=2, open_window=chrome.open_window)
+
+    closer.start()
+    closer.stop()
+
+    assert "rfb-startup-tabs" not in [thread.name for thread in threading.enumerate()]
+    assert threading.current_thread() not in chrome.opened_on
 
 
 def test_the_next_tab_is_switched_to_on_the_switchers_own_thread():

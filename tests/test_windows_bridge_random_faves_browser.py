@@ -14,6 +14,7 @@ from fun_time.shortcuts import Shortcut
 from fun_time.windows_bridge_random_faves_browser import (
     build_open_rfb_tab_command,
     build_random_faves_browser_launch_plan,
+    close_tabs_it_did_not_open_while_it_starts,
     launch_random_faves_browser,
     open_rfb_tab,
     read_random_faves_browser_manifest,
@@ -36,6 +37,29 @@ def as_windows_itself_splits_it(command_line: str) -> list[str]:
 
 needs_windows = pytest.mark.skipif(
     sys.platform != "win32", reason="CommandLineToArgvW is the Windows parser")
+
+
+def test_while_it_starts_every_tab_past_the_pages_it_was_asked_for_is_closed(
+        tmp_path: Path, monkeypatch):
+    manifest_file = tmp_path / "browser_manifest.txt"
+    manifest_file.write_text(
+        "Profile 2\nhttps://example.com/1\nhttps://example.com/2\n", encoding="utf-8")
+    made: list[dict] = []
+
+    class RecordingCloser:
+        def __init__(self, hwnd, **kwargs):
+            made.append({"hwnd": hwnd, **kwargs, "started": False})
+
+        def start(self):
+            made[-1]["started"] = True
+
+    monkeypatch.setattr(
+        "fun_time.windows_bridge_random_faves_browser.StartupTabCloser", RecordingCloser)
+
+    closer = close_tabs_it_did_not_open_while_it_starts(4242, manifest_file)
+
+    assert isinstance(closer, RecordingCloser)
+    assert [(each["hwnd"], each["own_tabs"], each["started"]) for each in made] == [(4242, 2, True)]
 
 
 @needs_windows

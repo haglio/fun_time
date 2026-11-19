@@ -49,3 +49,11 @@ class UiaNode:
 
     def switch_to(self) -> None:
         _press_without_the_activation_select_brings(self.automation, self.element)
+
+    def close(self) -> None:
+        buttons = [child.element for child in self.children()
+                   if child.element.CachedControlType == self.automation.uia.UIA_ButtonControlTypeId]
+        if buttons:
+            the_close_button_comes_after_the_mute_button = buttons[-1]
+            _press_without_the_activation_select_brings(
+                self.automation, the_close_button_comes_after_the_mute_button)
