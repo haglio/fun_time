@@ -196,7 +196,7 @@ from fun_time_vr.scene import (
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.stick_scrolling import WHEEL_NOTCH, scroll_from_stick
 from fun_time_vr.surfaces import HudBitmap, LatestFrame
-from fun_time_vr.texture_rows import Rows
+from fun_time_vr.texture_rows import Picture, Rows
 from fun_time_vr.thumbs import NUDGE_FORWARD
 from fun_time_vr.wrap_readout import WrapReadout, label
 from fun_time_vr.wraps import immersive_wrap
@@ -896,12 +896,13 @@ def test_a_screen_rehangs_when_its_placement_moves_and_only_then():
 
 
 def test_a_panel_already_uploaded_still_rehangs_where_a_drag_put_it():
-    image = object()
     rehung: list[float] = []
-    unit = SimpleNamespace(
-        _lock=threading.Lock(), _image=image, _uploaded=image,
-        texture=SimpleNamespace(ready=True, aspect=1.5, upload=lambda _rgba: None),
-        screen=SimpleNamespace(rehang=rehung.append))
+    texture = SimpleNamespace(ready=True, aspect=1.5, upload=lambda _rgba, **_how: None)
+    picture = Picture()
+    picture.put(np.zeros((2, 2, 4), np.uint8))
+    picture.send_to(texture)
+    unit = SimpleNamespace(_picture=picture, texture=texture,
+                           screen=SimpleNamespace(rehang=rehung.append))
 
     _MessageUnit.render_latest_frame(unit)
 
@@ -2284,7 +2285,7 @@ class TestTheBannerOverAWrappedFrame:
         unit = SimpleNamespace(
             _main_unit=SimpleNamespace(wraps_the_viewer=wraps),
             _messages=SimpleNamespace(flashed=lambda _screen: flashed),
-            _lock=threading.Lock(), _image=None, _uploaded=None, _painted=None,
+            _picture=Picture(), _painted=None,
             texture=SimpleNamespace(ready=True, texture=object(), aspect=6.0),
             screen=SimpleNamespace(placement=Placement(0.0, 24.0, 1.0)),
         )
@@ -2302,9 +2303,9 @@ class TestTheBannerOverAWrappedFrame:
         assert hanging.screen.name == MESSAGE_SCREEN
         assert not hanging.screen.pressable
         assert not hanging.screen.movable
-        assert unit._image is not None
+        assert unit._picture.pixels is not None
         assert unit.screen.placement.width_deg == pytest.approx(
-            unit._image.width / funestras.MESSAGE_PX_PER_DEG)
+            unit._picture.pixels.shape[1] / funestras.MESSAGE_PX_PER_DEG)
 
     def test_it_hangs_nothing_over_a_flat_frame_which_draws_its_own(self):
         flash_message = SimpleNamespace(shown=ShownMessage("Flat"))
@@ -2709,7 +2710,7 @@ class TestTheDashUnderThePointer:
         unit.pump(threading.Event(), 0.0)
 
         rect = dash_actions()[HELP_REFERENCE]
-        assert unit._image.getpixel((rect.x, rect.y + rect.height // 2))[:3] == BLUE
+        assert tuple(unit._picture.pixels[rect.y + rect.height // 2, rect.x][:3]) == BLUE
 
     def test_a_press_meant_for_another_screen_is_not_its(self, tmp_path):
         unit = self._unit(tmp_path)
@@ -2718,6 +2719,17 @@ class TestTheDashUnderThePointer:
         unit.pump(threading.Event(), 0.0)
 
         assert not (tmp_path / "dashboard_cmd.txt").exists()
+
+
+class _RowsSent:
+    def __init__(self) -> None:
+        self.rows: list[Rows] = []
+        self.ready = False
+        self.aspect = 1.0
+
+    def upload(self, _pixels, *, rows=None) -> None:
+        self.rows.append(rows)
+        self.ready = True
 
 
 class TestTheOsr2PartOnTheDash:
@@ -2744,14 +2756,14 @@ class TestTheOsr2PartOnTheDash:
 
         drawn = with_the_osr2_part(paint_dash(DashState(), []), Osr2ControlsHost(post=[].append).drawing(
             MainHud(main_hud_model=part, drive=readout)))
-        assert np.array_equal(self._in_its_room(unit._image), self._in_its_room(drawn))
+        assert np.array_equal(self._in_its_room(unit._picture.pixels), self._in_its_room(drawn))
 
     def test_until_the_room_publishes_one_the_room_kept_for_it_stays_empty(self, tmp_path):
         unit = _a_dash(tmp_path)
 
         self._pumped(unit)
 
-        assert np.array_equal(self._in_its_room(unit._image),
+        assert np.array_equal(self._in_its_room(unit._picture.pixels),
                               self._in_its_room(paint_dash(DashState(), [])))
 
     def test_each_pump_draws_it_afresh_while_one_is_up_for_the_dot_walks_by_the_clock(
@@ -2772,15 +2784,47 @@ class TestTheOsr2PartOnTheDash:
         unit = _a_dash(tmp_path)
         published(tmp_path, a_part())
         self._pumped(unit)
-        first = unit._image
+        first = unit._picture.pixels
 
         self._pumped(unit)
-        unchanged = unit._image
+        unchanged = unit._picture.pixels
         handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout())
         self._pumped(unit)
 
         assert unchanged is first
-        assert unit._image is not first
+        assert unit._picture.pixels is not first
+
+    def test_a_readout_that_changes_on_its_own_sends_the_card_only_the_parts_rows(self, tmp_path):
+        texture = _RowsSent()
+        unit = _a_dash(tmp_path, texture=texture)
+        published(tmp_path, a_part())
+        with patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
+            self._pumped(unit)
+            unit.render_latest_frame()
+
+            handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout())
+            self._pumped(unit)
+            unit.render_latest_frame()
+            unit.render_latest_frame()
+
+        place = osr2_part_rect()
+        assert texture.rows == [Rows(0, dash_height()), Rows(place.y, place.y + place.height)]
+
+    def test_a_ray_moving_inside_one_button_paints_the_dash_once(self, tmp_path, monkeypatch):
+        unit = _a_dash(tmp_path)
+        painted = []
+        paint = funestras.paint_dash
+        monkeypatch.setattr(funestras, "paint_dash",
+                            lambda *drawn, **shown: painted.append(drawn) or paint(*drawn, **shown))
+        rect = dash_actions()[VOICE_TOGGLE]
+
+        for step in range(5):
+            u = (rect.x + 2 + step * 3 + 0.5) / DASH_WIDTH_PX
+            v = 1 - (rect.y + rect.height // 2 + 0.5) / dash_height()
+            unit.point(Frame(hover=Hover(DASH, SURFACE, u, v)))
+            self._pumped(unit)
+
+        assert len(painted) == 1
 
     def test_a_part_that_changes_on_its_own_leaves_the_bar_and_the_log_as_painted(
             self, tmp_path, monkeypatch):
@@ -2833,13 +2877,13 @@ class TestTheOsr2PartOnTheDash:
         unit = _a_dash(tmp_path)
         part = published(tmp_path, a_part())
         self._pumped(unit)
-        unlit = self._in_its_room(unit._image).copy()
+        unlit = self._in_its_room(unit._picture.pixels).copy()
         x, y = center_of(part, "broker_panel")
 
         unit.point(Frame(hover=Hover(DASH, SURFACE, *self._uv(x, y))))
         self._pumped(unit)
 
-        lit = self._in_its_room(unit._image)
+        lit = self._in_its_room(unit._picture.pixels)
         assert not np.array_equal(lit[y - 4:y + 4, x - 4:x + 4], unlit[y - 4:y + 4, x - 4:x + 4])
 
 
