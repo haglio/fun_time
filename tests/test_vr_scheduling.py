@@ -11,7 +11,6 @@ import pytest
 from fun_time_vr.scheduling import ahead_of_background_work, scheduled_as_a_game
 
 A_HANDLE = 0x1234
-A_PROCESS = 0x5678
 ERROR_SERVICE_NOT_ACTIVE = 1062
 REALTIME = 5
 ABOVE_NORMAL = 3
@@ -65,13 +64,17 @@ class _FakeKernel32:
         self.SetPriorityClass = _FakeFunction(1)
 
 
+def _classes_set(gdi32) -> list[int]:
+    return [priority_class for _process, priority_class in gdi32.D3DKMTSetProcessSchedulingPriorityClass.calls]
+
+
 def _ahead(avrt=None, gdi32=None, kernel32=None, **kwargs):
     avrt = avrt or _FakeAvrt()
     gdi32 = gdi32 or _FakeGdi32()
     kernel32 = kernel32 or _FakeKernel32()
     return ahead_of_background_work(
         avrt=lambda: avrt, gdi32=lambda: gdi32, kernel32=kernel32,
-        this_process=lambda: A_PROCESS, **kwargs)
+        **kwargs)
 
 
 def test_the_block_runs_above_normal_priority_as_every_funestra_does():
@@ -116,7 +119,7 @@ def test_the_block_runs_with_this_process_first_on_the_graphics_card():
     gdi32 = _FakeGdi32()
 
     with _ahead(gdi32=gdi32):
-        assert gdi32.D3DKMTSetProcessSchedulingPriorityClass.calls == [(A_PROCESS, REALTIME)]
+        assert _classes_set(gdi32) == [REALTIME]
 
 
 def test_leaving_the_block_puts_the_graphics_card_back_as_it_was_found():
@@ -125,8 +128,7 @@ def test_leaving_the_block_puts_the_graphics_card_back_as_it_was_found():
     with _ahead(gdi32=gdi32):
         pass
 
-    assert gdi32.D3DKMTSetProcessSchedulingPriorityClass.calls == [
-        (A_PROCESS, REALTIME), (A_PROCESS, ABOVE_NORMAL)]
+    assert _classes_set(gdi32) == [REALTIME, ABOVE_NORMAL]
 
 
 def test_leaving_the_block_gives_the_registration_back():
@@ -146,7 +148,7 @@ def test_a_block_that_raises_still_gives_everything_back():
         raise RuntimeError("the session ended badly")
 
     assert avrt.AvRevertMmThreadCharacteristics.calls == [(A_HANDLE,)]
-    assert gdi32.D3DKMTSetProcessSchedulingPriorityClass.calls[-1] == (A_PROCESS, ABOVE_NORMAL)
+    assert _classes_set(gdi32)[-1] == ABOVE_NORMAL
 
 
 def test_the_registration_handle_comes_back_whole_and_goes_back_as_a_handle():
@@ -186,7 +188,7 @@ def test_a_refused_graphics_priority_runs_the_block_anyway_and_says_why(caplog):
         ran.append(True)
 
     assert ran == [True]
-    assert gdi32.D3DKMTSetProcessSchedulingPriorityClass.calls == [(A_PROCESS, REALTIME)]
+    assert _classes_set(gdi32) == [REALTIME]
     (record,) = caplog.records
     assert "0xc0000061" in record.getMessage()
 

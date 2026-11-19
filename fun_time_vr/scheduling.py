@@ -7,11 +7,12 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from app_support.win32_loader import get_last_error, load_dll
-from funestra.funestra_priority import ahead_on_the_processor
+from funestra.funestra_priority import (
+    D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME,
+    ahead_on_the_processor,
+)
 
 logger = logging.getLogger(__name__)
-
-D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME = 5
 
 
 def _avrt():
@@ -22,12 +23,6 @@ def _gdi32():
     return load_dll("gdi32", use_last_error=True)
 
 
-def _this_process():
-    kernel32 = load_dll("kernel32")
-    kernel32.GetCurrentProcess.restype = ctypes.wintypes.HANDLE
-    return kernel32.GetCurrentProcess()
-
-
 def _declared_avrt(dll):
     dll.AvSetMmThreadCharacteristicsW.argtypes = [
         ctypes.wintypes.LPCWSTR, ctypes.POINTER(ctypes.wintypes.DWORD)]
@@ -35,32 +30,6 @@ def _declared_avrt(dll):
     dll.AvRevertMmThreadCharacteristics.argtypes = [ctypes.wintypes.HANDLE]
     dll.AvRevertMmThreadCharacteristics.restype = ctypes.wintypes.BOOL
     return dll
-
-
-def _declared_gdi32(dll):
-    dll.D3DKMTGetProcessSchedulingPriorityClass.argtypes = [
-        ctypes.wintypes.HANDLE, ctypes.POINTER(ctypes.c_int)]
-    dll.D3DKMTGetProcessSchedulingPriorityClass.restype = ctypes.c_long
-    dll.D3DKMTSetProcessSchedulingPriorityClass.argtypes = [ctypes.wintypes.HANDLE, ctypes.c_int]
-    dll.D3DKMTSetProcessSchedulingPriorityClass.restype = ctypes.c_long
-    return dll
-
-
-@contextmanager
-def _first_on_the_graphics_card(gdi, process) -> Iterator[None]:
-    found = ctypes.c_int()
-    gdi.D3DKMTGetProcessSchedulingPriorityClass(process, ctypes.byref(found))
-    status = gdi.D3DKMTSetProcessSchedulingPriorityClass(
-        process, D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME)
-    if status:
-        logger.warning(
-            "Windows would not put this process first on the graphics card (status 0x%08x), "
-            "so a busy graphics card can hold its frames up", status & 0xFFFFFFFF)
-    try:
-        yield
-    finally:
-        if not status:
-            gdi.D3DKMTSetProcessSchedulingPriorityClass(process, found.value)
 
 
 @contextmanager
@@ -86,10 +55,8 @@ def _scheduled_as_a_game(avrt, last_error) -> Iterator[None]:
 
 @contextmanager
 def ahead_of_background_work(*, avrt=_avrt, gdi32=_gdi32, kernel32=None,
-                             this_process=_this_process,
                              last_error=get_last_error) -> Iterator[None]:
-    process = this_process()
-    with (ahead_on_the_processor(kernel32, last_error),
-          _first_on_the_graphics_card(_declared_gdi32(gdi32()), process),
+    with (ahead_on_the_processor(kernel32, last_error, gdi32=gdi32(),
+                                 graphics_card_class=D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME),
           scheduled_as_a_game(avrt=avrt, last_error=last_error)):
         yield
