@@ -652,3 +652,12 @@ def test_the_scene_windows_close_box_is_heard():
 
     assert session.window_close_requested() is True
 
+
+
+def test_the_display_period_is_learned_from_the_first_frame_the_runtime_paces():
+    session, _runtime, _scene = _a_session_drawing()
+    before = session.display_period_ms
+
+    session.frame_begin()
+
+    assert (before, round(session.display_period_ms, 3)) == (None, 11.111)

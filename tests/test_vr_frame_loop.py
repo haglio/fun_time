@@ -27,6 +27,7 @@ from fun_time_vr.frame_loop import (
 )
 from fun_time_vr.funestras import Arranged
 from fun_time_vr.loading_screen import CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL
+from fun_time_vr.perf import UploadedBytes
 
 
 def _a_view(*, yaw_deg: float = 0.0):
@@ -64,6 +65,7 @@ class _ASession:
         self.ended: list[tuple[int, bool, list]] = []
         self.framebuffers: list[tuple] = []
         self.closed = False
+        self.display_period_ms = 11.1
 
     def poll_events(self) -> None:
         self.polled += 1
@@ -337,8 +339,10 @@ class TestCoveringTheTeardown:
 
 
 class _ARoom:
-    def __init__(self, loading_screen=None, *, main=None, satellites=(), blank=()):
+    def __init__(self, loading_screen=None, *, main=None, satellites=(), blank=(),
+                 on_frames=lambda: None):
         self.loading_screen = loading_screen or _ALoadingScreen(showing=False)
+        self._on_frames = on_frames
         self.stop = threading.Event()
         self.workers: list[threading.Thread] = []
         self.main_unit = main or SimpleNamespace(
@@ -363,6 +367,7 @@ class _ARoom:
 
     def render_latest_frames(self) -> None:
         self.told.append("frames")
+        self._on_frames()
 
     def still_blank(self):
         return self._blank
@@ -392,10 +397,23 @@ class _Glfw:
         self.polled += 1
 
 
-def _a_loop(session, the_room, *, use_layers=False, clock=None) -> FrameLoop:
+class _AStopwatch:
+    def __init__(self) -> None:
+        self.t = 50.0
+
+    def __call__(self) -> float:
+        return self.t
+
+    def wind_ms(self, ms: float) -> None:
+        self.t += ms / 1000.0
+
+
+def _a_loop(session, the_room, *, use_layers=False, clock=None, stopwatch=None,
+            uploaded=None) -> FrameLoop:
     clock = clock or _AClock()
     loop = FrameLoop(_a_headset(session), the_room, use_layers=use_layers,
-                     clock=clock, sleep=clock.sleep)
+                     clock=clock, sleep=clock.sleep, stopwatch=stopwatch or _AStopwatch(),
+                     uploaded=uploaded or UploadedBytes())
     loop.arranging = _Arranging()
     return loop
 
@@ -451,6 +469,31 @@ class TestAFrame:
 
         assert loop._headset.perf.stages == ["wait", "frames", "layers", "eyes", "end"]
         assert loop._headset.perf.frames == 1
+
+    def test_a_frame_over_the_display_period_is_written_down_with_each_step_and_its_uploads(
+            self, caplog):
+        caplog.set_level(logging.INFO, logger="funestra.frame_record")
+        stopwatch, uploaded = _AStopwatch(), UploadedBytes()
+        the_room = _ARoom(on_frames=lambda: (stopwatch.wind_ms(20.0), uploaded.note(8_300_000)))
+        loop = _a_loop(_ASession(_a_frame()), the_room, stopwatch=stopwatch, uploaded=uploaded)
+
+        loop.show_a_frame(elapsed_s=0.1, now=1.0)
+
+        assert [r.getMessage() for r in caplog.records if r.name == "funestra.frame_record"] == [
+            "Late pass: 20.0 ms of a 11.1 ms budget, longest step frames (20.0 ms); "
+            "1 late pass(es) since the last line; its steps frames 20.0, layers 0.0, eyes 0.0, "
+            "end 0.0 ms, 8.3 MB uploaded"]
+
+    def test_a_frame_inside_the_display_period_writes_nothing(self, caplog):
+        caplog.set_level(logging.INFO, logger="funestra.frame_record")
+        stopwatch = _AStopwatch()
+        the_room = _ARoom(on_frames=lambda: stopwatch.wind_ms(9.0))
+        loop = _a_loop(_ASession(*[_a_frame()] * 3), the_room, stopwatch=stopwatch)
+
+        for _ in range(3):
+            loop.show_a_frame(elapsed_s=0.1, now=1.0)
+
+        assert [r for r in caplog.records if r.name == "funestra.frame_record"] == []
 
 
 def _a_video(name, *, dirty=True, rect=None, wraps=False, owns=True):
