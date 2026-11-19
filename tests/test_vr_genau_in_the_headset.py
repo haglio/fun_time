@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from app_support.flick_folder import trash_folder_in
 from funestra.funestra import User
+from funestra.genau_refresh import SEND_THREAD
 from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
 
@@ -18,15 +19,16 @@ from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import no_other_flicks
 from fun_time.gallery import Gallery
 from fun_time.genau_config import GenauSettings
-from fun_time.genau_engine import UDP_READER_THREAD
 from fun_time.media_metadata import mark_favorite
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from main_funestra.genau import EngineSeams, GenauChannels, GenauFlicks, GenauOutputs
 from main_funestra.genau_verbs import genau_favorites
 from tests.genau_fakes import (
+    RUN_FOR_GOOD,
     FakeNotifier,
     FakeSink,
-    every_thread_now_but_the_port_binding_udp_reader,
+    ThreadsAsked,
+    every_thread_now_but_the_ones_that_run_for_good,
 )
 from tests.made_up_gallery import a_row
 
@@ -41,7 +43,7 @@ class HeldDecodes:
         self._held = []
 
     def __call__(self, *, target, args=(), name=""):
-        if name == UDP_READER_THREAD:
+        if name in RUN_FOR_GOOD:
             return
         if self.holding:
             self._held.append((target, args))
@@ -61,7 +63,7 @@ class WorldSetup:
     flat_flicks: tuple = ()
     start_flick: Path | None = None
     latest: bool = False
-    start_thread: Callable = every_thread_now_but_the_port_binding_udp_reader
+    start_thread: Callable = every_thread_now_but_the_ones_that_run_for_good
     starred: tuple = ()
 
 
@@ -293,3 +295,18 @@ class TestAFolderWithNothingToShow:
     def test_is_refused_at_once(self, tmp_path):
         with pytest.raises(RuntimeError, match="No video flicks"):
             World(tmp_path, WorldSetup(flicks=()))
+
+
+def test_in_the_headset_too_the_osr2_s_positions_go_out_on_a_thread_of_their_own(tmp_path):
+    threads = ThreadsAsked()
+    world = World(tmp_path, WorldSetup(start_thread=threads))
+    world.send("RESUME")
+
+    for _pass in range(4):
+        world.tick(0.008)
+    sent_by_the_passes = list(world.sink.sent)
+    world.genau.send_between_passes(world.now + 1 / 30)
+
+    assert threads.named.count(SEND_THREAD) == 1
+    assert sent_by_the_passes == []
+    assert len(world.sink.sent) == 1

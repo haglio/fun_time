@@ -2,12 +2,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from funestra.genau_refresh import SEND_THREAD
+
 from fun_time.genau_engine import UDP_READER_THREAD
 
+RUN_FOR_GOOD = (UDP_READER_THREAD, SEND_THREAD)
 
-def every_thread_now_but_the_port_binding_udp_reader(*, target, args=(), name=""):
-    if name != UDP_READER_THREAD:
+
+def every_thread_now_but_the_ones_that_run_for_good(*, target, args=(), name=""):
+    if name not in RUN_FOR_GOOD:
         target(*args)
+
+
+class ThreadsAsked:
+    def __init__(self) -> None:
+        self.named: list[str] = []
+
+    def __call__(self, *, target, args=(), name=""):
+        self.named.append(name)
+        every_thread_now_but_the_ones_that_run_for_good(target=target, args=args, name=name)
 
 
 class FakeSink:
