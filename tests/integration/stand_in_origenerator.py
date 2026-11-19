@@ -192,8 +192,7 @@ STAND_IN_MAIN = textwrap.dedent(
             lines.append(f"{side}_active={'1' if side in held else '0'}")
             lines.append(f"{side}_video=")
             lines.append(f"{side}_locked=0")
-        Path(args.status_file).write_text(
-            "".join(f"{line}\\n" for line in lines), encoding="utf-8")
+        publish_whole(Path(args.status_file), "".join(f"{line}\\n" for line in lines))
 
     def poll():
         answer_a_takeover()
