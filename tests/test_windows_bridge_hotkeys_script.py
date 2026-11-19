@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from funestra.funestra_verbs import NEXT, PREV
+from funestra.funestra_verbs import LOCK_PRESSED, NEXT, PREV
 
 from fun_time.overlay_progress import CANCEL_FILENAME
 from fun_time.session_handoff import CROSSING_PROGRESS_NAME, LOADING_SCREEN_STALE_S
@@ -153,6 +153,19 @@ class TestStartupPhase:
             ("main_next", "commands", "main_funestra_cmd_file", NEXT),
             ("main_prev", "commands", "main_funestra_cmd_file", PREV),
         ]
+
+    def test_a_lock_key_lights_the_lock_on_its_funestras_hud_and_leaves_the_locking_to_fun_time(self):
+        lit = re.findall(r'"(\w+)", ManifestValueOr\("(\w+)", "(\w+)"\)',
+                         function_source("LocksLitAtTheirFunestras"))
+        body = function_source("QueueCommand")
+
+        assert lit == [
+            ("portrait_lock", "portrait", "cmd_file"),
+            ("landscape_lock", "landscape", "cmd_file"),
+            ("main_lock", "commands", "main_funestra_cmd_file"),
+        ]
+        assert f'"{LOCK_PRESSED} " . pressed' in body
+        assert body.index("if (StartupPhase)") < body.index("LIGHTS_ITS_LOCK.Has")
 
     def test_a_step_that_reached_its_funestra_tells_fun_time_it_already_did(self):
         body = function_source("QueueCommand")

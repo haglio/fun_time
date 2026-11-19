@@ -38,6 +38,9 @@ STATE_DIR := GetParentDir(WINDOWS_BRIDGE_LOG_FILE)
 ; step, so a busy Fun Time or Origenerator never holds the step up; Fun Time
 ; is told afterwards (" !" in place of " #") and only keeps its books.
 STRAIGHT_TO_ITS_FUNESTRA := StepsStraightToTheirFunestras()
+; A lock key lights the lock on its Funestra's HUD at once; Fun Time still
+; does the locking, of the video that showed when the key went down.
+LIGHTS_ITS_LOCK := LocksLitAtTheirFunestras()
 
 AHK_CMD_FILE := STATE_DIR . "\ahk_cmd.txt"
 ; Dropping this flag is how a launch gets called off: the orchestrator's next
@@ -364,8 +367,19 @@ StepsStraightToTheirFunestras() {
     return steps
 }
 
+LocksLitAtTheirFunestras() {
+    lit := Map(
+        "portrait_lock", ManifestValueOr("portrait", "cmd_file"),
+        "landscape_lock", ManifestValueOr("landscape", "cmd_file"),
+        "main_lock", ManifestValueOr("commands", "main_funestra_cmd_file"))
+    for cmd, path in lit.Clone()
+        if (path = "")
+            lit.Delete(cmd)
+    return lit
+}
+
 QueueCommand(cmd) {
-    global DASHBOARD_CMD_FILE, StartupPhase, STRAIGHT_TO_ITS_FUNESTRA
+    global DASHBOARD_CMD_FILE, StartupPhase, STRAIGHT_TO_ITS_FUNESTRA, LIGHTS_ITS_LOCK
     pressed := SecondsOnFunTimesClock()
     if (StartupPhase) {
         ; No session to drive yet, and no dispatch loop draining the file this
@@ -381,6 +395,8 @@ QueueCommand(cmd) {
         else
             Log("Could not reach its Funestra, so Fun Time passes it on: " . cmd)
     }
+    if LIGHTS_ITS_LOCK.Has(cmd)
+        AppendWithRetry("LOCK_PRESSED " . pressed . "`n", LIGHTS_ITS_LOCK[cmd], 320, 5, "append-only")
     ; The Python dispatch loop drains this file by renaming it (~20 Hz). A held
     ; key appends fast enough to overlap that rename, and Windows then refuses
     ; the open with "(32) ... being used by another process". Wait it out, about
