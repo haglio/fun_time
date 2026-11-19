@@ -14,6 +14,7 @@ from app_support.win32_loader import load_dll, win_functype
 
 from fun_time.dashboard_layout import Rect
 from fun_time.win32_process import list_child_pids
+from fun_time.window_waits import WindowWaits
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +196,7 @@ def wait_for_window(find: Callable[[], int], timeout_s: float) -> int:
 
 
 STALLED_WINDOW_TIMEOUT_S = 1.5
+_WINDOW_WAITS = WindowWaits()
 
 
 def window_process(hwnd: int) -> int:
@@ -207,13 +209,17 @@ def _owned_by_this_process(hwnd: int) -> bool:
     return window_process(hwnd) == _kernel32.GetCurrentProcessId()
 
 
-def _without_hanging(call, hwnd, *args, what: str) -> bool:
+def _without_hanging(call, hwnd, *args, what: str, waits: WindowWaits | None = None,
+                     clock: Callable[[], float] = time.perf_counter) -> bool:
     if _owned_by_this_process(hwnd):
         call(hwnd, *args)
         return True
 
-    if _ONE_CALL_AT_A_TIME.make(hwnd, lambda: call(hwnd, *args), what=what).wait(
-            STALLED_WINDOW_TIMEOUT_S):
+    asked_at = clock()
+    answered = _ONE_CALL_AT_A_TIME.make(hwnd, lambda: call(hwnd, *args), what=what).wait(
+        STALLED_WINDOW_TIMEOUT_S)
+    (waits or _WINDOW_WAITS).waited(what, clock() - asked_at, answered=answered)
+    if answered:
         return True
     logger.warning(
         "%s did not return in %.1fs — that window has stopped answering; "

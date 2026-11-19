@@ -214,6 +214,20 @@ class TestAWindowThatHasStoppedAnswering:
         assert len(flags) == 3
         assert not [flag for flag in flags if flag & SWP_ASYNCWINDOWPOS]
 
+    def test_each_wait_on_another_programs_window_is_written_down(self, monkeypatch):
+        monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
+        clock = iter([10.0, 10.25])
+        written: list[tuple[str, float, bool]] = []
+
+        class Spy:
+            def waited(self, what, took, *, answered):
+                written.append((what, took, answered))
+
+        win32._without_hanging(lambda *_a: None, 111, what="place_window(111)",
+                               waits=Spy(), clock=lambda: next(clock))
+
+        assert written == [("place_window(111)", 0.25, True)]
+
     def test_it_says_which_window_stopped_answering(self, monkeypatch, caplog):
         with (
             self._stalled(monkeypatch),
