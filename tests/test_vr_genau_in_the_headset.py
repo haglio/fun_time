@@ -24,9 +24,9 @@ from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from main_funestra.genau import EngineSeams, GenauChannels, GenauFlicks, GenauOutputs
 from main_funestra.genau_verbs import genau_favorites
 from tests.genau_fakes import (
-    RUN_FOR_GOOD,
     FakeNotifier,
     FakeSink,
+    HeldDecodes,
     ThreadsAsked,
     every_thread_now_but_the_ones_that_run_for_good,
 )
@@ -35,26 +35,6 @@ from tests.made_up_gallery import a_row
 
 def _frames(count: int = 8, width: int = 16, height: int = 8) -> list[np.ndarray]:
     return [np.full((height, width, 3), i, dtype=np.uint8) for i in range(count)]
-
-
-class HeldDecodes:
-    def __init__(self) -> None:
-        self.holding = False
-        self._held = []
-
-    def __call__(self, *, target, args=(), name=""):
-        if name in RUN_FOR_GOOD:
-            return
-        if self.holding:
-            self._held.append((target, args))
-            return
-        target(*args)
-
-    def release(self) -> None:
-        self.holding = False
-        for target, args in self._held:
-            target(*args)
-        self._held.clear()
 
 
 @dataclass(frozen=True)
