@@ -5,7 +5,7 @@ import math
 import numpy as np
 from PIL import Image, ImageDraw
 from shared_ui.icons_pil import pil_icon
-from shared_ui.lettering import fit_text, load_font, wrap_text
+from shared_ui.lettering import fit_text, line_height, load_font, wrap_text
 from shared_ui.message_shape import (
     MESSAGE_INK,
     MESSAGE_PAD_H,
@@ -41,16 +41,11 @@ def font_px(decoded_frame_height: int) -> int:
     return max(MIN_FONT_PX, round(decoded_frame_height * TYPE_OVER_A_DECODED_FRAMES_HEIGHT))
 
 
-def _line_height(font) -> int:
-    ascent, descent = font.getmetrics()
-    return ascent + descent
-
-
 def mark_room(mark: str, size: int) -> int:
     if not mark:
         return 0
     font = load_font(size)
-    return _line_height(font) + math.ceil(font.getlength(" "))
+    return line_height(font) + math.ceil(font.getlength(" "))
 
 
 def paint_message(shown: ShownMessage, *, max_width: int, size: int) -> Image.Image:
@@ -78,7 +73,7 @@ def paint_message(shown: ShownMessage, *, max_width: int, size: int) -> Image.Im
     draw.multiline_text((marked + pad_x - x0, pad_y - y0), text, font=font, fill=(*ink, 255),
                         spacing=spacing, align="center")
     if marked:
-        edge = _line_height(font)
+        edge = line_height(font)
         on_the_first_line = min(max(0, pad_y - y0), flashed.height - edge)
         flashed.alpha_composite(pil_icon(shown.mark, edge, ink), (pad_x, on_the_first_line))
     return flashed
