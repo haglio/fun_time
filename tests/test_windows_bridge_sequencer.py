@@ -181,6 +181,7 @@ def _sequencer_stubs(**overrides):
         "set_always_on_top": {},
         "is_process_alive": {"return_value": True},
         "launch_origenerator": {"side_effect": _fake_origenerator},
+        "close_tabs_it_did_not_open_while_it_starts": {},
     }
     spec.update(overrides)
     with contextlib.ExitStack() as stack:
@@ -702,6 +703,38 @@ class TestRunStartupSequenceCancellation:
         assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID, ORIGENERATOR_PID}
         assert exc.rfb_hwnd == 0
         ui.assert_not_called()
+
+    def test_the_browsers_extra_tabs_are_closed_only_until_the_start_is_over(self, cfg_factory, tmp_path):
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        with _sequencer_stubs(_maybe_launch_random_faves_browser={"return_value": 7777}) as stubs:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        closing = stubs.close_tabs_it_did_not_open_while_it_starts
+        assert closing.call_args.args[0] == 7777
+        closing.return_value.stop.assert_called_once_with()
+
+    def test_a_cancelled_start_stops_closing_the_browsers_extra_tabs(self, cfg_factory, tmp_path):
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        with (
+            _sequencer_stubs(_maybe_launch_random_faves_browser={"return_value": 7777}, wait_for_window_by_title={"return_value": 88888}) as stubs,
+            pytest.raises(StartupCancelled),
+        ):
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path,
+                progress=_CancelOnAdvance(cancel_on=5), hide_windows=True,
+            )
+
+        stubs.close_tabs_it_did_not_open_while_it_starts.return_value.stop.assert_called_once_with()
+
+    def test_a_start_with_no_browser_window_closes_no_tabs(self, cfg_factory, tmp_path):
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        with _sequencer_stubs(_maybe_launch_random_faves_browser={"return_value": 0}) as stubs:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        stubs.close_tabs_it_did_not_open_while_it_starts.assert_not_called()
 
     def test_cancel_after_companions_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

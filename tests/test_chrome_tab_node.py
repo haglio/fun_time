@@ -7,6 +7,7 @@ class _UIA:
     UIA_TabItemControlTypeId = 50019
     UIA_DocumentControlTypeId = 50030
     UIA_PaneControlTypeId = 50033
+    UIA_ButtonControlTypeId = 50000
     UIA_SelectionItemIsSelectedPropertyId = 30079
     UIA_LegacyIAccessiblePatternId = 10018
     IUIAutomationLegacyIAccessiblePattern = "the legacy pattern"
@@ -117,3 +118,21 @@ def test_switching_to_a_tab_presses_it_once():
     _node(tab).switch_to()
 
     assert tab.default_actions == 1
+
+
+def test_closing_a_tab_presses_its_last_button_and_not_the_tab():
+    mute = _FakeElement(_UIA.UIA_ButtonControlTypeId)
+    close = _FakeElement(_UIA.UIA_ButtonControlTypeId)
+    tab = _FakeElement(_UIA.UIA_TabItemControlTypeId, children=[mute, close])
+
+    _node(tab, tab).close()
+
+    assert (tab.default_actions, mute.default_actions, close.default_actions) == (0, 0, 1)
+
+
+def test_a_tab_with_no_button_is_left_alone():
+    tab = _FakeElement(_UIA.UIA_TabItemControlTypeId, children=[_FakeElement(_UIA.UIA_PaneControlTypeId)])
+
+    _node(tab, tab).close()
+
+    assert tab.default_actions == 0

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable, Sequence
 from typing import Protocol
 
@@ -12,6 +13,8 @@ logger = logging.getLogger(__name__)
 TAB_STRIP_ATTEMPTS = 6
 RETRY_AFTER_S = 0.5
 STOP_WAIT_S = 2.0
+STARTUP_WATCH_S = 60.0
+LOOK_FOR_EXTRA_TABS_EVERY_S = 1.0
 
 
 class AccessibleNode(Protocol):
@@ -22,6 +25,8 @@ class AccessibleNode(Protocol):
     def children(self) -> Sequence[AccessibleNode]: ...
 
     def switch_to(self) -> None: ...
+
+    def close(self) -> None: ...
 
 
 def find_tab_strip(window: AccessibleNode) -> AccessibleNode | None:
@@ -48,6 +53,59 @@ def switch_to_the_tab_after_the_active_one(strip: AccessibleNode) -> None:
     next_tab = tab_after_the_active_one([child for child in strip.children() if child.is_tab])
     if next_tab is not None:
         next_tab.switch_to()
+
+
+def close_the_tabs_past_the_browsers_own(strip: AccessibleNode, *, own_tabs: int) -> int:
+    not_its_own = [child for child in strip.children() if child.is_tab][own_tabs:]
+    for tab in reversed(not_its_own):
+        tab.close()
+    return len(not_its_own)
+
+
+class StartupTabCloser:
+    def __init__(
+        self,
+        hwnd: int,
+        *,
+        own_tabs: int,
+        open_window: Callable[[int], AccessibleNode],
+        watch_s: float = STARTUP_WATCH_S,
+        look_every_s: float = LOOK_FOR_EXTRA_TABS_EVERY_S,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._hwnd = hwnd
+        self._own_tabs = own_tabs
+        self._open_window = open_window
+        self._watch_s = watch_s
+        self._look_every_s = look_every_s
+        self._clock = clock
+        self._stopping = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._thread = start_daemon_thread(target=self.watch, name="rfb-startup-tabs")
+
+    def stop(self) -> None:
+        self._stopping.set()
+        if self._thread is not None:
+            self._thread.join(timeout=STOP_WAIT_S)
+
+    def watch(self) -> None:
+        watch_ends_at = self._clock() + self._watch_s
+        strip = None
+        while not self._stopping.is_set() and self._clock() < watch_ends_at:
+            try:
+                strip = strip or find_tab_strip(self._open_window(self._hwnd))
+                if strip is not None:
+                    self._close_extra_tabs_on(strip)
+            except Exception:
+                strip = None
+            self._stopping.wait(self._look_every_s)
+
+    def _close_extra_tabs_on(self, strip: AccessibleNode) -> None:
+        closed = close_the_tabs_past_the_browsers_own(strip, own_tabs=self._own_tabs)
+        if closed:
+            logger.info("Closed %d tab(s) the Random Faves Browser did not open itself", closed)
 
 
 class ChromeTabSwitcher:

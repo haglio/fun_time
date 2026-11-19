@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .child_launch import no_child_log, no_console_window
+from .chrome_accessibility import open_chrome_window
+from .chrome_tabs import StartupTabCloser
 from .shortcuts import Shortcut
 
 CHROME_WINDOW_CLASS = "Chrome"
@@ -66,6 +68,15 @@ def launch_random_faves_browser(
         subprocess.Popen(plan.cmd, cwd=plan.work_dir,
                          **no_child_log(), **no_console_window())
     return plan
+
+
+def close_tabs_it_did_not_open_while_it_starts(
+    hwnd: int, manifest_path: str | Path
+) -> StartupTabCloser:
+    own_tabs = len(read_random_faves_browser_manifest(manifest_path).urls)
+    closer = StartupTabCloser(hwnd, own_tabs=own_tabs, open_window=open_chrome_window)
+    closer.start()
+    return closer
 
 
 def build_open_rfb_tab_command(*, urls: list[str], shortcut: Shortcut) -> str:
