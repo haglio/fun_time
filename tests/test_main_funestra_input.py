@@ -31,6 +31,15 @@ class SpyFunestra:
     def leave(self) -> None:
         self.calls.append(("leave",))
 
+    def wheel(self, x, y, steps, *, viewport) -> None:
+        self.calls.append(("wheel", x, y, steps, viewport))
+
+    def wheel_press(self, x, y, *, viewport) -> None:
+        self.calls.append(("wheel_press", x, y, viewport))
+
+    def wheel_release(self) -> None:
+        self.calls.append(("wheel_release",))
+
 
 def _input() -> tuple[Input, SpyFunestra]:
     funestra = SpyFunestra()
@@ -74,15 +83,29 @@ class TestTheMouse:
 
         assert funestra.calls == [("right_press", 120, 480, WINDOW)]
 
-    def test_the_other_buttons_do_nothing_at_all(self):
+    def test_a_wheel_notch_away_from_him_zooms_in_where_the_pointer_is(self):
         window_input, funestra = _input()
 
-        for button in (2, 4, 5):
-            _deal(window_input,
-                  SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=button, pos=(1, 2)),
-                  SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=button))
+        _deal(window_input, SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=4, pos=(30, 40)),
+              SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=4))
 
-        assert funestra.calls == []
+        assert funestra.calls == [("wheel", 30, 40, 1, WINDOW)]
+
+    def test_a_wheel_notch_toward_him_zooms_out_where_the_pointer_is(self):
+        window_input, funestra = _input()
+
+        _deal(window_input, SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=5, pos=(30, 40)),
+              SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=5))
+
+        assert funestra.calls == [("wheel", 30, 40, -1, WINDOW)]
+
+    def test_the_wheel_button_going_down_and_up_reaches_the_funestra(self):
+        window_input, funestra = _input()
+
+        _deal(window_input, SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=2, pos=(30, 40)),
+              SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=2))
+
+        assert funestra.calls == [("wheel_press", 30, 40, WINDOW), ("wheel_release",)]
 
     def test_a_drag_is_a_move_with_the_left_button_down(self):
         window_input, funestra = _input()
