@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fun_time.library_handles import build_library_handles, handles_by_shape
 from fun_time.library_tree import folder_at
+from tests.disk_looks import DiskLooks
 from tests.drive_fakes import files_that_never_answer
 
 
@@ -90,6 +91,18 @@ def test_files_sharing_a_recorded_version_group_become_one_handle(tmp_path: Path
 
     assert [handle.title for handle in handles] == ["jane doe - scene one"]
     assert set(handles[0].versions) == {str(trimmed), str(processed)}
+
+
+def test_a_library_opened_again_reads_none_of_the_records_it_kept(tmp_path: Path, monkeypatch):
+    videos, metadata = _library(tmp_path)
+    for number in range(5):
+        _sidecar(metadata, _video(videos, f"room/video {number}.mp4"), Sidecar(f"video {number}"))
+    first = handles_by_shape(str(videos), "", metadata, kept_records_in=tmp_path / "state")
+    looks = DiskLooks(monkeypatch, under=metadata)
+
+    again = handles_by_shape(str(videos), "", metadata, kept_records_in=tmp_path / "state")
+
+    assert (again, looks.made["open"]) == (first, 0)
 
 
 def test_a_bracketed_number_splits_a_recorded_family(tmp_path: Path):

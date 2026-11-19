@@ -661,9 +661,11 @@ class BrowserConfig:
     metadata_root: Path | None
     thumbnail_cache: Path
     top_level_name: str = TOP_LEVEL_NAME
+    kept_records_in: Path | None = None
 
     def handles(self) -> list[LibraryHandle]:
-        return handles_by_shape(self.sources, self.vr_sources, self.metadata_root)
+        return handles_by_shape(self.sources, self.vr_sources, self.metadata_root,
+                                kept_records_in=self.kept_records_in)
 
 
 def _read_manifest(manifest_path: str | Path) -> configparser.ConfigParser:
@@ -681,6 +683,7 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
         vr_sources=parser.get("media", "vr_library_dirs", fallback=""),
         metadata_root=Path(metadata_root) if metadata_root else None,
         thumbnail_cache=hud_and_browser_thumbnail_cache(Path(manifest_path).parent),
+        kept_records_in=Path(manifest_path).parent,
     )
 
 

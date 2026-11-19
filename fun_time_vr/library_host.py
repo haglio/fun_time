@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import time
 from collections.abc import Callable, Sequence
@@ -22,7 +23,7 @@ from fun_time.library_browser import (
     load_browser_config,
     load_flick_browser_config,
 )
-from fun_time.library_handles import LibraryHandle, handles_by_shape
+from fun_time.library_handles import LibraryHandle, handles_by_shape, sources_by_shape
 from fun_time.modes import collect_video_files
 from fun_time.win32_process import is_process_alive
 
@@ -185,12 +186,23 @@ def read_the_library(config, kept: Path, *, afresh: bool = False) -> list[Librar
     try:
         return handles_by_shape(
             config.sources, config.vr_sources, config.metadata_root,
-            listing=lambda sources: remembered_listing(
-                kept.with_name(f"{kept.stem}_{_listing_key(sources)}{kept.suffix}"),
-                lambda: collect_video_files(sources), afresh=afresh),
+            listing=lambda sources: _the_kept_listing(kept, sources, afresh=afresh),
+            kept_records_in=config.kept_records_in,
         )
     except OSError:
         return []
+
+
+def _the_kept_listing(kept: Path, sources: str, *, afresh: bool = False) -> list[str]:
+    return remembered_listing(kept.with_name(f"{kept.stem}_{_listing_key(sources)}{kept.suffix}"),
+                              lambda: collect_video_files(sources), afresh=afresh)
+
+
+def list_the_library_afresh(config, kept: Path) -> None:
+    for _shape, sources in sources_by_shape(config.sources, config.vr_sources):
+        if sources:
+            with contextlib.suppress(OSError):
+                _the_kept_listing(kept, sources, afresh=True)
 
 
 def read_the_flicks(config) -> list[LibraryHandle]:
@@ -204,7 +216,7 @@ def _read_a_syncing_drive_off_the_serving_thread(config, kept: Path, landed: lis
     start_daemon_thread(
         target=lambda: landed.append(read_the_library(config, kept)), name="library-read")
     start_daemon_thread(
-        target=lambda: read_the_library(config, kept, afresh=True), name="library-reread")
+        target=lambda: list_the_library_afresh(config, kept), name="library-reread")
 
 
 def _listing_key(sources: str) -> str:

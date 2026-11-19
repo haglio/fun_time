@@ -40,6 +40,7 @@ from fun_time.hosted_contract import (
     HostedVocabulary,
     published_actions_heard_as,
 )
+from fun_time.library_browser import BrowserConfig
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME
@@ -120,6 +121,7 @@ from fun_time.windows_bridge_orchestrator import (
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
+from tests.disk_looks import DiskLooks
 from tests.fun_time_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_hosted
 from tests.hosted_shows import an_app_that_opens_each_slideshow_asked_of_it
 from tests.loading_screen_beats import heard_from_again_once_stale
@@ -3591,6 +3593,28 @@ class TestTheHudPublisherASessionStarts:
         assert publisher.call_args.args[0][DASHBOARD_OSR2_PART] == osr2_part_path(
             load_dashboard_app_config(manifest_path).state_dir)
 
+    def test_the_records_the_warm_up_reads_are_kept_for_the_browser_to_open_without_reading(
+        self, tmp_path: Path, monkeypatch,
+    ):
+        library, metadata = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        metadata.mkdir(parents=True)
+        for number in range(5):
+            video = library / "room" / f"video {number}.mp4"
+            video.parent.mkdir(parents=True, exist_ok=True)
+            video.write_bytes(b"x")
+            (metadata / "room").mkdir(exist_ok=True)
+            (metadata / "room" / f"video {number}.json").write_text("{}", encoding="utf-8")
+        bridge_config = SimpleNamespace(main_sources=str(library), vr_library_dirs="",
+                                        regen_metadata_root=metadata, state_dir=tmp_path / "state")
+        warmed = windows_bridge_orchestrator._main_browse_stills(bridge_config)
+        looks = DiskLooks(monkeypatch, under=metadata)
+
+        browsed = BrowserConfig(sources=str(library), vr_sources="", metadata_root=metadata,
+                                thumbnail_cache=tmp_path / "stills",
+                                kept_records_in=tmp_path / "state").handles()
+
+        assert (len(warmed), len(browsed), looks.made["open"]) == (5, 5, 0)
+
     def test_genaus_videos_are_warmed_for_its_browser_as_the_library_is_for_the_videos(
         self, cfg_factory, tmp_path: Path,
     ):
@@ -3600,7 +3624,7 @@ class TestTheHudPublisherASessionStarts:
         video.touch()
         manifest = LaunchManifest.read(write_windows_bridge_manifest(
             config, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
-        bridge_config = SimpleNamespace(main_sources="", regen_metadata_root=None,
+        bridge_config = SimpleNamespace(main_sources="", vr_library_dirs="", regen_metadata_root=None,
                                         state_dir=tmp_path)
         warmed: list[str] = []
 

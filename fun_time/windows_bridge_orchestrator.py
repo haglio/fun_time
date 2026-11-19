@@ -62,7 +62,7 @@ from .hosted_contract import (
 )
 from .hosted_origenerator import what_it_answers_by_voice_in
 from .hud_transport import HudPublisher
-from .library_handles import build_library_handles, genau_flick_sources
+from .library_handles import genau_flick_sources, handles_by_shape
 from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
@@ -558,8 +558,9 @@ def _covering(hwnd: int, stack, *, covers_it_by_design: tuple[int, ...] = ()) ->
 def _main_browse_stills(bridge_config) -> list[str]:
     return [
         handle.preview
-        for handle in build_library_handles(
-            bridge_config.main_sources, bridge_config.regen_metadata_root
+        for handle in handles_by_shape(
+            bridge_config.main_sources, bridge_config.vr_library_dirs,
+            bridge_config.regen_metadata_root, kept_records_in=bridge_config.state_dir,
         )
     ]
 
