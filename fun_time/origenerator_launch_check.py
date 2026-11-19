@@ -47,8 +47,14 @@ def a_session_in(folder: Path) -> OrigeneratorSession:
     )
 
 
-def launch_check_command(checkout: Path, python_exe: str | Path, folder: Path) -> list[str] | None:
-    flag = (published_by(checkout) or {}).get("check_launch_flag")
+LAUNCH_CHECK = "check_launch_flag"
+HOSTED_REHEARSAL = "hosted_rehearsal_flag"
+CHECKS_IN_ORDER = (LAUNCH_CHECK, HOSTED_REHEARSAL)
+
+
+def launch_check_command(checkout: Path, python_exe: str | Path, folder: Path,
+                         check: str = LAUNCH_CHECK) -> list[str] | None:
+    flag = (published_by(checkout) or {}).get(check)
     if not flag:
         return None
     return [*origenerator_launch_command(
@@ -66,14 +72,15 @@ def launch_check_kwargs(checkout: Path, sibling_checkouts: str | None) -> dict:
 def what_stops_the_hosted_launch(
         checkout: Path, *, sibling_checkouts: str | None = None,
         python_exe: str | Path | None = None, run: Runner = subprocess.run) -> str | None:
-    with tempfile.TemporaryDirectory() as folder:
-        command = launch_check_command(
-            checkout, python_exe or origenerator_interpreter(checkout), Path(folder))
-        if command is None:
-            return None
-        result = run(command, timeout=LAUNCH_CHECK_BUDGET_S,
-                     **launch_check_kwargs(checkout, sibling_checkouts))
-    if result.returncode == 0:
-        return None
-    return its_own_error_without_the_traceback_frames(result.stderr or "") or (
-        f"it exited with code {result.returncode} and said nothing")
+    python_exe = python_exe or origenerator_interpreter(checkout)
+    for check in CHECKS_IN_ORDER:
+        with tempfile.TemporaryDirectory() as folder:
+            command = launch_check_command(checkout, python_exe, Path(folder), check)
+            if command is None:
+                continue
+            result = run(command, timeout=LAUNCH_CHECK_BUDGET_S,
+                         **launch_check_kwargs(checkout, sibling_checkouts))
+        if result.returncode != 0:
+            return its_own_error_without_the_traceback_frames(result.stderr or "") or (
+                f"it exited with code {result.returncode} and said nothing")
+    return None
