@@ -333,7 +333,7 @@ class TestTheEventLog:
             return SessionOver(0)
 
         with _a_launch_with_the_machine_held_off(
-            open_event_log=MagicMock(side_effect=lambda *_: order.append("emptied")),
+            open_event_log=MagicMock(side_effect=lambda *_a, **_k: order.append("emptied")),
             run_windows_bridge=MagicMock(side_effect=session),
         ):
             main(["--config", str(cfg_path)])

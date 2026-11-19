@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
+from fun_time.dashboard_bridge import DashboardSnapshot, DashboardSnapshotWriter
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.funestra_status import (
     GenauStatus,
@@ -28,7 +28,7 @@ def test_a_snapshot_that_was_never_written_reads_as_no_snapshot(tmp_path: Path):
 
 def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
-    write_dashboard_snapshot(snapshot_file, DashboardSnapshot(omni_paused=True))
+    DashboardSnapshotWriter(snapshot_file).write(DashboardSnapshot(omni_paused=True))
 
     snapshot = load_dashboard_snapshot(snapshot_file)
 
@@ -47,7 +47,7 @@ def test_an_older_writers_snapshot_with_no_omnipause_section_reads_as_playing(tm
 
 def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
-    write_dashboard_snapshot(snapshot_file, DashboardSnapshot(voice_active=False))
+    DashboardSnapshotWriter(snapshot_file).write(DashboardSnapshot(voice_active=False))
 
     snapshot = load_dashboard_snapshot(snapshot_file)
 
@@ -66,7 +66,7 @@ def test_an_older_writers_snapshot_with_no_voice_section_reads_as_listening(tmp_
 
 def test_load_dashboard_snapshot_reads_whether_every_funestra_has_nothing_to_reset(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
-    write_dashboard_snapshot(snapshot_file, DashboardSnapshot(nothing_to_reset=True))
+    DashboardSnapshotWriter(snapshot_file).write(DashboardSnapshot(nothing_to_reset=True))
 
     assert load_dashboard_snapshot(snapshot_file).nothing_to_reset is True
 

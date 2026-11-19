@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from fun_time.event_log import (
     MESSAGE,
     SOURCES,
     EventLogHandler,
+    QueuedEventLog,
     event_log_path,
     flash_message,
     is_announcement,
@@ -219,3 +221,70 @@ class TestStartEventLog:
 class TestSources:
     def test_the_four_windows_plus_a_catch_all(self):
         assert SOURCES == ("main", "portrait", "landscape", "dash", "system")
+
+
+class _ThreadSpy(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.threads: list[int] = []
+        self.marks: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.threads.append(threading.get_ident())
+        self.marks.append(getattr(record, "mark", ""))
+
+
+class TestQueuedEventLog:
+    def test_the_thread_that_logs_never_touches_the_file(self):
+        spy = _ThreadSpy()
+        queued = QueuedEventLog(writer=spy)
+        logger = logging.getLogger("test.event_log.queued")
+        logger.handlers.clear()
+        logger.propagate = False
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(queued)
+        try:
+            for word in ("one", "two", "three"):
+                logger.info(word)
+            queued.flush()
+        finally:
+            queued.close()
+
+        assert len(spy.threads) == 3
+        assert threading.get_ident() not in spy.threads
+
+    def test_a_line_said_while_answering_keeps_the_microphone_on_its_way_to_the_file(
+            self, log_path: Path):
+        queued = QueuedEventLog(writer=EventLogHandler(log_path))
+        logger = logging.getLogger("test.event_log.queued_mark")
+        logger.handlers.clear()
+        logger.propagate = False
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(queued)
+        try:
+            with answering_what_he_said():
+                flash_message(logger, "next", source="portrait")
+            flash_message(logger, "Clip saved", source="main")
+            queued.flush()
+        finally:
+            queued.close()
+
+        answered, pressed = read_events(log_path)[0]
+        assert (answered.message, answered.mark, pressed.mark) == ("next", HEARD_MARK, "")
+
+
+
+class TestTheWakeAfterAnAnnouncement:
+    def test_only_a_line_that_flashes_wakes_the_dashboard(self, log_path: Path):
+        woken: list[str] = []
+        logger = logging.getLogger("test.event_log.wakes")
+        logger.handlers.clear()
+        logger.propagate = False
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(EventLogHandler(log_path, after_an_announcement=lambda: woken.append("woken")))
+
+        logger.info("chatter")
+        list_message(logger, "listed only", source="main")
+        flash_message(logger, "Clip saved", source="main")
+
+        assert woken == ["woken"]

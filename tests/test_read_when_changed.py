@@ -27,3 +27,21 @@ def test_a_file_not_there_is_asked_of_the_reader_once_until_it_appears(tmp_path)
     write_shared_state(state_file, BridgeState())
 
     assert (missing, kept.latest(), len(reads)) == ([None, None, None], BridgeState(), 2)
+
+
+def test_a_read_that_failed_is_tried_again_on_the_next_ask(tmp_path):
+    state_file = tmp_path / "shared_state.ini"
+    write_shared_state(state_file, BridgeState(main_latest=True))
+    answers = iter([OSError("held by its writer"), None])
+    reads = []
+
+    def read(path):
+        reads.append(path)
+        failure = next(answers)
+        if failure is not None:
+            raise failure
+        return read_shared_state(path)
+
+    kept = ReadWhenChanged(state_file, read)
+
+    assert (kept.latest(), kept.latest().main_latest, len(reads)) == (None, True, 2)

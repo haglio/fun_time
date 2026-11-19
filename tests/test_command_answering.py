@@ -6,9 +6,12 @@ from unittest.mock import patch
 import pytest
 from shared_ui.message_shape import HEARD_MARK
 
+from fun_time import command_answering
 from fun_time.bridge_records import Op, WindowOp
 from fun_time.command_answering import AHK_PASSTHROUGH_OPS, LOOP_COMMANDS, OP_HANDLERS
 from fun_time.command_value import parse_command
+from fun_time.dashboard_bridge import DashboardSnapshotWriter
+from fun_time.dashboard_runtime import load_dashboard_snapshot, snapshot_in
 from fun_time.event_log import EventLogHandler, read_events
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.shared_state import BridgeState, read_shared_state
@@ -156,9 +159,8 @@ class TestTheDashboardsSnapshot:
 
     def test_a_bug_in_the_snapshot_writer_is_not_swallowed(self, tmp_path):
         answering = made_up_answering(tmp_path, dashboard_enabled=True)
-        with patch(
-            "fun_time.command_answering.write_dashboard_snapshot",
-            side_effect=TypeError("renamed keyword"),
+        with patch.object(
+            DashboardSnapshotWriter, "write", side_effect=TypeError("renamed keyword"),
         ), pytest.raises(TypeError):
             answering.update_dashboard()
 
@@ -210,3 +212,21 @@ def test_a_quit_with_no_dashboard_to_ask_ends_the_session_at_once(tmp_path, how)
         answering.answer("quit")
 
     assert _mailbox(tmp_path) == ["end_session"]
+
+
+class TestTheDashboardHearsOfANewSnapshotAtOnce:
+    def _posted(self, monkeypatch) -> list[str]:
+        posted: list[str] = []
+        monkeypatch.setattr(command_answering, "post_to_inbox",
+                            lambda _port_file, text: posted.append(text) or True)
+        return posted
+
+    def test_a_snapshot_that_changed_is_posted_to_the_dashboard_once(self, tmp_path, monkeypatch):
+        posted = self._posted(monkeypatch)
+        answering = made_up_answering(tmp_path, dashboard_enabled=True)
+
+        for _ in range(3):
+            answering.update_dashboard()
+
+        assert [snapshot_in(word) for word in posted] == [load_dashboard_snapshot(
+            answering.config.dashboard_state_file)]

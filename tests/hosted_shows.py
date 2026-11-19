@@ -53,4 +53,4 @@ def publish_the_show(config: BridgeConfig, funestra: FunTimeFunestra, *, favorit
     if enhanced is not None:
         buttons.append(Button(f"{funestra.label}_enhanced", "E", "Enhanced only", lit=enhanced))
     hud = HudModel(funestra=funestra.label, rows=(tuple(buttons),))
-    config.satellite(funestra).origenerator_hud_file.write_text(hud_text(hud), encoding="utf-8")
+    assert publish_whole(config.satellite(funestra).origenerator_hud_file, hud_text(hud))

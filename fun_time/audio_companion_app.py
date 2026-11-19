@@ -14,6 +14,7 @@ from typing import Any
 import pygame
 from app_support.cli import preparse_config_path
 from app_support.logging_utils import configure_logging, install_exception_logging
+from app_support.threading_utils import start_daemon_thread
 from funestra.audio_outputs import Output, pick_output
 from funestra.file_channel import read_paused_state
 from pygame._sdl2.audio import get_audio_device_names
@@ -87,17 +88,22 @@ class AudioPlaybackController:
     play_start_position: float = 0.0
     clip_positions: dict[Path, float] = field(default_factory=dict)
     clip_lengths: dict[Path, float | None] = field(default_factory=dict)
+    measure_aside: Callable[[Callable[[], None]], None] = field(
+        default=lambda measure: start_daemon_thread(target=measure, name="sound-length"))
+    being_measured: set[Path] = field(default_factory=set)
 
     def get_clip_length(self, path: Path) -> float | None:
         if path in self.clip_lengths:
             return self.clip_lengths[path]
+        if path not in self.being_measured:
+            self.being_measured.add(path)
+            self.measure_aside(lambda: self._keep_the_length(path, self.sound_length(path)))
+        return None
 
-        length = self.sound_length(path)
+    def _keep_the_length(self, path: Path, length: float | None) -> None:
         if length is not None and (not math.isfinite(length) or length <= 0):
             length = None
-
         self.clip_lengths[path] = length
-        return length
 
     def normalize_position(self, path: Path, value: float) -> float:
         if value < 0:

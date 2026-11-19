@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,6 +35,7 @@ from .single_instance import (
     the_one_sessions_mutex,
 )
 from .startup_steps import timed_step
+from .unlogged_messages import wake_the_dashboard
 from .win32_taskbar import APP_USER_MODEL_ID
 
 if TYPE_CHECKING:
@@ -174,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
         tell_the_hidden_launcher_startup_resolved(config)
         return 1
 
-    open_event_log(state_dir)
+    open_event_log(state_dir, after_an_announcement=partial(wake_the_dashboard, state_dir))
     with timed_step(logger, "opening the loading screen"):
         loading_screen = open_the_loading_screen(
             state_dir, show_overlays=env.show_overlays,

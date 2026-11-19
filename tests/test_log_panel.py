@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from itertools import pairwise
 from pathlib import Path
@@ -24,7 +23,7 @@ from shared_ui.spacing import (
     MARGIN_STANDARD,
 )
 
-from fun_time.event_log import FAVORITE, LEVELS_BY_NAME, MESSAGE, EventRecord, event_line
+from fun_time.event_log import FAVORITE, LEVELS_BY_NAME, MESSAGE, EventRecord
 from fun_time.log_panel import (
     _COPY_BUTTON_MARGIN,
     _COPY_ICON_SIZE,
@@ -35,7 +34,7 @@ from fun_time.log_panel_model import (
     MAX_RECORDS,
     LogFilter,
     LogPanelState,
-    append_records,
+    change_the_rows,
     copy_button_position,
     format_record,
     load_ui_state,
@@ -86,20 +85,44 @@ class TestVisibleRecords:
         assert [r.message for r in visible_records(records, f)] == ["No other seeds", "boom"]
 
 
-class TestAppendRecords:
+class TestChangeTheRows:
+    EVERYTHING = LogFilter(verbosity=logging.DEBUG, sources=ALL_SOURCES)
+
     def test_appends_in_order(self):
         buffer = [_record(message="a")]
-        out = append_records(buffer, [_record(message="b")])
+
+        out, change = change_the_rows(buffer, [_record(message="b")], self.EVERYTHING)
+
         assert [r.message for r in out] == ["a", "b"]
+        assert (change.dropped, [r.message for r in change.added]) == (0, ["b"])
 
     def test_drops_the_oldest_past_the_cap_so_a_long_session_stays_bounded(self):
         buffer = [_record(message=str(i)) for i in range(MAX_RECORDS)]
 
-        out = append_records(buffer, [_record(message="newest")])
+        out, change = change_the_rows(buffer, [_record(message="newest")], self.EVERYTHING)
 
         assert len(out) == MAX_RECORDS
         assert out[-1].message == "newest"
         assert out[0].message == "1"
+        assert (change.dropped, [r.message for r in change.added]) == (1, ["newest"])
+
+    def test_a_hidden_line_falling_off_the_top_takes_no_row_with_it(self):
+        buffer = [_record(level=logging.DEBUG, message="chatter"),
+                  *[_record(level=MESSAGE, message=str(i)) for i in range(MAX_RECORDS - 1)]]
+        shown = LogFilter(verbosity=MESSAGE, sources=ALL_SOURCES)
+
+        _out, change = change_the_rows(buffer, [_record(level=logging.DEBUG, message="more")], shown)
+
+        assert (change.dropped, change.added) == (0, [])
+
+    def test_a_batch_longer_than_the_cap_keeps_only_its_own_newest_lines(self):
+        buffer = [_record(message="old")]
+        batch = [_record(message=str(i)) for i in range(MAX_RECORDS + 1)]
+
+        out, change = change_the_rows(buffer, batch, self.EVERYTHING)
+
+        assert out == batch[1:]
+        assert (change.dropped, change.added) == (1, batch[1:])
 
 
 class TestLevelColor:
@@ -147,8 +170,8 @@ class TestCopyButtonPosition:
         assert y == 200 - 16 - 2
 
 
-def _event_line(message: str) -> str:
-    return json.dumps({"ts": 0.0, "level": MESSAGE, "source": "system", "msg": message}) + "\n"
+def _listed(message: str) -> EventRecord:
+    return EventRecord(ts=0.0, level=MESSAGE, source="system", message=message)
 
 
 @pytest.fixture
@@ -158,9 +181,8 @@ def panel_factory(tmp_path: Path):
 
     def factory(messages: list[str]) -> LogPanelWidget:
         QApplication.clipboard().clear()
-        log = tmp_path / "event_log.jsonl"
-        log.write_text("".join(_event_line(m) for m in messages), encoding="utf-8")
-        panel = LogPanelWidget(log, tmp_path / "log_panel_state.ini")
+        panel = LogPanelWidget(tmp_path / "log_panel_state.ini")
+        panel.take_records([_listed(m) for m in messages])
         panel.resize(300, 200)
         panel.show()
         built.append(panel)
@@ -196,9 +218,56 @@ def _copy_button(panel: LogPanelWidget) -> QToolButton:
 
 
 def _tail_advances(panel: LogPanelWidget, message: str) -> None:
-    with panel._event_log.open("a", encoding="utf-8") as fh:
-        fh.write(_event_line(message))
-    panel._read_the_lines_other_processes_appended()
+    panel.take_records([_listed(message)])
+
+
+def _mark_the_rows_shown(panel: LogPanelWidget) -> None:
+    for row in range(panel._list.count()):
+        panel._list.item(row).setData(Qt.ItemDataRole.UserRole, "already shown")
+
+
+def _rows_still_marked(panel: LogPanelWidget) -> list[bool]:
+    return [panel._list.item(row).data(Qt.ItemDataRole.UserRole) == "already shown"
+            for row in range(panel._list.count())]
+
+
+class TestNewLines:
+    def test_a_new_line_adds_one_row_and_keeps_the_rows_already_shown(
+            self, panel_factory, monkeypatch):
+        panel = panel_factory(["Clip state", "No other seeds"])
+        _mark_the_rows_shown(panel)
+        added = []
+        real_add = panel._list.addItem
+        monkeypatch.setattr(panel._list, "addItem", lambda item: (added.append(item), real_add(item)))
+
+        _tail_advances(panel, "Similar clip")
+        for _ in range(3):
+            panel.take_records([])
+
+        assert len(added) == 1
+        assert _rows_still_marked(panel) == [True, True, False]
+
+    def test_lines_the_filter_hides_touch_no_row(self, panel_factory, monkeypatch):
+        panel = panel_factory(["Clip state"])
+        _mark_the_rows_shown(panel)
+        added = []
+        monkeypatch.setattr(panel._list, "addItem", added.append)
+
+        for n in range(3):
+            panel.take_records([_record(level=logging.DEBUG, message=f"chatter {n}")])
+
+        assert added == []
+        assert _rows_still_marked(panel) == [True]
+
+    def test_hearing_the_words_rewrites_only_the_row_they_stand_in(self, panel_factory):
+        panel = panel_factory(["Clip state"])
+        panel.take_records([_said(COUNTED, spoken_at=1.0, flashes=False)])
+        _mark_the_rows_shown(panel)
+
+        panel.show_what_was_heard([_said(WORDED, spoken_at=1.0)])
+
+        assert _rows_still_marked(panel) == [True, True]
+        assert panel._list.item(1).text().endswith(WORDED)
 
 
 class TestHoverCopyButton:
@@ -313,9 +382,7 @@ class TestWhatWasHeard:
         assert heard == {2.0: "two", 3.0: "three"}
 
     def _logged_by_count(self, panel: LogPanelWidget) -> None:
-        with panel._event_log.open("a", encoding="utf-8") as fh:
-            fh.write(event_line(_said(COUNTED, spoken_at=1.0, flashes=False)) + "\n")
-        panel._read_the_lines_other_processes_appended()
+        panel.take_records([_said(COUNTED, spoken_at=1.0, flashes=False)])
 
     @pytest.mark.parametrize("words_first", [False, True])
     def test_a_line_about_something_said_lists_the_words_heard_in_place_of_their_count(

@@ -14,7 +14,8 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 from app_support import file_channel
-from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
+from app_support.threading_utils import wait_until
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QColor, QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox, QTextBrowser, QWidget
@@ -37,7 +38,7 @@ from shared_ui.testing import appending_to, icons_lacking
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
-from fun_time import dashboard_app, load_config, preview_marker
+from fun_time import dashboard_app, load_config, message_feed, preview_marker
 from fun_time.command_value import parse_command
 from fun_time.config import VoiceControlConfig
 from fun_time.crown import Crown
@@ -67,6 +68,11 @@ from fun_time.dashboard_app import (
     load_dashboard_app_config,
     record_imported_checkout,
     write_dashboard_command,
+)
+from fun_time.dashboard_bridge import (
+    DashboardSnapshotWriter,
+    build_dashboard_snapshot_text,
+    snapshot_word,
 )
 from fun_time.dashboard_controls import BarState
 from fun_time.dashboard_layout import (
@@ -98,7 +104,7 @@ from fun_time.rfb_mode_selector import STILL_STARTING_TOOLTIP
 from fun_time.rfb_modes import RfbMode
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
-from fun_time.unlogged_messages import flash_unlogged
+from fun_time.unlogged_messages import flash_unlogged, wake_the_dashboard
 from fun_time.voice_control import VoiceController
 from fun_time.window_layout import (
     compute_main_media_rect,
@@ -1641,12 +1647,10 @@ def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_eithe
         with patch("fun_time.message_feed.loading_screen_is_up", return_value=True):
             window._messages.poll()
         assert window._messages.overlay.flashed == []
-        assert window._messages.offset == 0
 
         with patch("fun_time.message_feed.loading_screen_is_up", return_value=False):
             window._messages.poll()
         assert [m for m, _ in window._messages.overlay.flashed] == ["Clip saved"]
-        assert window._messages.offset > 0
     finally:
         window.close()
 
@@ -1697,9 +1701,11 @@ def test_an_event_that_is_not_an_announcement_is_read_past_not_flashed(
         _write_event(dashboard_app_config, "just a log line", level=logging.INFO)
 
         window._messages.poll()
-
         assert window._messages.overlay.flashed == []
-        assert window._messages.offset > 0
+
+        _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
+        window._messages.poll()
+        assert [m for m, _ in window._messages.overlay.flashed] == ["Clip saved"]
     finally:
         window.close()
 
@@ -1739,7 +1745,6 @@ def test_speech_that_is_no_command_is_flashed_and_listed_in_its_words_and_saved_
         while not window._messages.overlay.flashed and time.monotonic() < deadline:
             window._messages.poll()
             time.sleep(0.02)
-        window._log_widget._read_the_lines_other_processes_appended()
         listed = [window._log_widget._list.item(row).text()
                   for row in range(window._log_widget._list.count())]
         flashed = [message for message, _target in window._messages.overlay.flashed]
@@ -1982,3 +1987,104 @@ def test_moving_within_one_control_does_not_repaint_it_again(bar):
         _point_at(bar, x + 2, y + 1)
 
     repaint.assert_called_once()
+
+
+class TestTheBarRepaintsOnlyWhenSomethingOnItChanged:
+    def _counting(self, window, monkeypatch) -> tuple[list, list]:
+        loads, scenes = [], []
+        real_load = dashboard_app.load_dashboard_snapshot
+        monkeypatch.setattr(dashboard_app, "load_dashboard_snapshot",
+                            lambda path: (loads.append(path), real_load(path))[1])
+        real_set = window._widget.set_scene
+        monkeypatch.setattr(window._widget, "set_scene",
+                            lambda scene: (scenes.append(scene), real_set(scene))[1])
+        return loads, scenes
+
+    def test_refreshes_with_the_snapshot_unchanged_read_and_repaint_nothing(
+            self, dashboard_window, dashboard_app_config, monkeypatch):
+        DashboardSnapshotWriter(dashboard_app_config.dashboard_state_file).write(_snapshot(favorites=True))
+        dashboard_window._refresh()
+        loads, scenes = self._counting(dashboard_window, monkeypatch)
+
+        for _ in range(3):
+            dashboard_window._refresh()
+
+        assert (loads, scenes) == ([], [])
+
+    def test_a_snapshot_that_changed_is_read_and_repainted_once(
+            self, dashboard_window, dashboard_app_config, monkeypatch):
+        dashboard_window._refresh()
+        loads, scenes = self._counting(dashboard_window, monkeypatch)
+
+        DashboardSnapshotWriter(dashboard_app_config.dashboard_state_file).write(_snapshot(favorites=True))
+        for _ in range(3):
+            dashboard_window._refresh()
+
+        assert (len(loads), len(scenes)) == (1, 1)
+        assert dashboard_window._last_snapshot == _snapshot(favorites=True)
+
+    def test_a_snapshot_posted_on_the_press_inbox_shows_at_once_and_lights_no_press(
+            self, dashboard_window):
+        snapshot = _snapshot(omni_paused=True)
+
+        dashboard_window._apply_presses([snapshot_word(build_dashboard_snapshot_text(snapshot))])
+
+        assert dashboard_window._last_snapshot == snapshot
+        assert dashboard_window._flash.lit() == frozenset()
+
+
+def test_a_message_flashes_before_the_log_panel_lists_it(dashboard_app_config, monkeypatch):
+    window = _message_window(dashboard_app_config, held=False)
+    order: list[str] = []
+    try:
+        monkeypatch.setattr(window._messages.overlay, "flash",
+                            lambda record, target: order.append("flashed"))
+        monkeypatch.setattr(window._log_widget, "take_records",
+                            lambda records: order.append("listed"))
+        monkeypatch.setattr(window._messages, "_list_records", window._log_widget.take_records)
+        _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
+
+        window._messages.poll()
+    finally:
+        window.close()
+
+    assert order == ["flashed", "listed"]
+
+
+def test_one_read_of_the_event_log_feeds_both_the_messages_and_the_log_panel(
+        dashboard_app_config, monkeypatch):
+    window = _message_window(dashboard_app_config, held=False)
+    overlay = window._messages.overlay
+    reads: list[Path] = []
+    real_read = message_feed.read_events
+    monkeypatch.setattr(message_feed, "read_events",
+                        lambda path, offset: (reads.append(path), real_read(path, offset))[1])
+    try:
+        _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
+        for _ in range(3):
+            window._messages.poll()
+        listed = [window._log_widget._list.item(row).text()
+                  for row in range(window._log_widget._list.count())]
+    finally:
+        window.close()
+
+    assert len(reads) == 3
+    assert [m for m, _ in overlay.flashed] == ["Clip saved"]
+    assert [line.endswith("Clip saved") for line in listed] == [True]
+
+
+def test_a_message_logged_by_fun_time_reaches_the_screen_without_waiting_for_the_poll(
+        dashboard_app_config):
+    window = _message_window(dashboard_app_config, held=False)
+    overlay = window._messages.overlay
+    try:
+        for timer in window.findChildren(QTimer):
+            timer.stop()
+        _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
+
+        assert wake_the_dashboard(dashboard_app_config.state_dir)
+        wait_until(lambda: overlay.flashed, pump=QApplication.processEvents)
+    finally:
+        window.close()
+
+    assert [m for m, _ in overlay.flashed] == ["Clip saved"]

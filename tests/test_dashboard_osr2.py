@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from funestra.main_hud import MainHudModel
 from funestra.main_hud_painter import MainHud
@@ -42,17 +44,33 @@ def test_until_the_app_publishes_a_part_it_draws_nothing(widget):
     assert set(raw[3::4]) == {0}
 
 
-def test_every_read_repaints_it_once_a_part_is_up_for_the_dot_walks_by_the_clock(
+def test_a_read_that_changes_what_it_draws_repaints_it_and_one_that_does_not_repaints_nothing(
         widget, tmp_path, monkeypatch):
     repaints = []
     monkeypatch.setattr(widget, "update", lambda: repaints.append("repaint"))
+    drawings = iter([(b"first", (1, 1)), (b"first", (1, 1)), (b"walked", (1, 1))])
+    monkeypatch.setattr(widget, "drawing", lambda: next(drawings))
 
     widget.poll()
     published(tmp_path, a_part())
-    widget.poll()
-    widget.poll()
+    for _ in range(3):
+        widget.poll()
 
     assert repaints == ["repaint"] * 2
+
+
+def test_reads_with_nothing_republished_open_neither_file_again(widget, tmp_path, monkeypatch):
+    published(tmp_path, a_part())
+    handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout())
+    opened = []
+    real_read_text = Path.read_text
+    monkeypatch.setattr(Path, "read_text",
+                        lambda self, *a, **k: (opened.append(self.name), real_read_text(self, *a, **k))[1])
+
+    for _ in range(3):
+        widget.poll()
+
+    assert len(opened) == 2
 
 
 def test_it_holds_the_app_a_whole_part_takes_before_one_has_arrived(widget, tmp_path):

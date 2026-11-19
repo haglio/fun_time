@@ -113,6 +113,7 @@ from fun_time.single_instance import (
 )
 from fun_time.startup_steps import timed_step
 from fun_time.state_file_names import take_up_the_retired_state_file_names
+from fun_time.unlogged_messages import wake_the_dashboard
 from fun_time.vr_videos import shapes_verb
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -370,7 +371,7 @@ def _prepare_the_launch(config, env: SessionEnvironment, *, cancelable: bool) ->
         state_dir / "windows_bridge_launch.ini",
     )
     take_up_the_retired_state_file_names(state_dir)
-    open_event_log(state_dir)
+    open_event_log(state_dir, after_an_announcement=partial(wake_the_dashboard, state_dir))
     manifest = LaunchManifest.read(manifest_path)
     log_into_the_hotkey_scripts_log(Path(manifest.runtime.windows_bridge_log_file))
     bridge_config = build_bridge_config_from_manifest(manifest, vr_main_funestra=True)

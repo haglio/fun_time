@@ -5,13 +5,16 @@ from pathlib import Path
 
 import pytest
 
+from fun_time import dashboard_bridge
 from fun_time.dashboard_bridge import (
     DashboardSnapshot,
+    DashboardSnapshotWriter,
     build_dashboard_snapshot_text,
     decode_snapshot,
-    write_dashboard_snapshot,
+    is_snapshot_word,
+    snapshot_word,
 )
-from fun_time.dashboard_runtime import load_dashboard_snapshot
+from fun_time.dashboard_runtime import load_dashboard_snapshot, snapshot_in
 from fun_time.rfb_modes import RfbMode
 
 
@@ -22,7 +25,7 @@ def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
     )
     path = tmp_path / "dashboard_state.ini"
 
-    write_dashboard_snapshot(path, snapshot)
+    DashboardSnapshotWriter(path).write(snapshot)
 
     assert load_dashboard_snapshot(path) == snapshot
 
@@ -74,11 +77,11 @@ def test_the_snapshot_says_when_every_funestra_has_nothing_to_reset():
     assert "[reset]\nnothing=0\n" in build_dashboard_snapshot_text()
 
 
-def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_path: Path):
+def test_the_snapshot_writer_writes_utf16_and_skips_identical_content(tmp_path: Path):
     output = tmp_path / "dashboard_state.ini"
 
-    first = write_dashboard_snapshot(output, DashboardSnapshot(omni_paused=True))
-    second = write_dashboard_snapshot(output, DashboardSnapshot(omni_paused=True))
+    first = DashboardSnapshotWriter(output).write(DashboardSnapshot(omni_paused=True))
+    second = DashboardSnapshotWriter(output).write(DashboardSnapshot(omni_paused=True))
 
     assert first is True
     assert second is False
@@ -90,7 +93,7 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
 class TestTheSnapshotsEncoding:
     def test_what_the_writer_wrote_reads_back(self, tmp_path):
         path = tmp_path / "dashboard_state.ini"
-        write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True))
+        DashboardSnapshotWriter(path).write(DashboardSnapshot(omni_paused=True))
 
         assert decode_snapshot(path.read_bytes()) == build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True))
 
@@ -111,7 +114,7 @@ class TestTheSnapshotsEncoding:
         path = tmp_path / "dashboard_state.ini"
         path.write_bytes(b"\xff\xfe\xfd")
 
-        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is True
+        assert DashboardSnapshotWriter(path).write(DashboardSnapshot(omni_paused=True)) is True
 
 
 class TestTheWriterSparesTheLocklessReaderARewrite:
@@ -122,26 +125,26 @@ class TestTheWriterSparesTheLocklessReaderARewrite:
     def test_an_identical_snapshot_is_not_rewritten(self, tmp_path):
         path = tmp_path / "dashboard_state.ini"
 
-        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is True
-        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is False
+        assert DashboardSnapshotWriter(path).write(DashboardSnapshot(omni_paused=True)) is True
+        assert DashboardSnapshotWriter(path).write(DashboardSnapshot(omni_paused=True)) is False
 
     def test_nor_when_the_file_carries_the_line_endings_windows_gave_it(self, tmp_path):
         path = tmp_path / "dashboard_state.ini"
         self._write_as_windows_would(path, build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True)))
 
-        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is False
+        assert DashboardSnapshotWriter(path).write(DashboardSnapshot(omni_paused=True)) is False
 
     def test_a_snapshot_that_did_change_is_written(self, tmp_path):
         path = tmp_path / "dashboard_state.ini"
         self._write_as_windows_would(path, build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True)))
 
-        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=False)) is True
+        assert DashboardSnapshotWriter(path).write(DashboardSnapshot(omni_paused=False)) is True
 def test_whether_the_headset_is_ready_survives_the_round_trip(tmp_path):
     state_file = tmp_path / "dashboard_state.ini"
-    write_dashboard_snapshot(state_file, DashboardSnapshot(headset_ready=True))
+    DashboardSnapshotWriter(state_file).write(DashboardSnapshot(headset_ready=True))
     assert load_dashboard_snapshot(state_file).headset_ready is True
 
-    write_dashboard_snapshot(state_file, DashboardSnapshot(headset_ready=False))
+    DashboardSnapshotWriter(state_file).write(DashboardSnapshot(headset_ready=False))
     assert load_dashboard_snapshot(state_file).headset_ready is False
 
 
@@ -150,3 +153,39 @@ def test_a_snapshot_from_a_session_that_never_knew_offers_the_crossing(tmp_path)
     state_file.write_text("[session]\nvr=0\n", encoding="utf-8")
 
     assert load_dashboard_snapshot(state_file).headset_ready is True
+
+
+class TestTheWriterKeepsWhatItLastWrote:
+    def test_passes_with_nothing_changed_read_the_file_back_at_most_once(
+            self, tmp_path, monkeypatch):
+        reads: list[Path] = []
+        real = dashboard_bridge._read_existing_snapshot
+        monkeypatch.setattr(dashboard_bridge, "_read_existing_snapshot",
+                            lambda path: (reads.append(path), real(path))[1])
+        writer = DashboardSnapshotWriter(tmp_path / "dashboard_state.ini")
+
+        written = [writer.write(DashboardSnapshot(omni_paused=True)) for _ in range(4)]
+
+        assert written == [True, False, False, False]
+        assert len(reads) <= 1
+
+    def test_a_write_that_failed_is_tried_again_on_the_next_pass(self, tmp_path):
+        path = tmp_path / "dashboard_state.ini"
+        path.mkdir()
+        writer = DashboardSnapshotWriter(path)
+        with pytest.raises(PermissionError):
+            writer.write(DashboardSnapshot(omni_paused=True))
+        path.rmdir()
+
+        assert writer.write(DashboardSnapshot(omni_paused=True)) is True
+
+
+class TestTheSnapshotAsAWordOnThePressInbox:
+    def test_the_word_carries_the_whole_snapshot(self):
+        snapshot = DashboardSnapshot(omni_paused=True, favorites=True, rfb_mode=RfbMode.ORIGENERATOR)
+
+        assert snapshot_in(snapshot_word(build_dashboard_snapshot_text(snapshot))) == snapshot
+
+    def test_a_press_is_never_taken_for_a_snapshot(self):
+        assert not is_snapshot_word("voice_toggle")
+        assert snapshot_in("voice_toggle") is None

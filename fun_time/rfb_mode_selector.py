@@ -63,6 +63,8 @@ class RfbModeSelector:
         self._post = post
         self.placed: list[tuple[Rect, Button]] = []
         self._hovered: tuple[Rect, Button] | None = None
+        self._painted: tuple | None = None
+        self._rgba = b""
 
     def show(self, rfb_mode: RfbMode, *, origenerator_core_ready: bool) -> bool:
         placed = place_selector(selector_buttons(rfb_mode, origenerator_core_ready=origenerator_core_ready),
@@ -75,9 +77,16 @@ class RfbModeSelector:
     def name_under_the_pointer(self) -> str | None:
         return None if self._hovered is None else self._hovered[1].tooltip_on_hover
 
+    def what_the_pointer_shows(self) -> Rect | None:
+        return None if self._hovered is None else self._hovered[0]
+
     def rgba(self, size: tuple[int, int]) -> bytes:
-        hovered = None if self._hovered is None else self._hovered[0]
-        return paint_selector(size, self.placed, hovered=hovered).tobytes("raw", "RGBA")
+        hovered = self.what_the_pointer_shows()
+        painted = (size, self.placed, hovered)
+        if painted != self._painted:
+            self._painted = painted
+            self._rgba = paint_selector(size, self.placed, hovered=hovered).tobytes("raw", "RGBA")
+        return self._rgba
 
     def press(self, x: int, y: int) -> None:
         under = self._under(x, y)
