@@ -8,6 +8,7 @@ from funestra.modes import LengthMode
 
 from fun_time.main_list import MainList, MainListSettings, WrittenList
 from fun_time.media_metadata import metadata_path_for
+from tests.disk_looks import DiskLooks
 from tests.drive_fakes import files_that_never_answer
 
 
@@ -73,6 +74,18 @@ class TestFavorites:
 
         assert MainListSettings().favorites is False
         assert len(the_list.videos(MainListSettings())) == 2
+
+    def test_favorites_and_an_orientation_together_read_each_videos_record_once(
+            self, tmp_path, monkeypatch):
+        the_list, videos = _recorded_library(tmp_path, {
+            f"video {number}": {"favorite": number % 2 == 0, "video": {"orientation": "landscape"}}
+            for number in range(5)})
+        looks = DiskLooks(monkeypatch, under=tmp_path / "videos" / "metadata")
+
+        kept = the_list.videos(MainListSettings(favorites=True, plays_portrait=False))
+
+        assert (sorted(kept), looks.made["open"]) == (
+            sorted(videos[f"video {number}"] for number in (0, 2, 4)), 5)
 
     def test_with_enhanceds_it_keeps_only_the_favorites_with_an_upscale(self, tmp_path):
         the_list, videos = _recorded_library(tmp_path, {

@@ -122,6 +122,27 @@ def a_favorite(item: str | Path, metadata_root: str | Path | None,
     return favorites.is_favorite(record_of(item, metadata_root, gallery))
 
 
+class RecordsRead:
+    def __init__(self, metadata_root: str | Path | None, gallery: Callable[[], Gallery]) -> None:
+        self._metadata_root = metadata_root
+        self._gallery = gallery
+        self._recorded: dict[str, dict] = {}
+
+    def recorded(self, item: str | Path) -> dict:
+        key = str(item)
+        if key not in self._recorded:
+            self._recorded[key] = recorded_for(item, self._metadata_root)
+        return self._recorded[key]
+
+    def of(self, item: str | Path) -> dict:
+        if is_ai_video(Path(item)):
+            return self._gallery().record_of(item)
+        return self.recorded(item)
+
+    def favorite(self, item: str | Path) -> bool:
+        return favorites.is_favorite(self.of(item))
+
+
 def favorite_recorded_in(record: Path) -> bool:
     return favorites.is_favorite(load_metadata(record))
 
