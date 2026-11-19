@@ -14,7 +14,6 @@ from funestra.hud_placement import HudCorner, HudEdge
 from funestra.hud_title import ENHANCED_LABEL, FAVORITES_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import LengthMode, MainMode
-from funestra.playlist import PlaylistItem
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
@@ -42,7 +41,12 @@ from fun_time.rfb_modes import RfbMode
 from fun_time.satellite_groups import send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
-from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_orientations
+from main_funestra.genau_verbs import (
+    genau_enhanced,
+    genau_favorites,
+    genau_orientations,
+    genau_plays,
+)
 from tests.bridge_configs import made_up_bridge_config
 from tests.hosted_shows import publish_the_show
 from tests.made_up_gallery import a_row
@@ -769,9 +773,9 @@ def test_a_flick_the_gallery_hands_over_plays_in_genau_which_the_main_funestra_g
                                   config)
 
     assert state.main_mode is MainMode.GENAU
-    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW genau"]
-    assert config.genau.cmd_file.read_text(encoding="utf-8").splitlines() == [
-        play_file(PlaylistItem(flick))]
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == [
+        genau_plays(flick), "SHOW genau"]
+    assert not config.genau.cmd_file.exists()
     assert ops == [WindowOp(op="show_window", key="main_funestra"),
                    WindowOp(op="activate_window", key="main_funestra")]
 

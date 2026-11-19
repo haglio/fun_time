@@ -8,12 +8,13 @@ from typing import Any
 from app_support import favorites
 from funestra.flick_folder import flat_flicks_in, scan_flicks, trash_folder_for
 from funestra.flick_overlay import FlickFrame
-from funestra.funestra_verbs import NEXT, PREV
+from funestra.funestra_verbs import NEXT, PREV, play_file
 from funestra.genau_controls import apply_runtime_command
 from funestra.inclusion_pair import BOTH, ORIENTATION, Included
 from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
 from funestra.modes import MessageLevel
+from funestra.playlist import PlaylistItem
 from shared_ui.orientation import PORTRAIT
 
 from fun_time.arrivals import LOOK_EVERY_S, Arrivals
@@ -39,6 +40,7 @@ from .genau_verbs import apply_command as answer_genaus_verb
 logger = logging.getLogger(__name__)
 
 ROBOT_HAND = "robot hand"
+LONGEST_WAIT_FOR_A_HANDED_OVER_STROKE_S = 3.0
 
 
 @dataclass(frozen=True)
@@ -97,6 +99,8 @@ class Genau:
         self._flick: Path | None = None
         self._loading: str | None = None
         self._showing = False
+        self._awaited: Path | None = None
+        self._stops_waiting_at = 0.0
         self._clock = clock
         browsed = self._browsed()
         turned = self._turned_as_asked(browsed)
@@ -132,6 +136,16 @@ class Genau:
             apply_runtime_command(command, self._engine.controls)
             return True
         return answer_genaus_verb(command, self)
+
+    def play_before_taking_the_window(self, flick: Path) -> bool:
+        if not flick.is_file():
+            return False
+        apply_runtime_command(play_file(PlaylistItem(flick)), self._engine.controls)
+        self._awaited, self._stops_waiting_at = flick, self._clock() + LONGEST_WAIT_FOR_A_HANDED_OVER_STROKE_S
+        return True
+
+    def ready_to_show(self) -> bool:
+        return self._awaited is None or self._clock() >= self._stops_waiting_at
 
     def keep_favorites(self, on: bool) -> None:
         self._favorites = on
@@ -183,6 +197,8 @@ class Genau:
 
     def _take_frame(self, frame, flick: Path | None) -> None:
         self._frame, self._flick = frame, flick
+        if flick == self._awaited:
+            self._awaited = None
 
     def _set_loading(self, text: str | None) -> None:
         self._loading = text

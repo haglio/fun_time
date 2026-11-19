@@ -12,6 +12,8 @@ from __future__ import annotations
 _.do_GET  # http.server dispatches by getattr
 _.set_showing  # the Funestra (funestra) tells each User whether it has the window
 _.own_frame  # the Funestra asks the User in front for the frame it brings
+_.ready_to_show  # the Funestra asks a User it was told to show whether it may take the window yet
+genau_plays  # fun_time.mode_switches writes it to the Main Funestra's command file
 _.hide  # the Funestra takes a User's own frame down off the headset's surface
 _.pick  # the Funestra hands them the projection picked off the list
 _.set_bar  # the Funestra hands them the angle the Angle bar is set to

@@ -7,7 +7,8 @@ from pathlib import Path
 
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import play_file
-from funestra.playlist import PlaylistItem
+
+from main_funestra.genau_verbs import genau_plays
 
 from .bridge_records import BridgeConfig, Handler, Route, WindowOp
 from .command_value import Command
@@ -81,9 +82,8 @@ PLAY_IN_GENAU = "genau_play"
 
 def _play_in_genau(command: Command, state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    state, ops = _dispatch_mode_switch(MAIN_GENAU_MODE, state, config, [])
-    append_command(config.genau.cmd_file, play_file(PlaylistItem(Path(command.argument))))
-    return state, ops
+    append_command(config.main_funestra.cmd_file, genau_plays(Path(command.argument)))
+    return _dispatch_mode_switch(MAIN_GENAU_MODE, state, config, [])
 
 
 VALUED: dict[str, Route] = {PLAY_IN_KINO: _play_in_kino, PLAY_IN_GENAU: _play_in_genau}

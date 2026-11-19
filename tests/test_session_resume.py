@@ -456,10 +456,12 @@ class TestResumeGenau:
     _KEPT_FOR_ITS_LAUNCH: ClassVar[dict] = {"favorites": ("genau_favorites_filter",), "enhanced": ("genau_enhanced_filter",),
                             "orientations": ("genau_plays_portrait", "genau_plays_landscape")}
 
+    _NO_SETTING_ON_THE_MAIN_FUNESTRAS_CHANNEL: ClassVar[frozenset] = frozenset({"plays"})
+
     def test_every_verb_genau_answers_on_the_main_funestras_channel_comes_back_at_its_launch(self):
         controls = {control.name for control, _ in GENAUS_VERBS_ON_THE_MAIN_FUNESTRA.values()}
 
-        assert controls == set(self._KEPT_FOR_ITS_LAUNCH)
+        assert controls == set(self._KEPT_FOR_ITS_LAUNCH) | self._NO_SETTING_ON_THE_MAIN_FUNESTRAS_CHANNEL
         assert {field for fields in self._KEPT_FOR_ITS_LAUNCH.values() for field in fields} <= set(
             RESUMED_FIELDS)
 

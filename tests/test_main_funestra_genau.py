@@ -21,6 +21,7 @@ from fun_time.content import Noun
 from fun_time.gallery import Gallery
 from fun_time.genau_config import GenauSettings
 from fun_time.media_metadata import mark_favorite, metadata_path_for
+from main_funestra import genau as genau_module
 from main_funestra.gallery_names import NO_GALLERY_NAMES, GalleryNames
 from main_funestra.genau import (
     EngineSeams,
@@ -29,7 +30,12 @@ from main_funestra.genau import (
     GenauFlicks,
     GenauOutputs,
 )
-from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_orientations
+from main_funestra.genau_verbs import (
+    genau_enhanced,
+    genau_favorites,
+    genau_orientations,
+    genau_plays,
+)
 from tests.genau_fakes import (
     FakeNotifier,
     FakeSink,
@@ -509,6 +515,30 @@ class TestWhoHasTheWindow:
         world.tick()
 
         assert world.notifier.visible[-2:] == [True, False]
+
+    def test_nothing_asked_of_it_it_is_ready_to_take_the_window(self, tmp_path):
+        assert World(tmp_path).genau.ready_to_show() is True
+
+    def test_a_stroke_handed_over_holds_the_window_back_until_that_stroke_is_on_screen(
+            self, tmp_path):
+        world = World(tmp_path)
+        gamma = world.flat_dir / "gamma three.mp4"
+
+        assert world.genau.apply_command(genau_plays(gamma)) is True
+        before = world.genau.ready_to_show()
+        world.tick()
+
+        assert (before, world.genau.ready_to_show()) == (False, True)
+        assert world.genau.top_block() == ModeHud(video="gamma three")
+
+    def test_a_stroke_handed_over_that_never_comes_up_holds_the_window_back_no_longer_than_its_wait(
+            self, tmp_path):
+        world = World(tmp_path)
+        world.genau.apply_command(genau_plays(world.flat_dir / "gamma three.mp4"))
+
+        world.clock.now += genau_module.LONGEST_WAIT_FOR_A_HANDED_OVER_STROKE_S
+
+        assert world.genau.ready_to_show() is True
 
 
 def test_closing_it_closes_the_device_line_and_the_audio_companion(tmp_path):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Collection
+from pathlib import Path
 from typing import Any
 
 from funestra.control_registry import Control, Verb, bind, look_up
@@ -10,6 +11,7 @@ from shared_ui.orientation import LANDSCAPE, ORIENTATIONS, PORTRAIT
 SET_GENAU_FAVORITES = "SET_GENAU_FAVORITES"
 SET_GENAU_ENHANCED = "SET_GENAU_ENHANCED"
 SET_GENAU_ORIENTATIONS = "SET_GENAU_ORIENTATIONS"
+GENAU_PLAYS = "GENAU_PLAYS"
 
 
 def genau_favorites(on: bool) -> str:
@@ -32,11 +34,19 @@ def genau_orientations(included: Included) -> str:
     return " ".join((SET_GENAU_ORIENTATIONS, *orientation_words(included)))
 
 
+def genau_plays(flick: Path) -> str:
+    return f"{GENAU_PLAYS} {flick}"
+
+
 def _switched_by(keep: Callable[[Any], Callable[[bool], None]]) -> Callable[[Any, str], bool]:
     def switch(genau: Any, value: str) -> bool:
         keep(genau)(value != "0")
         return True
     return switch
+
+
+def _plays(genau: Any, value: str) -> bool:
+    return genau.play_before_taking_the_window(Path(value.strip()))
 
 
 def _set_orientations(genau: Any, value: str) -> bool:
@@ -54,6 +64,8 @@ VERBS = bind((
             verbs=(Verb(SET_GENAU_ENHANCED, _switched_by(lambda genau: genau.keep_enhanced), takes_a_value=True),)),
     Control(name="orientations",
             verbs=(Verb(SET_GENAU_ORIENTATIONS, _set_orientations, takes_a_value=True),)),
+    Control(name="plays",
+            verbs=(Verb(GENAU_PLAYS, _plays, takes_a_value=True),)),
 ))
 
 
