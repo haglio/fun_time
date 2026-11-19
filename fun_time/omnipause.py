@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -85,21 +86,23 @@ def apply_enter_omnipause(
     main_mode: str,
     paused: PausedFiles,
     broker_cmd_file: str | Path | None = None,
+    write_flag: Callable[[str | Path, bool], None] = write_flag_file,
+    tell_the_broker: Callable[[str | Path, str], None] = write_broker_command,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "enter",
         omni_paused=omni_paused,
         main_mode=main_mode,
     )
-    write_flag_file(paused.genau, True)
-    write_flag_file(paused.audio, True)
-    write_flag_file(paused.main_funestra, True)
-    write_flag_file(paused.portrait, True)
-    write_flag_file(paused.landscape, True)
-    if paused.origenerator is not None:
-        write_flag_file(paused.origenerator, True)
     if broker_cmd_file is not None:
-        write_broker_command(broker_cmd_file, plan.broker_command)
+        tell_the_broker(broker_cmd_file, plan.broker_command)
+    write_flag(paused.genau, True)
+    write_flag(paused.audio, True)
+    write_flag(paused.main_funestra, True)
+    write_flag(paused.portrait, True)
+    write_flag(paused.landscape, True)
+    if paused.origenerator is not None:
+        write_flag(paused.origenerator, True)
     return OmniPauseFlowResult(
         next_omni_paused=plan.next_omni_paused,
         log_message=plan.log_message,
