@@ -41,7 +41,7 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.dashboard_osr2_model import Osr2PartReader
 from fun_time.dashboard_runtime import load_dashboard_snapshot
-from fun_time.event_log import MESSAGE, SOURCE_MAIN, event_log_path, flash_message
+from fun_time.event_log import SOURCE_MAIN, event_log_path, flash_message
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
 from fun_time.gallery import the_librarys_gallery
@@ -56,6 +56,7 @@ from fun_time.modes import scripted_item, source_roots
 from fun_time.read_when_changed import ReadWhenChanged
 from fun_time.session_handoff import headset_hold_asked
 from fun_time.shared_state import BridgeState, read_shared_state, shared_state_path
+from fun_time.shown_message import ShownMessage
 from fun_time.unlogged_messages import UnloggedMessages
 from fun_time.voice_commands import format_pressed_command
 from main_funestra.cli import build_parser as build_main_funestra_parser
@@ -361,14 +362,14 @@ class _VideoUnit:
         if not self.target.ready:
             return
         width, height = self.target.width, self.target.height
-        shown = None if flashed is None else (flashed.message, flashed.level, width, height)
+        shown = None if flashed is None else (flashed.shown, width, height)
         if shown == self._message_the_pump_painted:
             return
         self._message_the_pump_painted = shown
         if shown is None:
             self.engine.remove_overlay(MESSAGE_OVERLAY_ID)
             return
-        placed = message_bgra(flashed.message, flashed.level, width=width, height=height)
+        placed = message_bgra(flashed.shown, width=width, height=height)
         if placed is None:
             return
         x, y, bgra = placed
@@ -526,7 +527,7 @@ class _MainUnit(_VideoUnit):
     def flash_the_readout(self, now: float) -> None:
         said = self._readout.frame(self.wrap_readout, now=now)
         if said is not None and self._messages is not None:
-            self._messages.flash(said, level=MESSAGE, screen=self.screen_name, now=now)
+            self._messages.flash(ShownMessage(said), screen=self.screen_name, now=now)
 
     def dial_the_wrap(self, *, stretch: float) -> None:
         if stretch != 1.0:
@@ -1270,12 +1271,11 @@ class _MessageUnit:
 
     def pump(self, stop: threading.Event, now: float) -> None:
         flashed = self._messages.flashed(MAIN) if self._main_unit.wraps_the_viewer else None
-        painted = None if flashed is None else (flashed.message, flashed.level)
+        painted = None if flashed is None else flashed.shown
         if painted == self._painted:
             return
         if painted is not None:
-            image = paint_message(
-                flashed.message, flashed.level, max_width=MESSAGE_MAX_WIDTH_PX, size=MESSAGE_FONT_PX)
+            image = paint_message(painted, max_width=MESSAGE_MAX_WIDTH_PX, size=MESSAGE_FONT_PX)
             self.screen.placement = Placement(
                 0.0, MESSAGE_ELEVATION_DEG, image.width / MESSAGE_PX_PER_DEG)
             with self._lock:
