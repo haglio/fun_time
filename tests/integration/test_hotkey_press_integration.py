@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from app_support.win32_loader import load_dll
+from funestra.funestra_verbs import LOCK_PRESSED
 
 from fun_time.config import load_config
 from fun_time.voice_commands import CommandLine, parse_command_line
@@ -147,6 +148,16 @@ def test_next_goes_straight_into_its_funestras_file_and_fun_time_hears_it_alread
     assert (verb, float(when)) == ("NEXT", line.pressed_at)
     assert line.already_sent is True
 
+
+def test_the_lock_key_lights_its_funestras_lock_and_still_asks_fun_time_to_lock(hotkey_script):
+    hotkey_script.press("Down")
+
+    assert seen_within(lambda: hotkey_script.queued() == ["portrait_lock"], seconds=10), (
+        hotkey_script.queued())
+    [line] = hotkey_script.queued_lines()
+    verb, _, when = hotkey_script.portrait_commands.read_text(encoding="utf-8").strip().partition(" ")
+    assert (verb, float(when)) == (LOCK_PRESSED, line.pressed_at)
+    assert line.already_sent is False
 
 def test_a_step_whose_funestra_the_manifest_does_not_name_goes_through_fun_time(hotkey_script):
     hotkey_script.press("d")
