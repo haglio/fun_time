@@ -47,11 +47,12 @@ from .event_log import (
 from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import ChildPids, FunTimeWindows, find_origenerators_window
 from .funestra_deaths import (
-    ORIGENERATOR_NEVER_CAME_UP,
     FunestraDied,
     funestra_died_message,
+    origenerator_never_came_up_message,
     part_closed_message,
 )
+from .funestra_status import origenerator_start_failure
 from .hosted_contract import (
     ASKING_BUDGET_S,
     CLOSE_SLIDESHOWS,
@@ -771,9 +772,14 @@ def activate_origenerator_under_the_loading_screen(
         return runner.answering.state.rfb_mode
     started = time.monotonic()
     pid = runner.window_work.windows.pids.origenerator
+    status_file = runner.answering.config.origenerator.status_file
 
     def wait_for_the_app(has_answered: Callable[[], bool]) -> bool:
         while not has_answered():
+            said = origenerator_start_failure(status_file)
+            if said:
+                logger.error("Origenerator said its start failed: %s", said)
+                raise OrigeneratorNeverCameUp(said)
             if pid and not is_process_alive(pid):
                 logger.error("Origenerator (pid %d) closed itself while Fun Time waited for it", pid)
                 return False
@@ -1082,11 +1088,11 @@ def run_session(
         running = _open_the_session(
             result, launch, loading_screen, hud_publisher, prepared_voice,
             ahk_cmd_file=ahk_cmd_file, pids_file=pids_file, env=env)
-    except OrigeneratorNeverCameUp:
+    except OrigeneratorNeverCameUp as never:
         _take_down_the_startup(
             StartupEnd("Origenerator never finished starting"),
             started, launch, loading_screen, hotkey_script)
-        said = ORIGENERATOR_NEVER_CAME_UP
+        said = origenerator_never_came_up_message(never.said)
         logger.error(said)
         return SessionOver(1, why=said)
     except BaseException:

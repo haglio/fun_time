@@ -109,6 +109,10 @@ NO_ORIGENERATOR_SET_UP = (
 ORIGENERATOR_NEVER_CAME_UP = "Fun Time stopped starting up: Origenerator Core never finished starting."
 
 
+def origenerator_never_came_up_message(said: str) -> str:
+    return f"{ORIGENERATOR_NEVER_CAME_UP}\n\n{said}" if said else ORIGENERATOR_NEVER_CAME_UP
+
+
 def funestra_died_message(funestra: LaunchedFunestra, said: str) -> str:
     return (
         f"Fun Time stopped starting up: {funestra.name} closed itself before Fun Time "

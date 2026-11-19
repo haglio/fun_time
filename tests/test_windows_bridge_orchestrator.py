@@ -48,6 +48,7 @@ from fun_time.manifest import (
     LaunchManifest,
     write_windows_bridge_manifest,
 )
+from fun_time.origenerator_opening import OrigeneratorNeverCameUp
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
@@ -3175,6 +3176,26 @@ class TestARoomLeftInOrigeneratorMode:
         assert over == SessionOver(1, why=ORIGENERATOR_NEVER_CAME_UP)
         assert slept.call_count == 0, (
             "Fun Time went on waiting for an Origenerator whose process had already gone")
+
+    def test_an_app_that_says_its_start_failed_ends_the_start_with_its_words(self, tmp_path):
+        status = tmp_path / "origenerator_status.txt"
+        status.write_text("ready=1\ncore_ready=1\nstart_failed=TypeError: example\n",
+                          encoding="utf-8")
+        runner = SimpleNamespace(
+            opening=SimpleNamespace(activates=True),
+            answering=SimpleNamespace(state=BridgeState(), config=SimpleNamespace(
+                origenerator=SimpleNamespace(status_file=status))),
+            window_work=SimpleNamespace(windows=SimpleNamespace(pids=SimpleNamespace(
+                origenerator=0))),
+            activate_origenerator=lambda *, wait_for_the_app: wait_for_the_app(lambda: False))
+
+        with sleeps_in(windows_bridge_orchestrator) as slept, \
+             pytest.raises(OrigeneratorNeverCameUp) as never:
+            windows_bridge_orchestrator.activate_origenerator_under_the_loading_screen(
+                runner, progress=MagicMock())
+
+        assert never.value.said == "TypeError: example"
+        assert slept.call_count == 0, "Fun Time waited on an app that had said it failed"
 
     def test_the_wait_writes_the_loading_screen_progress_more_often_than_its_staleness_guard(self):
         assert windows_bridge_orchestrator.ORIGENERATOR_BOOT_POLL_S < STALE_TIMEOUT_S

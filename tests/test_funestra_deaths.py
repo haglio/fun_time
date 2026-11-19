@@ -11,6 +11,7 @@ from fun_time.funestra_deaths import (
     FunestraDied,
     LaunchedFunestra,
     logs_as_they_stand,
+    origenerator_never_came_up_message,
     raise_if_a_funestra_died,
 )
 
@@ -92,6 +93,16 @@ def test_a_log_its_launch_rolled_aside_is_read_from_the_top_of_the_new_one(tmp_p
 def test_a_core_that_never_came_up_is_its_whole_reason():
     assert ORIGENERATOR_NEVER_CAME_UP == (
         "Fun Time stopped starting up: Origenerator Core never finished starting.")
+
+
+def test_a_core_that_said_why_its_start_failed_is_quoted_under_the_reason():
+    assert origenerator_never_came_up_message("TypeError: example() got an unexpected keyword") == (
+        "Fun Time stopped starting up: Origenerator Core never finished starting.\n\n"
+        "TypeError: example() got an unexpected keyword")
+
+
+def test_a_core_that_said_nothing_is_given_only_the_reason():
+    assert origenerator_never_came_up_message("") == ORIGENERATOR_NEVER_CAME_UP
 
 
 def test_a_config_naming_no_origenerator_ends_at_its_reason():
