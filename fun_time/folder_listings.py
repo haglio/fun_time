@@ -18,6 +18,9 @@ class FolderListings:
         listed = self._listed(video)
         return 0.0 if listed is None else listed.st_mtime
 
+    def holds(self, path: str | Path) -> bool:
+        return self._listed(path) is not None
+
     def _listed(self, video: str | Path) -> os.stat_result | None:
         folder, name = os.path.split(os.path.abspath(video))
         key = os.path.normcase(folder)
