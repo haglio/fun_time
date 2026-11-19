@@ -335,9 +335,10 @@ class TestWhatARestartBringsBackOfEachFunestra:
     _NO_SETTING = frozenset({
         "NEXT", "PREV", "QUIT", "RELOAD_PLAYLIST", "SEEK_BACK", "SEEK_FWD", "TRASH", "SHOW_FRAME",
         "CLEAR_FRAME", "SET_PACE", "HOLD_PICTURE", "PLAY_FILE", "PLAY_NEXT", "NEXT_VERSION",
-        "PREV_VERSION", "FORGET_VERSIONS", "LET_GO", "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED"})
+        "PREV_VERSION", "FORGET_VERSIONS", "LET_GO", "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED",
+        "LOCK_PRESSED"})
     _RESENT_EVERY_SECOND_BY_THE_DEVICE_ARBITER = frozenset({"SET_TCODE_ENABLED"})
-    _ANSWERED_FROM_THE_NEXT_FUNESTRA_ON = frozenset({"FORGET_VERSIONS"})
+    _ANSWERED_FROM_THE_NEXT_FUNESTRA_ON = frozenset({"FORGET_VERSIONS", "LOCK_PRESSED"})
 
     def test_every_verb_a_funestra_answers_comes_back_after_a_restart_or_is_no_setting(self):
         named = (set(self._KEPT_IN_THE_APPS_STATE) | self._NO_SETTING
