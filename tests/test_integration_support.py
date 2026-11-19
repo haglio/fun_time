@@ -21,7 +21,7 @@ from funestra.broker_feed import BrokerFeed, UdpListener, udp_reader
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import read_playlist
 
-from fun_time import funestra_status, windows_bridge_orchestrator
+from fun_time import status_values, windows_bridge_orchestrator
 from fun_time.branch_session import build_branch_config
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.genau_config import GenauSettings
@@ -975,7 +975,7 @@ def test_a_duration_read_refused_mid_replace_is_read_again(session, monkeypatch)
             raise refusal
         return {"video": "C:/example/scene one.mp4", "duration_ms": "61000"}
 
-    monkeypatch.setattr(funestra_status, "read_key_values", read)
+    monkeypatch.setattr(status_values, "STATUS_VALUES", status_values.StatusValues(read=read))
 
     assert session.read_main_funestra_status().duration_ms == 61_000
 
