@@ -212,6 +212,7 @@ class VoiceController:
             recovered=self._announce_the_microphone_is_back,
             listening=self.done_starting.set,
             keeps_misses=self._is_listening,
+            muted=self._muted.is_set,
             speech=self.handle_speech if takes_requests else None,
             wants_words=self.wants_words if takes_requests else None,
         )
