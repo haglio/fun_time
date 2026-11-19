@@ -11,6 +11,7 @@ from app_support import state_files
 from .config import FunestraChannel, RegenConfig, SatelliteChannel
 from .event_log import MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
+from .gallery import Gallery, the_gallery_in
 from .loopback_server import LOOPBACK_PORT
 from .main_list import MainList
 from .main_list_builds import BUILDS_HERE, MainListBuilds
@@ -70,6 +71,11 @@ class BridgeConfig:
         return MainList(sources=self.main_sources, state_dir=self.state_dir,
                         vr_dirs=self.vr_library_dirs, metadata_root=self.regen_metadata_root,
                         origenerator=self.librarys_origenerator)
+
+    def gallery(self) -> Gallery:
+        if self.kept_gallery is not None:
+            return self.kept_gallery.latest()
+        return the_gallery_in(self.librarys_origenerator)
 
     @property
     def broker_state(self) -> Path:

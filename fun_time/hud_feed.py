@@ -18,7 +18,6 @@ from .funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
-from .gallery import the_gallery_in
 from .hud_transport import HudPublisher, hosted_model, read_the_hosted_hud
 from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
@@ -55,7 +54,7 @@ class HudFeed:
         self._osr2_told: dict[FunTimeFunestra, bool] = {}
         self._shown_favorite = ShownFavorite(
             metadata_root=config.regen_metadata_root,
-            gallery=lambda: the_gallery_in(config.librarys_origenerator))
+            gallery=config.gallery)
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
         if now - self._last_publish < PUBLISH_INTERVAL_S:
