@@ -12,6 +12,7 @@ from fun_time.modes import (
     sort_paths_by_recency,
     write_playlist_file,
 )
+from tests.disk_looks import DiskLooks
 from tests.drive_fakes import files_that_never_answer
 
 
@@ -112,6 +113,21 @@ def test_a_satellite_screens_playlist_pairs_each_video_with_its_funscript(tmp_pa
     write_playlist_file(playlist, [str(scripted), str(plain)])
 
     assert _lines(playlist) == [f"{scripted}\t{script}", str(plain)]
+
+
+def test_a_playlist_of_many_videos_in_one_folder_looks_in_the_scripts_folder_once(
+        tmp_path: Path, monkeypatch):
+    library = tmp_path / "videos" / "videos" / "portrait"
+    scripts = tmp_path / "videos" / "scripts" / "scripts" / "portrait"
+    scripts.mkdir(parents=True)
+    (scripts / "video 2.funscript").write_text("{}", encoding="utf-8")
+    videos = [library / f"video {number}.mp4" for number in range(5)]
+    looks = DiskLooks(monkeypatch, under=tmp_path / "videos" / "scripts")
+
+    write_playlist_file(tmp_path / "portrait_playlist.tsv", [str(video) for video in videos])
+
+    assert (_lines(tmp_path / "portrait_playlist.tsv")[2], looks.total) == (
+        f"{videos[2]}\t{scripts / 'video 2.funscript'}", 1)
 
 
 def test_the_main_funestras_playlist_pairs_a_kept_video_with_the_librarys_script(tmp_path: Path):

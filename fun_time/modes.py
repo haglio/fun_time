@@ -80,9 +80,11 @@ def build_mirrored_funscript_path(video_path: str, metadata_root: Path | None = 
     return "" if script is None else str(script)
 
 
-def matching_funscript(video_path: str, metadata_root: Path | None = None) -> str | None:
+def matching_funscript(video_path: str, metadata_root: Path | None = None, *,
+                       listings: FolderListings | None = None) -> str | None:
     mirrored = build_mirrored_funscript_path(video_path, metadata_root)
-    return mirrored if mirrored and Path(mirrored).exists() else None
+    there = listings.holds if listings is not None else os.path.exists
+    return mirrored if mirrored and there(mirrored) else None
 
 
 def sort_paths_by_recency(
@@ -131,11 +133,18 @@ def rotated_onto[T](entries: list[T], last_video: str, *,
 
 def write_playlist_file(path: Path, video_paths: list[str], *,
                         metadata_root: Path | None = None) -> None:
-    write_playlist(path, [scripted_item(video_path, metadata_root) for video_path in video_paths])
+    write_playlist(path, scripted_items(video_paths, metadata_root))
 
 
-def scripted_item(video_path: str, metadata_root: Path | None = None) -> PlaylistItem:
-    funscript = matching_funscript(video_path, metadata_root)
+def scripted_items(video_paths: Iterable[str],
+                   metadata_root: Path | None = None) -> list[PlaylistItem]:
+    scripts = FolderListings()
+    return [scripted_item(video_path, metadata_root, listings=scripts) for video_path in video_paths]
+
+
+def scripted_item(video_path: str, metadata_root: Path | None = None, *,
+                  listings: FolderListings | None = None) -> PlaylistItem:
+    funscript = matching_funscript(video_path, metadata_root, listings=listings)
     return PlaylistItem(Path(video_path), Path(funscript) if funscript else None)
 
 
