@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from funestra.file_channel import append_command
+from shared_ui.message_shape import is_answering_what_he_said
 
 if TYPE_CHECKING:
     from .bridge_records import BridgeConfig
@@ -130,23 +131,34 @@ def said_about(satellite: str, verb: str) -> str:
     return f"{satellite}_{verb}"
 
 
-def said_at_suffix_of(checkout: str | Path) -> str:
-    return (published_by(checkout) or {}).get("said_at_suffix", "")
+@dataclass(frozen=True)
+class WhenSaid:
+    said_at_suffix: str = ""
+    heard_suffix: str = ""
 
 
-def with_when_said(line: str, spoken_at: float | None, suffix: str) -> str:
+NOT_TOLD_WHEN = WhenSaid()
+
+
+def when_said_of(checkout: str | Path) -> WhenSaid:
+    published = published_by(checkout) or {}
+    return WhenSaid(published.get("said_at_suffix", ""), published.get("heard_suffix", ""))
+
+
+def with_when_said(line: str, spoken_at: float | None, when: WhenSaid) -> str:
     placeholder = "{" + SAID_AT_FIELD + "}"
-    if spoken_at is None or placeholder not in suffix:
+    if spoken_at is None or placeholder not in when.said_at_suffix:
         return line
     said_at = time.time() - (time.monotonic() - spoken_at)
-    return line + suffix.replace(placeholder, f"{said_at:.3f}")
+    heard = when.heard_suffix if is_answering_what_he_said() else ""
+    return line + when.said_at_suffix.replace(placeholder, f"{said_at:.3f}") + heard
 
 
 def written_for_the_hosted_app(lines: list[str], config: BridgeConfig,
                                spoken_at: float | None) -> list:
     for line in lines:
         append_command(config.origenerator.cmd_file,
-                       with_when_said(line, spoken_at, config.origenerator_said_at_suffix))
+                       with_when_said(line, spoken_at, config.origenerator_when_said))
     return []
 
 

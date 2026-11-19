@@ -6,16 +6,18 @@ import time
 from pathlib import Path
 
 import pytest
+from shared_ui.message_shape import answering_what_he_said
 
 from fun_time.hosted_contract import (
     CONTRACT_FILE,
     HostedVocabulary,
+    WhenSaid,
     gallery_names_file,
     publish_actions_heard_as,
     published_actions_heard_as,
-    said_at_suffix_of,
     the_args_it_declares,
     what_it_answers_by_voice,
+    when_said_of,
     with_when_said,
 )
 
@@ -146,7 +148,7 @@ def test_an_app_that_cannot_answer_is_heard_saying_nothing(tmp_path, caplog, run
 def test_a_line_for_something_said_carries_when_it_was_said_by_the_wall_clock():
     on_the_wall, said_two_seconds_ago = time.time() - 2.0, time.monotonic() - 2.0
 
-    line = with_when_said("portrait_lock", said_two_seconds_ago, " @{said_at_epoch_seconds}")
+    line = with_when_said("portrait_lock", said_two_seconds_ago, WhenSaid(" @{said_at_epoch_seconds}"))
 
     command, _, stamp = line.partition(" @")
     assert command == "portrait_lock"
@@ -158,18 +160,35 @@ def test_a_line_for_something_said_carries_when_it_was_said_by_the_wall_clock():
     (12.0, ""),
 ])
 def test_a_line_goes_as_it_is_with_no_time_or_to_an_app_that_takes_none(spoken_at, suffix):
-    assert with_when_said("portrait_lock", spoken_at, suffix) == "portrait_lock"
+    assert with_when_said("portrait_lock", spoken_at, WhenSaid(suffix, " heard")) == "portrait_lock"
 
 
-def test_a_line_carries_its_time_in_the_suffix_the_app_publishes(tmp_path):
-    checkout = _a_checkout_declaring(tmp_path, said_at_suffix=" @{said_at_epoch_seconds}")
+def test_a_line_answering_what_he_said_says_so_after_its_time():
+    with answering_what_he_said():
+        line = with_when_said("portrait_media_videos", 12.0,
+                              WhenSaid(" @{said_at_epoch_seconds}", " heard"))
 
-    assert said_at_suffix_of(checkout) == " @{said_at_epoch_seconds}"
+    assert line.startswith("portrait_media_videos @")
+    assert line.endswith(" heard")
+
+
+def test_a_line_pressed_carries_its_time_and_no_word_that_he_said_it():
+    line = with_when_said("portrait_media_videos", 12.0,
+                          WhenSaid(" @{said_at_epoch_seconds}", " heard"))
+
+    assert not line.endswith(" heard")
+
+
+def test_a_line_carries_its_time_and_that_he_said_it_in_the_suffixes_the_app_publishes(tmp_path):
+    checkout = _a_checkout_declaring(tmp_path, said_at_suffix=" @{said_at_epoch_seconds}",
+                                     heard_suffix=" heard")
+
+    assert when_said_of(checkout) == WhenSaid(" @{said_at_epoch_seconds}", " heard")
 
 
 def test_an_app_that_publishes_no_suffix_is_sent_no_time(tmp_path):
-    assert said_at_suffix_of(_a_checkout_declaring(tmp_path)) == ""
-    assert said_at_suffix_of(tmp_path / "no checkout here") == ""
+    assert when_said_of(_a_checkout_declaring(tmp_path)) == WhenSaid()
+    assert when_said_of(tmp_path / "no checkout here") == WhenSaid()
 
 
 def test_every_action_a_video_can_have_is_heard_in_the_forms_the_app_names(tmp_path):

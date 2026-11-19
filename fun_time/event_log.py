@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
-from shared_ui.message_shape import HEARD_MARK
+from shared_ui.message_shape import mark_of_a_message_said_now
 
 MESSAGE = 25
 logging.addLevelName(MESSAGE, "NOTICE")
@@ -62,22 +59,6 @@ class EventRecord:
     flashes: bool = True
     spoken_at: float | None = None
     mark: str = ""
-
-
-_ANSWERING_WHAT_HE_SAID: ContextVar[bool] = ContextVar("answering_what_he_said", default=False)
-
-
-@contextmanager
-def answering_what_he_said() -> Iterator[None]:
-    token = _ANSWERING_WHAT_HE_SAID.set(True)
-    try:
-        yield
-    finally:
-        _ANSWERING_WHAT_HE_SAID.reset(token)
-
-
-def mark_of_a_message_said_now(mark: str = "") -> str:
-    return mark or (HEARD_MARK if _ANSWERING_WHAT_HE_SAID.get() else "")
 
 
 def event_log_path(state_dir: str | Path) -> Path:

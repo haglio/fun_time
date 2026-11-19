@@ -57,7 +57,9 @@ from .hosted_contract import (
     ASKING_BUDGET_S,
     CLOSE_SLIDESHOWS,
     NO_HOSTED_VOCABULARY,
+    NOT_TOLD_WHEN,
     HostedVocabulary,
+    WhenSaid,
     publish_actions_heard_as,
 )
 from .hosted_origenerator import what_it_answers_by_voice_in
@@ -689,7 +691,7 @@ def _asked_in_the_background(ask: Callable[[], HostedVocabulary]) -> Future[Host
 
 def prepare_voice_control(
     config_path: str, *, dashboard_cmd_file: Path, hosted_cmd_file: str | Path | None,
-    hosted_said_at_suffix: str = "",
+    hosted_when_said: WhenSaid = NOT_TOLD_WHEN,
     ask_the_hosted_app: Callable[[], HostedVocabulary] = lambda: NO_HOSTED_VOCABULARY,
     state_dir: Path,
 ) -> PreparedVoice | None:
@@ -718,7 +720,7 @@ def prepare_voice_control(
                     cmd_file=dashboard_cmd_file,
                     settings=settings,
                     verifying_listener=verifying_listener,
-                    hosted=HostedVoice(vocabulary, hosted_cmd_file, hosted_said_at_suffix),
+                    hosted=HostedVoice(vocabulary, hosted_cmd_file, hosted_when_said),
                 )
                 voice_controller.mute()
             except Exception as error:
@@ -1038,7 +1040,7 @@ def run_session(
     prepared_voice = prepare_voice_control(
         manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
         hosted_cmd_file=bridge_config.origenerator.cmd_file,
-        hosted_said_at_suffix=bridge_config.origenerator_said_at_suffix,
+        hosted_when_said=bridge_config.origenerator_when_said,
         ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest), state_dir=state_dir)
 
     progress = loading_screen.progress

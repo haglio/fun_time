@@ -5,14 +5,13 @@ import logging
 from pathlib import Path
 
 import pytest
-from shared_ui.message_shape import HEARD_MARK
+from shared_ui.message_shape import HEARD_MARK, answering_what_he_said
 
 from fun_time.event_log import (
     LEVEL_NAMES,
     MESSAGE,
     SOURCES,
     EventLogHandler,
-    answering_what_he_said,
     event_log_path,
     flash_message,
     is_announcement,

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from funestra.file_channel import append_command
+from shared_ui.message_shape import answering_what_he_said
 from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, ListenerEvents, ListenerSettings, engines_for
 from voice_core.listening import Heard
@@ -21,7 +22,6 @@ from fun_time.event_log import (
     SOURCE_MAIN,
     SOURCE_PORTRAIT,
     SOURCE_SYSTEM,
-    answering_what_he_said,
     flash_message,
     list_message,
 )
@@ -29,7 +29,9 @@ from fun_time.filter_vocab import filter_voice_commands
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hosted_contract import (
     NO_HOSTED_VOCABULARY,
+    NOT_TOLD_WHEN,
     HostedVocabulary,
+    WhenSaid,
     said_to_the_hosted_app,
     with_when_said,
 )
@@ -164,7 +166,7 @@ class _NotSureOf:
 class HostedVoice:
     vocabulary: HostedVocabulary = NO_HOSTED_VOCABULARY
     cmd_file: Path | str | None = None
-    said_at_suffix: str = ""
+    when_said: WhenSaid = NOT_TOLD_WHEN
 
 
 NO_HOSTED_VOICE = HostedVoice()
@@ -187,7 +189,7 @@ class VoiceController:
             filter_commands=filter_voice_commands(dict(hosted_vocabulary.actions_heard_as)))
         self.hosted = hosted_vocabulary
         self._hosted_cmd_file = hosted.cmd_file
-        self._hosted_said_at_suffix = hosted.said_at_suffix
+        self._hosted_when_said = hosted.when_said
         self._request_satellite: str | None = None
         self._muted = threading.Event()
         self._clock = clock
@@ -276,7 +278,7 @@ class VoiceController:
 
     def _tell_the_hosted_app(self, satellite: str, words: str, heard: Heard) -> None:
         append_command(self._hosted_cmd_file, with_when_said(
-            said_to_the_hosted_app(satellite, words), heard.spoken_at, self._hosted_said_at_suffix))
+            said_to_the_hosted_app(satellite, words), heard.spoken_at, self._hosted_when_said))
 
     def _said_to_a_hosted_satellite(self, phrase: str) -> bool:
         said = parse_command(self.commands.get(phrase, ""))

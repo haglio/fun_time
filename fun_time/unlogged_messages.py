@@ -3,10 +3,11 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+from shared_ui.message_shape import mark_of_a_message_said_now
+
 from fun_time.event_log import (
     EventRecord,
     event_line,
-    mark_of_a_message_said_now,
     parse_event_line,
 )
 from fun_time.loopback_inbox import LoopbackInbox, post_to_inbox
