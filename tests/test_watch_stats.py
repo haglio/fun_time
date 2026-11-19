@@ -13,6 +13,7 @@ from fun_time.watch_stats import (
     load_watch_stats,
     record_watch_event,
 )
+from tests.disk_looks import DiskLooks
 
 
 def _touch(tmp_path: Path, name: str) -> str:
@@ -232,6 +233,21 @@ class TestARowOfAnAiVideo:
         assert load_watch_stats(stats_file) == {
             normalize_path_key(str(video)): {"completions": 0, "skips": 0, "locks": 1}}
         assert not video_ids.record_of(video).exists()
+
+    def test_a_watch_looks_at_the_folder_of_many_counted_videos_and_at_none_of_them_alone(
+        self, tmp_path: Path, video: Path, monkeypatch,
+    ):
+        stats_file = tmp_path / "watch_stats.json"
+        others = [video.with_name(f"scene {number}_topaz.mp4") for number in range(5)]
+        for other in others:
+            other.write_text("v", encoding="utf-8")
+        stats_file.write_text(json.dumps({normalize_path_key(str(other)): {"completions": 1}
+                                          for other in others}), encoding="utf-8")
+        looks = DiskLooks(monkeypatch, under=video.parent.parent)
+
+        record_watch_event(stats_file, str(video), "completion")
+
+        assert (len(load_watch_stats(stats_file)), set(looks.made)) == (6, {"scandir"})
 
     def test_counted_under_its_id_before_stays_there_for_evolver_to_add_in(
         self, tmp_path: Path, video: Path,
