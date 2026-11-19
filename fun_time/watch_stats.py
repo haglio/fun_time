@@ -8,6 +8,8 @@ from app_support import video_ids
 from app_support.kino_folder import is_ai_video
 from funestra.video_groups import normalize_path_key
 
+from .folder_listings import FolderListings
+
 _EVENT_FIELDS = {
     "completion": "completions",
     "skip": "skips",
@@ -66,28 +68,29 @@ class WatchTracker:
         return events
 
 
-def _left_a_folder_still_there(key: str) -> bool:
+def _left_a_folder_still_there(key: str, listings: FolderListings) -> bool:
     if not _is_a_path(key):
         return False
     video = Path(key)
-    return not video.exists() and video.parent.exists()
+    return not listings.holds(video) and listings.holds(video.parent)
 
 
 def _is_a_path(key: str) -> bool:
     return Path(key).is_absolute()
 
 
-def _key_of(video_path: str) -> str:
+def _key_of(video_path: str, listings: FolderListings) -> str:
     if is_ai_video(video_path):
         return normalize_path_key(video_path)
-    record = video_ids.record_of(Path(video_path)) if Path(video_path).is_file() else None
+    record = video_ids.record_of(Path(video_path)) if listings.holds(video_path) else None
     return video_ids.id_of(record) if record is not None else normalize_path_key(video_path)
 
 
-def _keyed_by_id(stats: dict[str, dict[str, int]]) -> dict[str, dict[str, int]]:
+def _keyed_by_id(stats: dict[str, dict[str, int]],
+                 listings: FolderListings) -> dict[str, dict[str, int]]:
     keyed: dict[str, dict[str, int]] = {}
     for key, counts in stats.items():
-        entry = keyed.setdefault(_key_of(key) if _is_a_path(key) else key,
+        entry = keyed.setdefault(_key_of(key, listings) if _is_a_path(key) else key,
                                  {"completions": 0, "skips": 0, "locks": 0})
         for field, count in counts.items():
             entry[field] = entry.get(field, 0) + count
@@ -96,10 +99,12 @@ def _keyed_by_id(stats: dict[str, dict[str, int]]) -> dict[str, dict[str, int]]:
 
 def record_watch_event(stats_file: str | Path, video_path: str, event: str) -> None:
     field = _EVENT_FIELDS[event]
-    stats = _keyed_by_id(load_watch_stats(stats_file))
-    entry = stats.setdefault(_key_of(video_path), {"completions": 0, "skips": 0, "locks": 0})
+    listings = FolderListings()
+    stats = _keyed_by_id(load_watch_stats(stats_file), listings)
+    entry = stats.setdefault(_key_of(video_path, listings), {"completions": 0, "skips": 0, "locks": 0})
     entry[field] = entry.get(field, 0) + 1
-    stats = {key: value for key, value in stats.items() if not _left_a_folder_still_there(key)}
+    stats = {key: value for key, value in stats.items()
+             if not _left_a_folder_still_there(key, listings)}
     target = Path(stats_file)
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(".tmp")
