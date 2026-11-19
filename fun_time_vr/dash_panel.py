@@ -235,6 +235,21 @@ def _on(rect: Rect, point: tuple[int, int] | None) -> bool:
     return rect.x <= x < rect.x + rect.width and rect.y <= y < rect.y + rect.height
 
 
+def _what_the_pointer_can_light(state: DashState, shown_as: Preview | None) -> list[Rect]:
+    lit = [control.rect for control in state.controls() if not control.dim]
+    lit += [dial_rect(), *source_buttons().values()]
+    if shown_as is not None:
+        lit.append(compute_dashboard_bar_layout().app_title)
+    if state.asking_to_quit:
+        lit += answer_rects().values()
+    return lit
+
+
+def what_the_pointer_lights(state: DashState, hover: tuple[int, int] | None, *,
+                            shown_as: Preview | None = None) -> tuple[bool, ...]:
+    return tuple(_on(rect, hover) for rect in _what_the_pointer_can_light(state, shown_as))
+
+
 def _log_clipped_without_ellipsis_as_the_desktops_is(state: DashState, records, font) -> Image.Image:
     log = Image.new("RGBA", _log_size(), (0, 0, 0, 0))
     pen = ImageDraw.Draw(log)

@@ -80,8 +80,10 @@ from .dash_panel import (
     DASH_WIDTH_PX,
     DashPointer,
     dash_height,
+    osr2_part_rect,
     paint_dash,
     size_it_hangs_still_at,
+    what_the_pointer_lights,
     with_the_osr2_part,
 )
 from .frame_look import FrameLook
@@ -195,6 +197,7 @@ from .scene import (
 from .stacking import Stacking
 from .stick_scrolling import WHEEL_NOTCH, scroll_from_stick
 from .surfaces import HudBitmap, LatestFrame
+from .texture_rows import Picture, Rows
 from .thumbs import Thumb, Thumbs, strongest
 from .video_thread import VideoThread
 from .wrap_readout import WrapReadout, readout
@@ -806,15 +809,6 @@ class _Presses:
                 return
 
 
-def _upload(unit) -> bool:
-    with unit._lock:
-        image = unit._image
-    if image is not None and image is not unit._uploaded:
-        unit.texture.upload(np.asarray(image))
-        unit._uploaded = image
-    return unit.texture.ready
-
-
 class _MainHudUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
@@ -890,6 +884,7 @@ class _MainHudUnit:
 
 
 _DASH_WIDTH_DEG = DASH_WIDTH_PX * DASH_DEG_PER_PX
+_THE_OSR2_PARTS_ROWS = Rows(osr2_part_rect().y, osr2_part_rect().y + osr2_part_rect().height)
 _A_WIDE_VIDEO = 16 / 9
 
 
@@ -928,12 +923,10 @@ class _DashUnit:
         self._shown_as = preview_marker.shown_as()
         self._osr2 = Osr2PartReader(Path(commands.state_dir))
         self._presses = _Presses(DASH)
-        self._lock = threading.Lock()
         self._bar_and_log = None
         self._painted = None
-        self._image = None
+        self._picture = Picture()
         self._key = None
-        self._uploaded = None
         self.texture = FrameTexture()
         self.screen = _HangingScreen(self._spot_over_a_flat_video)
 
@@ -1000,23 +993,24 @@ class _DashUnit:
         self._pointer.hover(hover)
         published = self._osr2.read()
         part = None if published is None else self._pointer.part.drawing(published)
-        painted = (self._pointer.state, records, hover)
+        state = self._pointer.state
+        painted = (state, records, what_the_pointer_lights(state, hover, shown_as=self._shown_as))
         if painted != self._painted:
-            self._bar_and_log = paint_dash(*painted, shown_as=self._shown_as)
+            self._bar_and_log = paint_dash(state, records, hover, shown_as=self._shown_as)
             self._painted = painted
         key = (painted, part)
         if key == self._key:
             return
-        image = with_the_osr2_part(self._bar_and_log, part)
-        with self._lock:
-            self._image = image
+        only_the_part_changed = self._key is not None and self._key[0] == painted
+        self._picture.put(np.asarray(with_the_osr2_part(self._bar_and_log, part)),
+                          only=_THE_OSR2_PARTS_ROWS if only_the_part_changed else None)
         self._key = key
 
     def render_latest_frame(self) -> None:
         self.screen.placement = (
             self._spot_carrying_the_main_hud if self.carrying_the_main_hud
             else self._spot_over_a_flat_video)
-        if _upload(self):
+        if self._picture.send_to(self.texture):
             self.screen.rehang(self.texture.aspect)
 
     def close(self) -> None:
@@ -1037,9 +1031,8 @@ class _ReferenceUnit:
         self._scrolled = 0.0
         self._presses = _Presses(REFERENCE)
         self._lock = threading.Lock()
-        self._image = None
+        self._picture = Picture()
         self._key = None
-        self._uploaded = None
         self.texture = FrameTexture()
         self.screen = _HangingScreen(dash.screen.placement)
 
@@ -1086,13 +1079,11 @@ class _ReferenceUnit:
         state = self._pointer.state
         if state == self._key:
             return
-        image = paint_reference(state, pages)
-        with self._lock:
-            self._image = image
+        self._picture.put(np.asarray(paint_reference(state, pages)))
         self._key = state
 
     def render_latest_frame(self) -> None:
-        if not _upload(self):
+        if not self._picture.send_to(self.texture):
             return
         under = self._main_hud if self._dash.carrying_the_main_hud else self._dash
         self.screen.placement = attached_below(
@@ -1133,8 +1124,7 @@ class _LibraryUnit:
         self._shown = ShownWhileAsked()
         self._presses = _Presses(LIBRARY)
         self._lock = threading.Lock()
-        self._image = None
-        self._uploaded = None
+        self._picture = Picture()
         self._token = 0
         self._opened_at = 0.0
         self._drawn = False
@@ -1220,12 +1210,11 @@ class _LibraryUnit:
             image = waiting_panel()
         else:
             return
-        with self._lock:
-            self._image = image
+        self._picture.put(np.asarray(image))
         self._drawn = True
 
     def render_latest_frame(self) -> None:
-        if _upload(self):
+        if self._picture.send_to(self.texture):
             self.screen.rehang(self.texture.aspect)
 
     def close(self) -> None:
@@ -1246,9 +1235,7 @@ class _MessageUnit:
     def __init__(self, main_unit, messages) -> None:
         self._main_unit = main_unit
         self._messages = messages
-        self._lock = threading.Lock()
-        self._image = None
-        self._uploaded = None
+        self._picture = Picture()
         self._painted: tuple[str, int] | None = None
         self.texture = FrameTexture()
         self.screen = _HangingScreen(Placement(0.0, MESSAGE_ELEVATION_DEG, 1.0))
@@ -1278,12 +1265,11 @@ class _MessageUnit:
             image = paint_message(painted, max_width=MESSAGE_MAX_WIDTH_PX, size=MESSAGE_FONT_PX)
             self.screen.placement = Placement(
                 0.0, MESSAGE_ELEVATION_DEG, image.width / MESSAGE_PX_PER_DEG)
-            with self._lock:
-                self._image = image
+            self._picture.put(np.asarray(image))
         self._painted = painted
 
     def render_latest_frame(self) -> None:
-        if _upload(self):
+        if self._picture.send_to(self.texture):
             self.screen.rehang(self.texture.aspect)
 
     def close(self) -> None:
@@ -1305,8 +1291,7 @@ class _GalleryUnit:
         self._shared_state = ReadWhenChanged(shared_state_file, read_shared_state)
         self._presses = _Presses(GALLERY)
         self._lock = threading.Lock()
-        self._image = None
-        self._uploaded = None
+        self._picture = Picture()
         self._hovered: tuple[int, int] | None = None
         self._scrolled = 0.0
         self.showing = False
@@ -1357,8 +1342,7 @@ class _GalleryUnit:
         if frame is None:
             return
         width, height, pixels = frame
-        with self._lock:
-            self._image = np.frombuffer(pixels, np.uint8).reshape(height, width, 4)
+        self._picture.put(np.frombuffer(pixels, np.uint8).reshape(height, width, 4))
 
     def _send_the_pointer(self) -> None:
         aim = self._presses.hover
@@ -1374,7 +1358,7 @@ class _GalleryUnit:
             self._panel.send(gallery_scroll_line(notches))
 
     def render_latest_frame(self) -> None:
-        if _upload(self):
+        if self._picture.send_to(self.texture):
             self.screen.rehang(self.texture.aspect)
 
     def close(self) -> None:

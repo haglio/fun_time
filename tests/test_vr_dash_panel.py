@@ -83,6 +83,7 @@ from fun_time_vr.dash_panel import (
     paint_dash,
     size_it_hangs_still_at,
     verbosity_name,
+    what_the_pointer_lights,
     with_the_osr2_part,
 )
 from tests.made_up_osr2_parts import a_part, a_readout, center_of
@@ -789,3 +790,23 @@ def test_it_is_painted_without_loading_qt():
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                             check=False)
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(("state", "shown_as"), [
+    (DashState(), None),
+    (DashState(), _A_PREVIEW),
+    (DashState(asking_to_quit=True), None),
+])
+def test_pointer_spots_that_light_the_same_things_paint_the_same_dashboard(state, shown_as):
+    width, height = size_it_hangs_still_at()
+    painted_for: dict[tuple[bool, ...], np.ndarray] = {}
+    spots = [(x, y) for x in range(3, width, 23) for y in range(3, height, 17)] + [None]
+
+    for spot in spots:
+        lit = what_the_pointer_lights(state, spot, shown_as=shown_as)
+        painted = np.asarray(paint_dash(state, [], hover=spot, shown_as=shown_as))
+        if lit in painted_for:
+            assert np.array_equal(painted, painted_for[lit]), spot
+        painted_for[lit] = painted
+
+    assert len(painted_for) > 5

@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import numpy as np
 
-from fun_time_vr.texture_rows import Rows, as_the_texture_holds_them, rows_changed, rows_together
+from fun_time_vr.texture_rows import (
+    Picture,
+    Rows,
+    as_the_texture_holds_them,
+    rows_changed,
+    rows_together,
+)
 
 
 def _picture(height=6, width=5, seed=1) -> np.ndarray:
@@ -50,3 +56,47 @@ def test_changes_not_yet_sent_add_up_to_every_row_any_of_them_touched():
     assert rows_together(None, Rows(2, 3)) == Rows(2, 3)
     assert rows_together(Rows(2, 3), None) == Rows(2, 3)
     assert rows_together(Rows(4, 5), Rows(1, 2)) == Rows(1, 5)
+
+
+class _Texture:
+    def __init__(self) -> None:
+        self.sent: list[tuple[np.ndarray, Rows]] = []
+
+    def upload(self, pixels, *, rows=None) -> None:
+        self.sent.append((pixels, rows))
+
+    @property
+    def ready(self) -> bool:
+        return bool(self.sent)
+
+
+def test_a_picture_put_is_sent_once_however_many_frames_come():
+    picture, texture = Picture(), _Texture()
+    pixels = _picture()
+
+    picture.put(pixels)
+    shown = [picture.send_to(texture) for _ in range(4)]
+
+    assert shown == [True] * 4
+    assert [(sent is pixels, rows) for sent, rows in texture.sent] == [(True, Rows(0, 6))]
+
+
+def test_pictures_put_between_two_frames_send_the_last_with_every_row_they_changed():
+    picture, texture = Picture(), _Texture()
+    picture.put(_picture())
+    picture.send_to(texture)
+    second, third = _picture(seed=2), _picture(seed=3)
+
+    picture.put(second, only=Rows(1, 2))
+    picture.put(third, only=Rows(4, 5))
+    picture.send_to(texture)
+
+    assert texture.sent[-1][0] is third
+    assert texture.sent[-1][1] == Rows(1, 5)
+
+
+def test_nothing_put_yet_sends_nothing():
+    texture = _Texture()
+
+    assert Picture().send_to(texture) is False
+    assert Picture().pixels is None
