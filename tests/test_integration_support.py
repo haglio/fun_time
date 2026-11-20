@@ -17,6 +17,7 @@ from unittest.mock import patch
 
 import pytest
 from app_support import haglio_settings, osr2_device
+from app_support.threading_utils import wait_until
 from funestra.broker_feed import BrokerFeed, UdpListener, udp_reader
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import read_playlist
@@ -33,7 +34,7 @@ from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manif
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from main_funestra.cli import build_parser
 from main_funestra.library import LibraryEntry, group_versions, version_index_from_groups
-from tests.held_files import held_by_another_program, let_go_soon
+from tests.held_files import held_by_another_program, let_go_soon, the_words_in
 from tests.integration import integration_support, run_clock
 from tests.integration.integration_support import (
     COMMAND_BUDGET_S,
@@ -1019,8 +1020,7 @@ class TestPostingADashboardCommand:
             let_go_soon(let_go)
             session.write_dashboard_command("main_kino_activate")
 
-        assert session.dashboard_cmd_file.read_text(encoding="utf-8").split() == [
-            "main_kino_activate"]
+        wait_until(lambda: the_words_in(session.dashboard_cmd_file) == ["main_kino_activate"])
 
 
 def test_a_wait_that_runs_out_describes_how_things_stood_when_it_gave_up(session):

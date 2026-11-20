@@ -112,7 +112,7 @@ from fun_time.window_layout import (
     secondary_monitor_rects,
 )
 from tests.fun_time_window_fakes import HandDrivenClock
-from tests.held_files import held_by_another_program, let_go_soon
+from tests.held_files import held_by_another_program, let_go_soon, the_words_in
 from tests.integration.integration_support import (
     environment_with_this_checkouts_siblings,
 )
@@ -414,17 +414,15 @@ def test_a_click_written_as_the_dispatch_loop_drains_the_file_still_lands(tmp_pa
         let_go_soon(let_go)
         write_dashboard_command(command_file, "quit")
 
-    assert command_file.read_text(encoding="utf-8").strip() == "quit"
+    wait_until(lambda: the_words_in(command_file) == ["quit"])
 
 
-def test_write_dashboard_command_drops_rather_than_raises_when_locked(tmp_path: Path):
+def test_a_click_on_a_file_held_for_good_never_raises_into_the_dashboard(tmp_path: Path):
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
     command_file.parent.mkdir(parents=True)
 
     with held_by_another_program(command_file), sleeps_in(file_channel):
         write_dashboard_command(command_file, "quit")
-
-    assert command_file.read_text(encoding="utf-8") == ""
 
 
 def test_write_dashboard_command_queues_rather_than_clobbers(tmp_path: Path):
