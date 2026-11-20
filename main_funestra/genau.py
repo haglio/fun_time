@@ -13,6 +13,7 @@ from funestra.inclusion_pair import BOTH, ORIENTATION, Included
 from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
 from funestra.modes import MessageLevel
+from funestra.off_the_loop import BehindTheLoop
 from shared_ui.orientation import PORTRAIT
 
 from fun_time.arrivals import LOOK_EVERY_S, Arrivals
@@ -62,7 +63,7 @@ class GenauOutputs:
     origenerator_commands: Path | None = None
 
 
-STANDARD_SEAMS = EngineSeams(log=logger)
+STANDARD_SEAMS = EngineSeams(log=logger, off_the_loop=BehindTheLoop)
 
 
 def _a_step(command: str) -> bool:
