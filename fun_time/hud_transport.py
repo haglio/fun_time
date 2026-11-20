@@ -6,26 +6,16 @@ from pathlib import Path
 from funestra.file_channel import publish_whole
 from funestra.hud_kinds import HudFacts, HudKind, osr2_button, window_buttons
 from funestra.modes import Osr2State
-from funestra.satellite_hud import HudModel, parse_hud
+from funestra.satellite_hud import HudModel
 
+from .funestra_handover import published_hud
 from .shared_state import SatelliteState
-
-
-def read_the_hosted_hud(path: Path) -> HudModel | None:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        text = ""
-    return parse_hud(text)
 
 
 def the_hosted_slideshow_is_locked(path: Path | None) -> bool:
     if path is None:
         return False
-    try:
-        hud = read_the_hosted_hud(path)
-    except OSError:
-        return False
+    hud = published_hud(path)
     return hud is not None and hud.locked
 
 

@@ -28,7 +28,7 @@ def _parsed_hud(path: Path) -> HudModel | None:
 _PUBLISHED_HUDS: dict[Path, ReadWhenChanged[HudModel | None]] = {}
 
 
-def _published_hud(path: Path) -> HudModel | None:
+def published_hud(path: Path) -> HudModel | None:
     reader = _PUBLISHED_HUDS.get(path)
     if reader is None:
         reader = _PUBLISHED_HUDS[path] = ReadWhenChanged(path, _parsed_hud)
@@ -36,7 +36,7 @@ def _published_hud(path: Path) -> HudModel | None:
 
 
 def _slideshows_button(channel: SatelliteChannel, verb: str) -> Button | None:
-    hud = _published_hud(channel.origenerator_hud_file)
+    hud = published_hud(channel.origenerator_hud_file)
     if hud is None:
         return None
     return next((button for row in hud.rows for button in row
