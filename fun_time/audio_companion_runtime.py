@@ -26,13 +26,17 @@ class AudioCompanionRuntime:
 
     def process_iteration(self) -> None:
         line = self.receive_udp_line()
-        self.controller.set_mode_active(self.read_mode_active(self.mode_file))
-        self.controller.set_manual_paused(self.read_paused_state(self.paused_file))
-        self.controller.set_volume(self.read_volume(self.volume_file))
+        self.read_the_files()
         if line:
             self.controller.handle_udp_line(line)
 
+    def read_the_files(self) -> None:
+        self.controller.set_mode_active(self.read_mode_active(self.mode_file))
+        self.controller.set_manual_paused(self.read_paused_state(self.paused_file))
+        self.controller.set_volume(self.read_volume(self.volume_file))
+
     def run_forever(self) -> None:
+        self.read_the_files()
         while True:
             self.process_iteration()
 

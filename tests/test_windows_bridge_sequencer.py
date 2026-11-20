@@ -47,6 +47,7 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.shortcuts import Shortcut
+from fun_time.sound_wake import READ_THE_FILES_AGAIN, listen_for_the_session
 from fun_time.startup_steps import STEP_LINE
 from fun_time.window_layout import (
     MonitorRect,
@@ -990,6 +991,19 @@ class TestPhase4Reveal:
         assert Path(m.commands.main_funestra_paused_file).read_text(encoding="utf-8").strip() == "0"
         assert Path(m.commands.genau_paused_file).read_text(encoding="utf-8").strip() == "0"
         assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "0"
+
+    def test_the_release_tells_the_sound_once_its_pause_is_lifted(self, cfg_factory, tmp_path):
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        m = LaunchManifest.read(manifest_path)
+        _pause_every_funestra(m)
+        sound = listen_for_the_session("127.0.0.1", 0, Path(m.commands.state_dir))
+
+        release_the_funestras(m, "genau")
+
+        word, _ = sound.recvfrom(4096)
+        assert word.decode("utf-8") == READ_THE_FILES_AGAIN
+        assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "0"
+        sound.close()
 
     def test_nothing_is_promoted_topmost_while_the_loading_overlay_is_up(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

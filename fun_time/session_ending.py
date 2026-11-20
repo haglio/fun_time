@@ -39,6 +39,7 @@ from .session_handoff import (
     request_handoff,
 )
 from .shared_state import BridgeState, read_shared_state, shared_state_path
+from .sound_wake import tell_the_sound
 from .voice_control import VoiceController
 from .windows_bridge_dispatch_loop import DispatchLoopRunner
 
@@ -124,6 +125,7 @@ def silence_the_funestras(manifest: LaunchManifest) -> None:
             write_flag_file(paused_file, True)
     for funestra in FunTimeFunestra.SATELLITES:
         write_flag_file(manifest.satellite(funestra).paused_file, True)
+    tell_the_sound(commands.state_dir)
 
 
 def hold_the_osr2(commands: CommandFiles) -> None:

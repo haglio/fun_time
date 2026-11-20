@@ -14,6 +14,7 @@ from .mode_plan import kino_shows
 from .osr2_commands import robot_hand_hold
 from .runtime_flow import write_flag_file
 from .shared_state import BridgeState
+from .sound_wake import tell_the_sound
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,7 @@ def _dispatch_enter_omnipause(
         paused=PausedFiles.of(config),
         broker_cmd_file=config.broker_cmd_file,
     )
+    tell_the_sound(config.state_dir)
     state = replace(state, omni_paused=result.next_omni_paused)
     ops = [WindowOp(op="disable_all_topmost"), WindowOp(op="suspend_hotkeys")]
     if result.log_message:
@@ -178,6 +180,7 @@ def _leave_as_only_the_toggle_does(
         broker_cmd_file=config.broker_cmd_file,
         osr2_control=state.osr2_control,
     )
+    tell_the_sound(config.state_dir)
     state = replace(state, omni_paused=result.next_omni_paused)
     ops = [WindowOp(op="restore_parked"), WindowOp(op="restore_all_topmost"),
            WindowOp(op="unsuspend_hotkeys"), WindowOp(op="activate_window", key="main_funestra")]

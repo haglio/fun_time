@@ -92,6 +92,7 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.shortcuts import Shortcut
+from fun_time.sound_wake import READ_THE_FILES_AGAIN, listen_for_the_session
 from fun_time.state_file_names import PREFIX, RETIRED_PREFIX
 from fun_time.unlogged_messages import UNLOGGED_MESSAGE_PORT_FILENAME
 from fun_time.win32 import StackedWindow
@@ -1653,6 +1654,21 @@ class TestClosingScreenLifecycle:
             manifest.commands.main_funestra_paused_file, manifest.commands.audio_paused_file,
             manifest.portrait.paused_file, manifest.landscape.paused_file,
         )] == ["1", "1", "1", "1"]
+
+    def test_silencing_the_funestras_tells_the_sound_once_its_pause_is_written(
+        self, cfg_factory, tmp_path,
+    ):
+        manifest_path = write_windows_bridge_manifest(
+            load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        manifest = LaunchManifest.read(manifest_path)
+        sound = listen_for_the_session("127.0.0.1", 0, Path(manifest.commands.state_dir))
+
+        silence_the_funestras(manifest)
+
+        word, _ = sound.recvfrom(4096)
+        assert word.decode("utf-8") == READ_THE_FILES_AGAIN
+        assert Path(manifest.commands.audio_paused_file).read_text(encoding="utf-8") == "1"
+        sound.close()
 
     def test_a_dispatch_loop_still_busy_stops_nothing_late_and_is_logged(
         self, cfg_factory, tmp_path, caplog,
