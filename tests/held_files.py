@@ -34,3 +34,10 @@ def held_by_another_program(path: Path) -> Iterator[Callable[[], None]]:
 
 def let_go_soon(let_go: Callable[[], None]) -> None:
     threading.Timer(0.1, let_go).start()
+
+
+def the_words_in(path: Path) -> list[str]:
+    try:
+        return path.read_text(encoding="utf-8").split()
+    except PermissionError:
+        return []
