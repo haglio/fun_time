@@ -17,6 +17,7 @@ from app_support import ports
 from app_support.file_channel import read_flag
 from app_support.osr2_slot import Osr2Sender
 from app_support.threading_utils import start_daemon_thread
+from app_support.written_file import ReadWhenChanged
 from funestra.channel_manifest import channel_flag
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
@@ -26,6 +27,7 @@ from funestra.funestra_verbs import play_file
 from funestra.genau_notifier import GenauNotifier
 from funestra.messages import MessageWriter
 from funestra.modes import MainMode
+from funestra.off_the_loop import BehindTheLoop
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem, read_playlist
 from funestra.pointer import OMNIPAUSE_TOGGLE
@@ -53,7 +55,6 @@ from fun_time.hosted_contract import (
 from fun_time.log_panel_model import ui_state_path
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item, source_roots
-from fun_time.read_when_changed import ReadWhenChanged
 from fun_time.session_handoff import headset_hold_asked
 from fun_time.shared_state import BridgeState, read_shared_state, shared_state_path
 from fun_time.shown_message import ShownMessage
@@ -479,6 +480,7 @@ class _MainUnit(_VideoUnit):
                          kino=library.kino()),
             hud_surface=self.hud, users_frames=self.users_frames,
             window_verbs=self._apply_the_headsets_verb, host_controls=self.projection,
+            frame_ms=1000.0 / TICK_HZ_FOR_A_SMOOTH_FLICK, off_the_loop=BehindTheLoop(),
         ))
         self.verbs = HeadsetVerbs(
             self.funestra.playback, metadata_root=manifest.regen.metadata_folder,
@@ -750,7 +752,7 @@ class _SatelliteUnit(_VideoUnit):
         if self.funestra is None and (playlist := read_playlist(self._channels.playlist)):
             self.funestra = Funestra(self.engine, FunestraSetup(
                 channels=self._channels, playlist=playlist, tcode=self._tcode,
-                hud_surface=self.hud,
+                hud_surface=self.hud, frame_ms=1000.0 / PUMP_HZ, off_the_loop=BehindTheLoop(),
             ))
         return self.funestra is not None
 
@@ -899,6 +901,10 @@ def _at_the_dashs_own_width(placement: Placement) -> Placement:
     return replace(placement, width_deg=_DASH_WIDTH_DEG)
 
 
+def _flag_is_up(path: Path) -> bool:
+    return read_flag(path, default=False)
+
+
 class _DashUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {
         DASH: Placement(azimuth_deg=0.0, elevation_deg=_two_handles_over_the_main(_DASH_WIDTH_DEG),
@@ -912,7 +918,7 @@ class _DashUnit:
         self._main_unit = main_unit
         self._messages = messages
         self._snapshot = ReadWhenChanged(Path(commands.dashboard_state_file), load_dashboard_snapshot)
-        self._reference_flag = reference_flag
+        self._reference_open = ReadWhenChanged(reference_flag, _flag_is_up)
         self._spot_over_a_flat_video = _at_the_dashs_own_width(
             remembered.get(DASH, self.SPOTS[DASH]))
         self._spot_carrying_the_main_hud = _at_the_dashs_own_width(
@@ -984,7 +990,7 @@ class _DashUnit:
             omni_paused=snapshot is not None and snapshot.omni_paused,
             voice_active=snapshot is None or snapshot.voice_active,
             favorites=snapshot is not None and snapshot.favorites,
-            reference_open=read_flag(self._reference_flag, default=False),
+            reference_open=self._reference_open.latest(),
             nothing_to_reset=snapshot is not None and snapshot.nothing_to_reset,
         )
         records = self._messages.records
@@ -1025,7 +1031,7 @@ class _ReferenceUnit:
                  host: ReferencePagesHost) -> None:
         self._dash = dash
         self._main_hud = main_hud_unit
-        self._flag = flag
+        self._open = ReadWhenChanged(flag, _flag_is_up)
         self._host = host
         self._pointer = ReferencePointer()
         self._scrolled = 0.0
@@ -1066,7 +1072,7 @@ class _ReferenceUnit:
 
     def pump(self, stop: threading.Event, now: float) -> None:
         events = list(self._presses.drain())
-        self._pointer.showing(read_flag(self._flag, default=False))
+        self._pointer.showing(self._open.latest())
         if not self._pointer.state.open:
             return
         pages = self._host.pages()
@@ -1111,7 +1117,7 @@ class _LibraryUnit:
         genau_has_the_slot: Callable[[], bool],
     ) -> None:
         commands = manifest.commands
-        self._flag = flag
+        self._asked = ReadWhenChanged(flag, _flag_is_up)
         self._host = host
         self._main_funestra_cmd_file = Path(commands.main_funestra_cmd_file)
         self._metadata_root = manifest.regen.metadata_folder
@@ -1173,7 +1179,7 @@ class _LibraryUnit:
             if said in (PICKED, DISMISSED):
                 self._shown.put_away()
                 append_command(self._dashboard_cmd_file, BROWSE_LIBRARY_CLOSE)
-        if self._shown.asked(read_flag(self._flag, default=False)):
+        if self._shown.asked(self._asked.latest()):
             self._token += 1
             self._opened_at = now
             self._drawn = False
@@ -1419,7 +1425,7 @@ class LoadingScreenUnit:
 
     def refresh(self) -> None:
         self.holding = headset_hold_asked(self._state_dir)
-        loading_screen = self._watcher.read()
+        loading_screen = self._watcher.read(held=self.holding)
         if (loading_screen is not None and not loading_screen.closing
                 and self.seen_by_the_frame_loop.awaiting_wearer):
             loading_screen = replace(loading_screen, status=WEARER_STATUS)
