@@ -34,6 +34,9 @@ class Osr2PartWidget(PressableDrawing):
             return NOTHING_DRAWN
         return self._panel.drawing(self._hud)
 
+    def what_the_pointer_shows(self) -> object:
+        return self._panel.what_the_pointer_shows()
+
     def poll(self) -> None:
         self._hud = self._reader.read()
         if self._hud is None:
