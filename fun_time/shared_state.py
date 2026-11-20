@@ -17,7 +17,7 @@ from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
 from .mode_plan import STARTUP_MAIN_MODE
-from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
+from .polled_files import READER_HOLD_BUDGET_S, FileStamp, file_stamp, replace_despite_readers
 from .rfb_modes import RfbMode
 
 logger = logging.getLogger(__name__)
@@ -142,12 +142,20 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
     _publish(state_file, parser)
 
 
+_LAST_WRITTEN: dict[Path, tuple[str, FileStamp | None]] = {}
+
+
 def _publish(state_file: Path, parser: configparser.ConfigParser) -> None:
-    text = io.StringIO()
-    parser.write(text)
-    if not replace_despite_readers(state_file, text.getvalue()):
+    written = io.StringIO()
+    parser.write(written)
+    text = written.getvalue()
+    if _LAST_WRITTEN.get(state_file) == (text, file_stamp(state_file)):
+        return
+    if not replace_despite_readers(state_file, text):
         logger.warning("Could not write %s: another process kept it open for %gs",
                        state_file.name, READER_HOLD_BUDGET_S)
+        return
+    _LAST_WRITTEN[state_file] = (text, file_stamp(state_file))
 
 
 def _read_satellite(section, funestra: FunTimeFunestra) -> SatelliteState:

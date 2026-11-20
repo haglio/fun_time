@@ -51,6 +51,30 @@ def test_a_write_that_meets_a_reader_holding_the_file_open_still_lands(tmp_path:
     assert read_shared_state(state_file).omni_paused is True
 
 
+def test_a_command_that_leaves_the_state_as_it_was_does_not_write_the_file_again(tmp_path: Path):
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    write_shared_state(state_file, BridgeState(omni_paused=True))
+    written = state_file.stat().st_ino
+
+    for _ in range(5):
+        write_shared_state(state_file, BridgeState(omni_paused=True))
+
+    assert state_file.stat().st_ino == written
+    write_shared_state(state_file, BridgeState(omni_paused=False))
+    assert state_file.stat().st_ino != written
+
+
+def test_a_file_another_hand_changed_is_written_again_though_the_state_is_unchanged(
+        tmp_path: Path):
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    write_shared_state(state_file, BridgeState(omni_paused=True))
+    state_file.write_text("", encoding="utf-8")
+
+    write_shared_state(state_file, BridgeState(omni_paused=True))
+
+    assert read_shared_state(state_file).omni_paused is True
+
+
 def test_every_field_survives_the_round_trip_the_snippet_makes_each_tick(tmp_path: Path):
     state_file = tmp_path / "shared_state.ini"
     state = shifted_state(BridgeState())

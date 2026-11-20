@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from pathlib import Path
 
-_NOT_READ = object()
+from .polled_files import file_stamp
 
-FileStamp = tuple[int, int, int]
+_NOT_READ = object()
 
 
 class ReadWhenChanged[T]:
@@ -24,11 +23,3 @@ class ReadWhenChanged[T]:
             except OSError:
                 return self._value
         return self._value
-
-
-def file_stamp(path: Path) -> FileStamp | None:
-    try:
-        written = os.stat(path)
-    except OSError:
-        return None
-    return written.st_mtime_ns, written.st_size, written.st_ino
