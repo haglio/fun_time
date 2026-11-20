@@ -166,6 +166,32 @@ class TestWhatTheLoadingScreenShows:
 
         assert watcher.read() is None
 
+    def test_a_finished_startup_file_is_opened_once_however_often_the_panels_look(
+            self, tmp_path: Path):
+        progress = _the_orchestrators_startup_writer(tmp_path)
+        progress.advance("funestras")
+        progress.finish()
+        written_a_while_ago = (tmp_path / PROGRESS_FILENAME).stat().st_mtime - 10
+        os.utime(tmp_path / PROGRESS_FILENAME, (written_a_while_ago, written_a_while_ago))
+        opened: list[Path] = []
+        watcher = LoadingScreenWatcher(tmp_path, read=lambda path: opened.append(path) or (
+            path.read_text(encoding="utf-8"), path.stat().st_mtime) if path.exists() else None)
+
+        for _ in range(30):
+            assert watcher.read() is None
+
+        assert opened.count(tmp_path / PROGRESS_FILENAME) == 1
+
+    def test_a_progress_file_taken_away_takes_its_screen_with_it(self, tmp_path: Path):
+        progress = _the_orchestrators_startup_writer(tmp_path)
+        progress.advance("funestras")
+        watcher = LoadingScreenWatcher(tmp_path)
+        assert watcher.read() is not None
+
+        (tmp_path / PROGRESS_FILENAME).unlink()
+
+        assert watcher.read() is None
+
     def test_a_torn_write_holds_the_last_readable_line(self, tmp_path: Path):
         _the_orchestrators_startup_writer(tmp_path).advance("funestras")
         watcher = LoadingScreenWatcher(tmp_path)
