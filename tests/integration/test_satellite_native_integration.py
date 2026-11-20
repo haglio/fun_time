@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -138,26 +137,29 @@ def test_a_satellite_holds_an_image_for_the_pace_it_is_sent_and_under_a_lock():
         assert satellite.video() == held, "a locked image moved on at a one-second pace"
 
 
+A_PACE_NO_RUN_OUTLASTS_S = 600
+
+
 def test_a_frame_put_up_over_an_image_moves_on_when_the_image_would_have():
     satellite = a_lone_satellite()
     images = _images(satellite.sources / "images", 3)
     frames = _images(satellite.sources / "frames", 2)
-    satellite.send(f"{SET_PACE} 4")
+    satellite.send(f"{SET_PACE} {A_PACE_NO_RUN_OUTLASTS_S}")
 
     with satellite.launched(images, width=480, height=640):
         first = satellite.wait_for(lambda: _the_image_on_screen(satellite),
                                    desc="the satellite to show an image")
-        def the_next_image():
-            video = read_satellite_status(satellite.status).video
-            return video if video not in ("", first) else None
-
-        second = satellite.wait_for(the_next_image, desc="the next image")
-        satellite.send(f"{SHOW_FRAME} {frames[0]}")
-        time.sleep(1.0)
-        satellite.send(f"{SHOW_FRAME} {frames[1]}")
-        time.sleep(0.5)
+        satellite.send(NEXT)
+        second = satellite.wait_for_video(other_than=first)
+        for frame in frames:
+            satellite.send(f"{SHOW_FRAME} {frame}")
+        satellite.send(f"{SET_SPEED} 2")
+        satellite.wait_for(lambda: read_satellite_status(satellite.status).speed == 2.0,
+                           desc="the satellite to have read every command sent after the frames")
+        let_seconds_pass(1.5)
         assert satellite.video() == second, (
             "an image with frames put up over it moved on at the first frame")
 
+        satellite.send(f"{SET_PACE} 1")
         satellite.wait_for(lambda: read_satellite_status(satellite.status).video not in ("", second),
                            desc="the image under the frames to move on at its pace")
