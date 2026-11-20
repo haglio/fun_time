@@ -213,6 +213,26 @@ def test_a_run_that_fails_without_naming_a_test_waits_for_main_to_move_and_is_re
     assert bench.taken_back == []
 
 
+def test_a_broken_run_starts_a_session_to_find_what_stopped_it(tmp_path):
+    bench = FakeBench("c3", ["a1", "b2", "c3"], BenchScript(broken_from="c3", tests=()))
+
+    main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench)
+
+    assert bench.fixing == [main_verifier.fixing_a_broken_run("c3", WHOLE_RUN)]
+    assert bench.recorded[0]["fix_session"] == "812181fb"
+
+
+def test_a_broken_run_while_a_session_still_looks_into_the_last_one_starts_no_second(tmp_path):
+    earlier = {"kind": "broken run", "commit": "b2", "tests": [], "log": WHOLE_RUN, "fix_session": "5e55107a"}
+    bench = FakeBench("c3", ["a1", "b2", "c3"], BenchScript(broken_from="b2", tests=(), incidents=[earlier],
+                                                            sessions={"5e55107a": "working"}))
+
+    main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench)
+
+    assert bench.fixing == []
+    assert bench.recorded[0]["being_fixed_by"] == "5e55107a"
+
+
 class FakeShell:
     def __init__(self, answers):
         self.answers, self.commands = answers, []
