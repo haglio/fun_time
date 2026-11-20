@@ -6,7 +6,12 @@ import threading
 import pytest
 
 from fun_time_vr.frame_relay import SLOTS
-from fun_time_vr.video_thread import A_STILL_JUST_ENOUGH_FOR_A_FISHEYES_EDGE_PX, VideoThread
+from fun_time_vr.video_thread import (
+    A_STILL_JUST_ENOUGH_FOR_A_FISHEYES_EDGE_PX,
+    PAINT_POLL_S,
+    PaintPace,
+    VideoThread,
+)
 from tests.paint_fakes import AGpu, AnEngine, ATarget
 
 A_WINDOW = "the video's context"
@@ -198,3 +203,32 @@ def test_showing_the_newest_frame_copies_what_was_painted():
 
     assert shown is True
     assert target.painted is True
+
+
+def test_with_nothing_new_from_mpv_the_thread_waits_to_be_woken_never_on_the_short_sleep():
+    slept: list[float] = []
+    pace = PaintPace(sleep=slept.append)
+
+    pace.wake()
+    pace.rest(card_busy=False)
+
+    assert slept == []
+
+
+def test_while_the_card_finishes_the_last_frame_the_thread_looks_again_after_the_short_sleep():
+    slept: list[float] = []
+    pace = PaintPace(sleep=slept.append)
+
+    pace.rest(card_busy=True)
+
+    assert slept == [PAINT_POLL_S]
+
+
+def test_mpv_is_told_to_wake_the_thread_when_it_has_a_frame():
+    engine = _Engine()
+
+    thread = _a_thread(engine)
+    woken_by = _soon(lambda: engine.woken_by)
+    thread.close()
+
+    assert woken_by is not None

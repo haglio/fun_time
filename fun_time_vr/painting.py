@@ -71,6 +71,10 @@ class Painting:
                                self._frames.name, gone)
         return True
 
+    @property
+    def card_busy(self) -> bool:
+        return self._drawn is not None
+
     def close(self) -> None:
         self._mark.close()
 

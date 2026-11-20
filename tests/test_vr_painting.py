@@ -246,6 +246,6 @@ class TestShowingTheNewestFrame:
 
 
 def test_the_engine_stand_in_answers_only_what_the_headsets_engine_does():
-    answered = {"video_dims", "has_frame_to_draw", "position_ms", "render"}
+    answered = {"video_dims", "has_frame_to_draw", "position_ms", "render", "wake_on_updates"}
 
     assert answered <= set(dir(HeadsetEngine))

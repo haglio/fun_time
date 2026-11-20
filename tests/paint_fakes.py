@@ -44,6 +44,10 @@ class AnEngine:
         self.position_ms = 0.0
         self.rendered: list[tuple] = []
         self._video = video
+        self.woken_by = None
+
+    def wake_on_updates(self, wake) -> None:
+        self.woken_by = wake
 
     def render(self, fbo, width, height, *, flip_y=False):
         self.rendered.append((fbo, width, height, flip_y))
