@@ -56,4 +56,4 @@ def show_already_running_message(text: str, title: str | None = None) -> None:
 
     shown = preview_marker.shown_as()
     show_alert(title or preview_marker.app_title(shown), text, level=Level.INFO,
-               icon=preview_marker.icon_file(PROJECT_ICON, shown))
+               icon=preview_marker.icon_file(PROJECT_ICON, shown), copyable=False)
