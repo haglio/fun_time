@@ -852,6 +852,38 @@ def test_a_head_that_passes_is_measured_for_coverage_once_the_map_is_out_of_date
     assert (fresh.measured, stale.measured, broken.measured) == ([], ["c3"], [])
 
 
+def test_coverage_waits_while_a_newer_head_waits_to_be_verified(tmp_path):
+    class MovingBench(FakeBench):
+        def run(self, commit, tests=()):
+            self.head_commit = "d4"
+            return super().run(commit, tests)
+
+    bench = MovingBench("c3", ["a1", "b2", "c3", "d4"], BenchScript(stale_map=True))
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "passed"
+
+    assert bench.measured == []
+    assert bench.released == ["c3"]
+
+
+def test_coverage_is_left_for_later_when_main_cannot_be_read_after_a_pass(tmp_path):
+    class UnreachableBench(FakeBench):
+        def run(self, commit, tests=()):
+            self.unreachable = True
+            return super().run(commit, tests)
+
+        def head(self):
+            if getattr(self, "unreachable", False):
+                raise main_verifier.CommandFailed("git fetch origin main: Could not resolve hostname")
+            return super().head()
+
+    bench = UnreachableBench("c3", ["a1", "b2", "c3"], BenchScript(stale_map=True))
+
+    assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "passed"
+
+    assert bench.measured == []
+
+
 def test_the_coverage_map_is_out_of_date_when_missing_or_a_day_old(tmp_path):
     primary = tmp_path / "fun_time"
     bench = main_verifier.MachineBench(primary=primary, shell=FakeShell({}))
