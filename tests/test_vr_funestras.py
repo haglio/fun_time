@@ -549,6 +549,11 @@ class TestGenauOnTheMainFunestra:
 
         assert built.fakes["GenauInTheHeadset"].call_args.args[0].favorites is True
 
+    def test_its_drive_file_is_written_behind_the_loop_as_the_main_funestras_is(self, tmp_path):
+        built = self._users(tmp_path, flicks_folder=tmp_path)
+
+        assert built.fakes["GenauInTheHeadset"].call_args.kwargs["seams"].off_the_loop is BehindTheLoop
+
     def test_its_robot_hand_reaches_the_osr2_through_the_brokers_slot(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path)
 
