@@ -3015,7 +3015,7 @@ class TestASatelliteLockOpensWhereMoreOfItIsMadeAtThePress:
             f"GO_TO|{self.MADE_HERE}", "portrait_lock_on_led_by_the_session"]
 
 
-def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):
+def test_press_hints_share_one_socket_instead_of_leaving_one_open_each(tmp_path, monkeypatch):
     opened = []
     real_socket = socket.socket
 
@@ -3026,12 +3026,12 @@ def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):
     with _press_channel(tmp_path) as recv_sock:
         runner = make_runner(tmp_path, dashboard_enabled=True)
         monkeypatch.setattr(socket, "socket", recording_socket)
-        runner.answering.echo_the_press_best_effort("pause")
+        for press in ("next", "lock", "pause"):
+            runner.answering.echo_the_press_best_effort(press)
         monkeypatch.undo()
 
-        assert _presses_until(recv_sock, "pause") == ["pause"]
-    assert opened
-    assert all(sender.fileno() == -1 for sender in opened)
+        assert _presses_until(recv_sock, "pause") == ["next", "lock", "pause"]
+    assert len(opened) == 1
 
 
 class TestASessionThatHostsNoOrigenerator:
