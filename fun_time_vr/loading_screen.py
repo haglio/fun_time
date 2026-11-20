@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from app_support.written_file import ReadWhenChanged
 from PIL import Image
 from shared_ui.loading_panel import DESKTOP as DESKTOP_PANEL
 from shared_ui.loading_panel import LoadingPanel, Metrics, icon_image, render
@@ -84,9 +85,17 @@ def _line_on(path: Path) -> Progress | None:
         return None
 
 
+def _text_and_when_it_moved(path: Path) -> tuple[str, float] | None:
+    try:
+        return path.read_text(encoding="utf-8"), path.stat().st_mtime
+    except OSError:
+        return None
+
+
 class LoadingScreenWatcher:
     def __init__(
         self, state_dir: str | Path, *, clock: Callable[[], float] = time.monotonic,
+        read: Callable[[Path], tuple[str, float] | None] = _text_and_when_it_moved,
     ) -> None:
         state_dir = Path(state_dir)
         self.state_dir = state_dir
@@ -101,12 +110,14 @@ class LoadingScreenWatcher:
         self._held: dict[str, tuple[float, str]] = {}
         self._seen: dict[str, tuple[tuple[str, float], float]] = {}
         self._gave_up: set[str] = set()
+        self._ends = {path: ReadWhenChanged(path, read)
+                      for path in (self.shutdown_file, self.startup_file)}
 
     def closing_unasked(self) -> None:
         self._closing_locally = True
 
-    def read(self) -> LoadingScreen | None:
-        if headset_hold_asked(self.state_dir):
+    def read(self, *, held: bool | None = None) -> LoadingScreen | None:
+        if headset_hold_asked(self.state_dir) if held is None else held:
             return self._screen_for_the_line(1.0, *self._held_line(), closing=True)
         shutdown = self._read_end(
             self.shutdown_file, key=_SHUTDOWN,
@@ -141,11 +152,10 @@ class LoadingScreenWatcher:
     ) -> tuple[float, str, str] | None:
         if key in self._gave_up:
             return None
-        try:
-            text = path.read_text(encoding="utf-8")
-            moved_at = path.stat().st_mtime
-        except OSError:
+        seen = self._ends[path].latest()
+        if seen is None:
             return None
+        text, moved_at = seen
         progress = parse_progress(text)
         if progress.done:
             return None
