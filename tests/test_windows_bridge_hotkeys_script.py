@@ -221,10 +221,12 @@ class TestWithTheHeadsetOff:
 
 
 def test_the_keys_let_go_within_a_twentieth_of_a_second_of_a_pause():
-    interval = re.search(r"SetTimer\(ProcessAhkCommand, (\d+)\)", script_text())
+    rung = re.search(r"SetTimer\(ProcessAhkCommandWhenRung, (\d+)\)", script_text())
+    without_a_bell = re.findall(r"SetTimer\(ProcessAhkCommand, (\d+)\)", script_text())
 
-    assert interval is not None
-    assert int(interval.group(1)) <= 50
+    assert rung is not None
+    assert int(rung.group(1)) <= 50
+    assert min(int(interval) for interval in without_a_bell) <= 50
 
 
 def test_a_hotkeys_place_in_the_script_is_the_number_a_press_of_it_arrives_under():

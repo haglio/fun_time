@@ -51,6 +51,7 @@ from shared_ui.reference import REFERENCE_WINDOW_TITLE
 from shared_ui.spacing import BUTTON_RADIUS_HUD
 
 from fun_time import preview_marker
+from fun_time.command_bell import ring as ring_the_bell
 from fun_time.config import LayoutConfig
 from fun_time.console_logging import log_to_the_console
 from fun_time.dashboard_actions import (
@@ -617,6 +618,7 @@ class DashboardWindow(QMainWindow):
         mark_session_end(self._state_dir, asked_by)
         with contextlib.suppress(OSError):
             self._ahk_cmd_file.write_text("end_session", encoding="utf-8")
+        ring_the_bell(self._ahk_cmd_file)
 
     def _stop_background_work(self) -> None:
         self._press_channel.stop()

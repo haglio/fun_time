@@ -4,7 +4,7 @@ import threading
 from pathlib import Path
 
 from fun_time.command_bell import CommandBell, bell_name, ring, wait_out_the_tick
-from tests.ahk_script import function_source
+from tests.ahk_script import function_source, script_text
 
 
 class WoundClock:
@@ -90,6 +90,15 @@ def test_a_ring_with_no_session_listening_does_nothing(tmp_path):
 def test_the_hotkey_script_rings_the_bell_by_the_same_name_after_each_command_it_writes():
     queued = function_source("QueueCommand")
     rings = function_source("RingTheCommandBell")
+    names = function_source("BellNameOf")
 
     assert queued.rstrip("}").rstrip().endswith("RingTheCommandBell()")
-    assert r'"Local\FunTime_" . RegExReplace(StrLower(DASHBOARD_CMD_FILE), "[^a-z0-9]", "_")' in rings
+    assert "BellNameOf(DASHBOARD_CMD_FILE)" in rings
+    assert r'"Local\FunTime_" . RegExReplace(StrLower(path), "[^a-z0-9]", "_")' in names
+
+
+def test_the_hotkey_script_waits_on_the_bell_for_its_own_commands():
+    script = script_text()
+
+    assert 'CreateEventW", "Ptr", 0, "Int", 0, "Int", 0, "Str", BellNameOf(AHK_CMD_FILE)' in script
+    assert "WaitForSingleObject" in function_source("ProcessAhkCommandWhenRung")
