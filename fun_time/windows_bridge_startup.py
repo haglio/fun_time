@@ -35,6 +35,7 @@ from .funestra_settings import reports_published_in
 from .funestra_status import read_main_funestra_status
 from .gallery import the_librarys_origenerator
 from .hosted_contract import gallery_names_args, the_args_it_declares
+from .live_priority import AHEAD_OF_BACKGROUND_WORK
 from .main_list import MainList
 from .manifest import CommandFiles, LaunchManifest
 from .max_intensity import publish_max_intensity
@@ -509,7 +510,7 @@ def launch_audio_companion(m: LaunchManifest, *, audio_device: str | None = None
         cmd.extend(["--audio-device", audio_device])
     return subprocess.Popen(cmd, **no_child_log(),
                             **sibling_checkouts_kwargs(program.sibling_checkouts),
-                            **hidden_subprocess_kwargs())
+                            **hidden_subprocess_kwargs(creationflags=AHEAD_OF_BACKGROUND_WORK))
 
 
 def _launch_the_dashboard(
@@ -525,7 +526,7 @@ def _launch_the_dashboard(
         *_rect_args("rfb-", plan.random_faves_browser),
     ]
     kwargs = {**sibling_checkouts_kwargs(m.runtime.sibling_checkouts),
-              **hidden_subprocess_kwargs()}
+              **hidden_subprocess_kwargs(creationflags=AHEAD_OF_BACKGROUND_WORK)}
     if log_file is None:
         return subprocess.Popen(cmd, **no_child_log(), **kwargs).pid
     with open_child_log(log_file, cmd) as log:

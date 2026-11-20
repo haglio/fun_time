@@ -148,6 +148,12 @@ def _no_heartbeat_outlives_its_test_reading_its_tmp_path(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _a_session_run_in_a_test_stays_behind_his_session(monkeypatch):
+    for orchestrates in (orchestrator, vr_orchestrator):
+        monkeypatch.setattr(orchestrates, "put_this_session_ahead_of_background_work", lambda: None)
+
+
+@pytest.fixture(autouse=True)
 def _never_act_as_if_on_the_hidden_desktop(monkeypatch):
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
 

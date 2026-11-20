@@ -19,6 +19,7 @@ from .event_log import open_event_log
 from .funestra_deaths import NO_ORIGENERATOR_SET_UP, show_funestra_died_alert
 from .funestra_engine import engine_missing_abort
 from .headset_power import put_the_headset_to_sleep, wake_the_headset
+from .live_priority import put_this_session_ahead_of_background_work
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
 from .project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
@@ -158,6 +159,7 @@ def set_up_logging(config) -> logging.Logger:
 
 
 def main(argv: list[str] | None = None) -> int:
+    put_this_session_ahead_of_background_work()
     args = build_parser().parse_args(argv)
     env = SessionEnvironment.from_environ(os.environ)
     config = load_config(args.config)

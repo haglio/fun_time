@@ -66,6 +66,7 @@ from .hosted_contract import (
 from .hosted_origenerator import what_it_answers_by_voice_in
 from .hud_transport import HudPublisher
 from .library_handles import genau_flick_sources, handles_by_shape
+from .live_priority import AHEAD_OF_BACKGROUND_WORK
 from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
@@ -381,7 +382,8 @@ def launch_hotkey_script(*, ahk_exe: str | Path, script: str | Path, manifest_pa
                          pids_file: Path, project_dir: Path) -> subprocess.Popen:
     command = [str(ahk_exe), str(script), str(manifest_path), str(pids_file), str(os.getpid())]
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
-    return subprocess.Popen(command, cwd=project_dir, **no_child_log(), **no_console_window())
+    return subprocess.Popen(command, cwd=project_dir, **no_child_log(),
+                            **no_console_window(creationflags=AHEAD_OF_BACKGROUND_WORK))
 
 
 HOTKEY_SCRIPT_EXIT_WAIT_S = 3.0
