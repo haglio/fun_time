@@ -295,6 +295,20 @@ def test_a_run_narrowed_below_the_whole_suite_waits_in_line_as_a_short_run(args,
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+@pytest.mark.parametrize("told", [True, False], ids=["told it is for production", "not told"])
+def test_a_run_the_main_verifier_says_is_for_production_goes_first_in_line(monkeypatch, told):
+    if told:
+        monkeypatch.setenv(hidden_desktop.FOR_PRODUCTION_ENV, "1")
+    else:
+        monkeypatch.delenv(hidden_desktop.FOR_PRODUCTION_ENV, raising=False)
+    seen = RunsSeen()
+    with _runs_launched_into([], seen=seen):
+        hidden_desktop.run_on_hidden_desktop([])
+
+    assert [place["for_production"] for place in seen.places] == [told]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 def test_repeat_changed_runs_each_file_holding_a_changed_test_whole_once_in_this_venv_and_nothing_more():
     files = ["tests/integration/test_a.py", "tests/integration/test_b.py"]
     launched: list[tuple[str, str]] = []
@@ -366,9 +380,12 @@ def test_the_waiting_message_says_where_the_run_stands_in_line(capsys):
     hidden_desktop._announce_waiting(Waiting(25.0, Place.BEHIND_OTHER_FULL_RUNS))
     hidden_desktop._announce_waiting(Waiting(30.0, Place.GIVING_WAY_TO_SHORT_RUNS))
     hidden_desktop._announce_waiting(Waiting(40.0, Place.GOING_NEXT))
+    hidden_desktop._announce_waiting(Waiting(50.0, Place.FIRST_IN_LINE))
 
-    short, short_after_a_full, full_behind, full, full_going_next = (
+    short, short_after_a_full, full_behind, full, full_going_next, for_production = (
         capsys.readouterr().err.splitlines())
+    assert ("this run is the main verifier's and goes ahead of every run waiting (50s elapsed)"
+            in for_production)
     assert "this short run waits for it, ahead of any full run (12s elapsed)" in short
     assert ("this short run waits for it, then for the full run that goes next (20s elapsed)"
             in short_after_a_full)

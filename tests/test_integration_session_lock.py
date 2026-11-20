@@ -192,6 +192,26 @@ def test_a_full_run_lets_a_short_run_that_came_after_it_go_first():
     assert order == ["short", "full"]
 
 
+def test_a_run_for_production_goes_ahead_of_every_run_already_waiting():
+    name = _unique_name()
+    blocker = _held_by_the_test(name)
+    order: list[str] = []
+    full, full_waiting = _start_run(name, order, "full")
+    assert _seen(full_waiting.is_set, while_running=full)
+    short, short_waiting = _start_run(name, order, "short", short=True)
+    assert _seen(short_waiting.is_set, while_running=short)
+    production, production_first = _start_run(
+        name, order, "production", for_production=True,
+        once=lambda state: state.place is Place.FIRST_IN_LINE)
+    assert _seen(production_first.is_set, while_running=production)
+
+    blocker.close()
+    for run in (full, short, production):
+        run.join()
+
+    assert order == ["production", "short", "full"]
+
+
 def test_short_runs_get_the_lock_in_the_order_they_started_waiting():
     name = _unique_name()
     blocker = _held_by_the_test(name)

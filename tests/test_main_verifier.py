@@ -301,7 +301,7 @@ def test_a_run_checks_main_out_where_the_runner_keeps_it_and_names_the_tests_tha
     shell = FakeShell({"c3:tests/integration/test_x.py": "def test_y():\n    pass\n"})
     suites = []
 
-    def suite(command, cwd, log, asked_to_restart):
+    def suite(command, cwd, log, environment=None, *, asked_to_restart):
         suites.append((command, cwd, asked_to_restart))
         log.write_text("FAILED tests\\integration\\test_x.py::test_y - AssertionError\n", encoding="utf-8")
         return 1
@@ -994,6 +994,23 @@ def test_the_suite_runs_out_of_the_verifiers_own_installation(tmp_path):
     bench.run("c3")
 
     assert suites[0][0] == str(primary / "state" / main_verifier.VERIFIER_VENV / "Scripts" / "python.exe")
+
+
+def test_the_verifiers_runs_tell_the_line_they_are_for_production(tmp_path):
+    told = []
+
+    def suite(command, cwd, log, environment=None, *, asked_to_restart):
+        told.append((environment or {}).get(main_verifier.FOR_PRODUCTION_ENV))
+        log.write_text("", encoding="utf-8")
+        return 0
+
+    shell = FakeShell({"b2:tests/integration/test_x.py": "def test_y():\n    pass\n"})
+    bench = main_verifier.MachineBench(primary=tmp_path / "fun_time", shell=shell, suite=suite)
+
+    bench.run("c3")
+    bench.run("b2", ["tests/integration/test_x.py::test_y"])
+
+    assert told == ["1", "1"]
 
 
 def test_each_commit_is_run_on_the_libraries_its_own_pyproject_pins(tmp_path):

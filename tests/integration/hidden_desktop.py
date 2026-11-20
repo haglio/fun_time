@@ -25,6 +25,7 @@ from .line_record import RUN_RECORD_ENV, RunAsk, Visit
 from .run_clock import WALL, Budget, RunClock, keep_time_by
 from .run_pulse import PULSE_ENV, STOPPED_AFTER_S, PulseWatch
 from .session_lock import (
+    FOR_PRODUCTION_ENV,
     FULL_RUN_GIVES_WAY_S,
     INTEGRATION_LOCK_NAME,
     Place,
@@ -355,6 +356,7 @@ _WHERE_IT_WAITS = {
     Place.GIVING_WAY_TO_SHORT_RUNS: (f"this full run waits for it, and lets short runs go first until "
                                      f"they have held the line for {FULL_RUN_GIVES_WAY_S / 60:g} minutes"),
     Place.GOING_NEXT: "this full run waits for it, and short runs now wait for this one",
+    Place.FIRST_IN_LINE: "this run is the main verifier's and goes ahead of every run waiting",
 }
 
 
@@ -442,7 +444,8 @@ def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
         checkout=root.name, branch=_branch_of(root),
         session=os.environ.get(CLAUDE_SESSION_ENV, ""), what=what, short=short))
     try:
-        with hold_integration_lock(short=short, notify=_announce_waiting):
+        with hold_integration_lock(short=short, for_production=os.environ.get(FOR_PRODUCTION_ENV) == "1",
+                                   notify=_announce_waiting):
             wait_while_a_funestra_plays()
             visit.got_the_machine()
             os.environ[RUN_RECORD_ENV] = str(visit.path)
