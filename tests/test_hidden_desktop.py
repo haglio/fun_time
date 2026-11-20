@@ -20,6 +20,7 @@ from unittest.mock import patch
 import pytest
 from app_support.integration_runs import read_runs
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.threading_utils import wait_until
 from app_support.win32_loader import load_dll
 
 from fun_time.process_tree import kill_process_tree
@@ -936,3 +937,22 @@ def test_help_names_every_way_to_run(capsys):
     said = capsys.readouterr().out
     assert hidden_desktop.CHANGED_FLAG in said
     assert hidden_desktop.REPEAT_CHANGED_FLAG in said
+
+
+def test_a_run_given_the_machine_waits_while_a_production_funestra_plays_and_says_so_once():
+    answers, said = [True, True, False], []
+
+    hidden_desktop.wait_while_a_funestra_plays(
+        is_live=lambda: answers.pop(0), say=lambda: said.append(True),
+        wait=lambda done, interval: wait_until(done, interval=interval, sleep=lambda _s: None))
+
+    assert (said, answers) == ([True], [])
+
+
+def test_a_run_given_the_machine_with_no_funestra_playing_goes_at_once():
+    said = []
+
+    hidden_desktop.wait_while_a_funestra_plays(is_live=lambda: False, wait=lambda *a, **k: said.append("waited"),
+                                               say=lambda: said.append("said"))
+
+    assert said == []

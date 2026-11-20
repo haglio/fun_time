@@ -11,10 +11,12 @@ from contextlib import contextmanager
 from itertools import pairwise
 from pathlib import Path
 
+from app_support import live_session
 from app_support.changed_tests import changed_test_ids
 from app_support.integration_runs import CHANGED_FLAG, REPEAT_CHANGED_FLAG, runs_dir
 from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.threading_utils import wait_until
 from app_support.win32 import JobObject
 from app_support.win32_loader import load_dll, win_functype
 
@@ -416,6 +418,23 @@ def _branch_of(checkout: Path) -> str:
     return done.stdout.strip()
 
 
+FUNESTRA_LOOKED_FOR_EVERY_S = 30.0
+
+
+def _say_it_waits_for_a_funestra() -> None:
+    print("[integration] a production Funestra is playing on his screen; this run waits until "
+          "none is", file=sys.stderr, flush=True)
+
+
+def wait_while_a_funestra_plays(*, is_live: Callable[[], bool] = live_session.is_live,
+                                wait: Callable[..., None] = wait_until,
+                                say: Callable[[], None] = _say_it_waits_for_a_funestra) -> None:
+    if not is_live():
+        return
+    say()
+    wait(lambda: not is_live(), interval=FUNESTRA_LOOKED_FOR_EVERY_S)
+
+
 @contextmanager
 def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
     root = _repo_root()
@@ -424,6 +443,7 @@ def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
         session=os.environ.get(CLAUDE_SESSION_ENV, ""), what=what, short=short))
     try:
         with hold_integration_lock(short=short, notify=_announce_waiting):
+            wait_while_a_funestra_plays()
             visit.got_the_machine()
             os.environ[RUN_RECORD_ENV] = str(visit.path)
             yield visit
