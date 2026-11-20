@@ -38,7 +38,7 @@ from fun_time.project_paths import SIBLING_CHECKOUTS_OVERRIDE_NAME, STATE_DIRNAM
 
 from .coverage_map import CoverageMap, source_files, the_machine_s_map
 from .fix_sessions import look_after_fix_sessions
-from .session_lock import SingleInstanceLock
+from .session_lock import FOR_PRODUCTION_ENV, SingleInstanceLock
 
 REPO = "haglio/fun_time"
 ONE_COPY = r"Global\fun_time_main_verifier"
@@ -243,7 +243,8 @@ class MachineBench:
             log.write_text(f"none of these tests is at {commit} yet:\n{_listed(list(tests))}\n", encoding="utf-8")
             return RunResult(NOT_AT_THAT_COMMIT, [], log)
         self.install_for(commit)
-        exit_code = self.suite(self._runner(*there), self.checkout, log, asked_to_restart=self.asked_to_restart)
+        exit_code = self.suite(self._runner(*there), self.checkout, log, {**os.environ, FOR_PRODUCTION_ENV: "1"},
+                               asked_to_restart=self.asked_to_restart)
         return RunResult(exit_code, failed_tests(log.read_text(encoding="utf-8", errors="replace")), log)
 
     def _has(self, commit: str, test: str) -> bool:

@@ -18,6 +18,8 @@ INTEGRATION_LOCK_NAME = f"{THE_NAMESPACE_EVERY_LOGIN_SESSION_SHARES}fun_time_int
 
 FULL_RUN_GIVES_WAY_S = 20 * 60
 
+FOR_PRODUCTION_ENV = "FUN_TIME_RUN_FOR_PRODUCTION"
+
 
 class Place(Enum):
     AHEAD_OF_FULL_RUNS = auto()
@@ -25,6 +27,7 @@ class Place(Enum):
     BEHIND_OTHER_FULL_RUNS = auto()
     GIVING_WAY_TO_SHORT_RUNS = auto()
     GOING_NEXT = auto()
+    FIRST_IN_LINE = auto()
 
 
 class Waiting(NamedTuple):
@@ -37,17 +40,22 @@ def hold_integration_lock(
     *,
     name: str = INTEGRATION_LOCK_NAME,
     short: bool = False,
+    for_production: bool = False,
     notify_every_s: float = 2.0,
     full_run_gives_way_s: float = FULL_RUN_GIVES_WAY_S,
     notify: Callable[[Waiting], None] | None = None,
 ) -> Iterator[SingleInstanceLock]:
     line = _Line(name)
     try:
-        line.join(short=short)
-        if short:
+        if for_production:
+            with _saying_it_waits(notify, notify_every_s, _ProductionsPlace()):
+                line.wait_as_the_run_for_production()
+        elif short:
+            line.join(short=True)
             with _saying_it_waits(notify, notify_every_s, _ShortRunsPlace(name)):
                 line.wait_as_a_short_run()
         else:
+            line.join(short=False)
             patience = _Patience(name, full_run_gives_way_s, notify_every_s)
             with _saying_it_waits(notify, notify_every_s, patience):
                 line.wait_as_a_full_run(patience)
@@ -66,18 +74,30 @@ class _Line:
         self._full_lane = Lane(f"{name}_full_lane")
         self._full_goes_next = SingleInstanceLock(f"{name}_full_goes_next")
         self._short_running = SingleInstanceLock(f"{name}_short_running")
+        self._production_waits = SingleInstanceLock(f"{name}_production_waits")
 
     def join(self, *, short: bool) -> None:
         (self._short_lane if short else self._full_lane).join()
 
+    def wait_as_the_run_for_production(self) -> None:
+        self._production_waits.acquire()
+        self.run.acquire()
+        self._production_waits.release()
+
+    def _let_the_run_for_production_go_first(self) -> None:
+        if held_elsewhere(self._production_waits):
+            self._production_waits.acquire()
+            self._production_waits.release()
+
     def wait_as_a_short_run(self) -> None:
         self._short_lane.wait_for_the_front()
         while True:
+            self._let_the_run_for_production_go_first()
             if held_elsewhere(self._full_goes_next):
                 self._full_goes_next.acquire()
                 self._full_goes_next.release()
             self.run.acquire()
-            if not held_elsewhere(self._full_goes_next):
+            if not held_elsewhere(self._full_goes_next) and not held_elsewhere(self._production_waits):
                 break
             self.run.release()
         self._short_running.acquire()
@@ -87,7 +107,11 @@ class _Line:
         self._full_lane.wait_for_the_front()
         patience.heads_the_full_runs()
         while True:
+            self._let_the_run_for_production_go_first()
             self.run.acquire()
+            if held_elsewhere(self._production_waits):
+                self.run.release()
+                continue
             if patience.spent() or not held_elsewhere(self._short_lane.front):
                 break
             self.run.release()
@@ -99,6 +123,7 @@ class _Line:
         self._short_lane.leave()
         self._full_lane.leave()
         self._full_goes_next.close()
+        self._production_waits.close()
         self.run.close()
 
 
@@ -132,6 +157,14 @@ class _Patience:
         self._short_running.close()
 
 
+class _ProductionsPlace:
+    def waited(self) -> Place:
+        return Place.FIRST_IN_LINE
+
+    def close(self) -> None:
+        pass
+
+
 class _ShortRunsPlace:
     def __init__(self, name: str) -> None:
         self._full_goes_next = SingleInstanceLock(f"{name}_full_goes_next")
@@ -147,7 +180,7 @@ class _ShortRunsPlace:
 
 @contextlib.contextmanager
 def _saying_it_waits(notify: Callable[[Waiting], None] | None, every_s: float,
-                     place: _Patience | _ShortRunsPlace) -> Iterator[None]:
+                     place: _Patience | _ShortRunsPlace | _ProductionsPlace) -> Iterator[None]:
     stop = threading.Event()
 
     def say() -> None:
