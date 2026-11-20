@@ -7,6 +7,8 @@ from funestra.main_hud import MainHudModel
 from funestra.main_hud_painter import MainHud
 from funestra.osr2_controls_host import Osr2ControlsHost
 from funestra.osr2_visualizer import DriveHud
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QMouseEvent
 
 from fun_time.dashboard_osr2 import Osr2PartWidget
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -57,6 +59,26 @@ def test_a_read_that_changes_what_it_draws_repaints_it_and_one_that_does_not_rep
         widget.poll()
 
     assert repaints == ["repaint"] * 2
+
+
+def _moved_to(widget: Osr2PartWidget, x: int, y: int) -> None:
+    at = QPointF(x, y)
+    widget.mouseMoveEvent(QMouseEvent(QEvent.Type.MouseMove, at, at, Qt.MouseButton.NoButton,
+                                      Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+
+
+def test_the_pointer_repaints_the_part_only_where_the_part_would_look_different(
+        widget, tmp_path, monkeypatch):
+    published(tmp_path, a_part())
+    handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout())
+    widget.poll()
+    repaints = []
+    monkeypatch.setattr(widget, "update", lambda: repaints.append("repaint"))
+
+    _moved_to(widget, 0, 0)
+    _moved_to(widget, 1, 1)
+
+    assert repaints == []
 
 
 def test_reads_with_nothing_republished_open_neither_file_again(widget, tmp_path, monkeypatch):
