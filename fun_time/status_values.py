@@ -26,6 +26,8 @@ class StatusValues:
         if file is None:
             file = self._files[path] = ReadWhenChanged(path, self._read_noting_it)
         values = file.latest()
+        if values is None:
+            raise FileNotFoundError(f"{path} has not been read yet")
         if path in self._just_read:
             self._just_read.discard(path)
             if self._could_be_written_again_unseen(path):
