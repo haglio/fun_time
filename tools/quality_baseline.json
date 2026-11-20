@@ -37,7 +37,6 @@
     "tests/integration/test_loading_screen_startup_integration.py": 1,
     "tests/integration/test_nothing_shows_through_the_loading_screen_integration.py": 7,
     "tests/integration/test_quit_integration.py": 4,
-    "tests/integration/test_satellite_native_integration.py": 2,
     "tests/integration/test_satellite_navigation_integration.py": 1,
     "tests/integration/test_startup_reveal_integration.py": 3,
     "tests/integration/test_text_field_clicks_integration.py": 4,
