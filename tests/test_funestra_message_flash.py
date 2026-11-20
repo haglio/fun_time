@@ -4,6 +4,7 @@ import logging
 from dataclasses import replace
 from pathlib import Path
 
+from funestra.file_channel import publish_whole
 from funestra.messages import MessageWriter
 from funestra.modes import MessageLevel
 from shared_ui.message_shape import HEARD_MARK
@@ -20,7 +21,7 @@ def _messages(tmp_path: Path) -> FunestraMessages:
 
 
 def _write(path: Path, seq: int, level: str, message: str) -> None:
-    path.write_text(f"seq={seq}\nlevel={level}\nmessage={message}\n", encoding="utf-8")
+    publish_whole(path, f"seq={seq}\nlevel={level}\nmessage={message}\n")
 
 
 class TestFlashFunestraNotices:
@@ -40,6 +41,45 @@ class TestFlashFunestraNotices:
         assert len(first) == 1
         assert len(again) == 1
         assert first[0].levelno == logging.WARNING
+
+    def test_a_notice_file_left_alone_is_not_read_again_each_tick(self, tmp_path, monkeypatch):
+        loop = self._loop(tmp_path)
+        notice = tmp_path / "main_player_notice.txt"
+        _write(notice, 1, "warning", "full video not available")
+        reads: list[Path] = []
+        real_read = Path.read_text
+
+        def counted(path, *args, **kwargs):
+            if path == notice:
+                reads.append(path)
+            return real_read(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", counted)
+        for _ in range(20):
+            loop.flash_new()
+
+        assert len(reads) <= 2
+
+    def test_a_notice_read_while_it_was_being_replaced_is_read_again(self, tmp_path, monkeypatch,
+                                                                     caplog):
+        loop = self._loop(tmp_path)
+        notice = tmp_path / "main_player_notice.txt"
+        _write(notice, 1, "warning", "full video not available")
+        real_read = Path.read_text
+        refusals = [PermissionError(32, "being replaced")]
+
+        def held_once(path, *args, **kwargs):
+            if path == notice and refusals:
+                raise refusals.pop()
+            return real_read(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", held_once)
+        with caplog.at_level(logging.DEBUG):
+            loop.flash_new()
+            loop.flash_new()
+
+        assert [r.message for r in caplog.records if "full video" in r.message] == [
+            "full video not available"]
 
     def test_the_funestra_names_the_kind_and_this_satellite_picks_the_color(self, tmp_path, caplog):
         loop = self._loop(tmp_path)
