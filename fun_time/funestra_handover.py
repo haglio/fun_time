@@ -8,7 +8,8 @@ from funestra.satellite_hud import HudModel, parse_hud
 from .bridge_records import BridgeConfig
 from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
-from .read_when_changed import FileStamp, ReadWhenChanged, file_stamp
+from .polled_files import FileStamp, file_stamp
+from .read_when_changed import ReadWhenChanged
 
 HudStamp = FileStamp | None
 
