@@ -17,10 +17,10 @@ def no_child_log() -> dict:
     return {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
 
-def no_console_window() -> dict:
+def no_console_window(*, creationflags: int = 0) -> dict:
     if sys.platform != "win32":
         return {}
-    return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {"creationflags": subprocess.CREATE_NO_WINDOW | creationflags}
 
 
 def open_child_log(

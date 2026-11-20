@@ -41,6 +41,7 @@ from fun_time.hosted_origenerator import (
     bring_up_the_hosted_app,
     what_it_answers_by_voice_in,
 )
+from fun_time.live_priority import put_this_session_ahead_of_background_work
 from fun_time.main_list_commands import genau_flick_shapes
 from fun_time.manifest import (
     LaunchManifest,
@@ -698,6 +699,7 @@ def set_up_logging(config) -> logging.Logger:
 
 
 def main(argv: list[str] | None = None) -> int:
+    put_this_session_ahead_of_background_work()
     args = build_parser().parse_args(argv)
     env = SessionEnvironment.from_environ(os.environ)
     config = apply_this_checkouts_overrides(load_config(args.config), integration=env.integration)

@@ -1589,6 +1589,17 @@ def test_launch_ui_companions_sends_both_companions_to_the_named_checkouts(tmp_p
         assert call.kwargs["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 
 
+def test_the_dashboard_and_the_sound_start_ahead_of_background_work(tmp_path: Path):
+    with patch(
+        "fun_time.windows_bridge_startup.subprocess.Popen",
+        side_effect=[_FakeProc(11), _FakeProc(33)],
+    ) as popen:
+        _call_launch_ui_companions(tmp_path, tmp_path / "ui_companions.ini", dashboard_enabled=True)
+
+    assert [bool(call.kwargs["creationflags"] & subprocess.ABOVE_NORMAL_PRIORITY_CLASS)
+            for call in popen.call_args_list] == [True, True]
+
+
 def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
     result_file = tmp_path / "ui_companions.ini"
 
