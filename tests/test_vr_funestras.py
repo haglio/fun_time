@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import ast
 import inspect
+import io
 import json
 import logging
 import math
+import os
 import threading
 from dataclasses import dataclass, replace
 from functools import partial
@@ -25,6 +27,7 @@ from funestra.flick_overlay import (
     FlickFrame,
 )
 from funestra.funestra import Funestra
+from funestra.funestra_setup import FunestraSetup
 from funestra.host_controls import BarHud, HostControlsHud
 from funestra.hud_corners import CORNER_PLUS_OVERLAY_ID
 from funestra.hud_overlay import HUD_OVERLAY_ID
@@ -32,6 +35,7 @@ from funestra.hud_placement import HudEdge
 from funestra.main_hud import ModeHud
 from funestra.main_hud_painter import MainHud
 from funestra.modes import MainMode
+from funestra.off_the_loop import AtOnce, BehindTheLoop
 from funestra.osr2_controls_host import Osr2ControlsHost
 from funestra.outside_buttons import OutsideButtons
 from funestra.play_points import play_points_filename
@@ -365,6 +369,36 @@ def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
     unit.verbs.apply.assert_called_once_with("TILT_UP")
 
 
+def test_the_main_funestra_writes_its_files_behind_its_ticks_and_is_timed_against_them(
+        tmp_path, faked_collaborators):
+    _a_main_unit(tmp_path)
+
+    handed = faked_collaborators["Funestra"].call_args.args[1]._asdict()
+    assert isinstance(handed["off_the_loop"], BehindTheLoop)
+    assert handed["frame_ms"] == pytest.approx(1000.0 / funestras.TICK_HZ_FOR_A_SMOOTH_FLICK)
+
+
+def test_the_main_funestra_opens_neither_its_paused_flag_nor_its_command_file_while_nothing_writes_them(
+        tmp_path, monkeypatch):
+    commands = _manifest_for_a_vr_session(tmp_path).commands
+    channels = MainChannels.from_manifest(commands)
+    write_flag(channels.paused, False)
+    a_while_ago = channels.paused.stat().st_mtime - 10
+    os.utime(channels.paused, (a_while_ago, a_while_ago))
+    funestra = Funestra(FakeEngine(), FunestraSetup(
+        channels=channels, playlist=[PlaylistItem(tmp_path / "made-up one.mp4")]))
+    opened: list[Path] = []
+    real_open = io.open
+    monkeypatch.setattr(io, "open", lambda file, *args, **kwargs: opened.append(Path(file))
+                        or real_open(file, *args, **kwargs))
+
+    for _ in range(30):
+        funestra.tick(viewport=(640, 360))
+    funestra.close()
+
+    assert [path for path in opened if path in (channels.paused, channels.command)] == []
+
+
 def test_its_main_hud_carries_the_projection_list_and_angle_bar_for_kinos_video(
         tmp_path, faked_collaborators):
     unit = _a_main_unit(tmp_path)
@@ -538,7 +572,10 @@ def test_a_satellite_screen_hands_its_funestra_the_scripts_its_playlist_names(
         _SatelliteUnit(PORTRAIT, RoomLaunch(_manifest_for_a_vr_session(tmp_path), _A_SESSION,
                                             _NO_GL_CONTEXTS), remembered={})
 
-    assert faked_collaborators["Funestra"].call_args.args[1]._asdict()["playlist"] == items
+    handed = faked_collaborators["Funestra"].call_args.args[1]._asdict()
+    assert handed["playlist"] == items
+    assert isinstance(handed["off_the_loop"], BehindTheLoop)
+    assert handed["frame_ms"] == pytest.approx(1000.0 / funestras.PUMP_HZ)
 
 
 def test_a_satellite_opened_on_an_empty_list_waits_until_the_hosted_app_fills_it(
@@ -671,7 +708,7 @@ def a_fake_engine(tmp_path):
     with patch.multiple("fun_time_vr.funestras", VideoThread=_AVideoThread,
                         RenderTarget=_FakeRenderTarget, FrameTexture=_FakeTexture,
                         _TheLibrary=lambda *args, **kwargs: _ALibrary(tmp_path),
-                        Osr2Sender=DEFAULT):
+                        Osr2Sender=DEFAULT, BehindTheLoop=AtOnce):
         yield
 
 
@@ -2729,6 +2766,22 @@ class TestTheDashUnderThePointer:
 
         rect = dash_actions()[HELP_REFERENCE]
         assert tuple(unit._picture.pixels[rect.y + rect.height // 2, rect.x][:3]) == BLUE
+
+    def test_the_reference_flag_is_opened_once_while_nothing_writes_it(self, tmp_path, monkeypatch):
+        flag = tmp_path / REFERENCE_OPEN_FILENAME
+        write_flag(flag, True)
+        a_while_ago = flag.stat().st_mtime - 10
+        os.utime(flag, (a_while_ago, a_while_ago))
+        unit = self._unit(tmp_path)
+        opened = []
+        read = funestras.read_flag
+        monkeypatch.setattr(funestras, "read_flag",
+                            lambda path, **how: opened.append(path) or read(path, **how))
+
+        for _ in range(30):
+            unit.pump(threading.Event(), 0.0)
+
+        assert opened == [flag]
 
     def test_a_press_meant_for_another_screen_is_not_its(self, tmp_path):
         unit = self._unit(tmp_path)
