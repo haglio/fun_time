@@ -12,13 +12,14 @@ from .bridge_records import BridgeConfig
 from .crown import Crown
 from .dispatch_loop_setup import LOOP_TICK_S
 from .fun_time_funestras import FunTimeFunestra
+from .funestra_handover import published_hud
 from .funestra_status import (
     GenauStatus,
     MainFunestraStatus,
     read_genau_status,
     read_main_funestra_status,
 )
-from .hud_transport import HudPublisher, hosted_model, read_the_hosted_hud
+from .hud_transport import HudPublisher, hosted_model
 from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
     genau_flick_shapes,
@@ -33,7 +34,6 @@ from .osr2_section import (
     osr2_part,
     tell_a_hosted_satellite_whose_the_osr2_is,
 )
-from .read_when_changed import ReadWhenChanged
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
 from .shown_favorite import ShownFavorite
@@ -51,7 +51,6 @@ class HudFeed:
         self.publisher = publisher
         self._last_publish = 0.0
         self._hosted_huds: dict[FunTimeFunestra, HudModel | None] = {}
-        self._hosted_files: dict[FunTimeFunestra, ReadWhenChanged[HudModel | None]] = {}
         self._last_worn_hosted: dict[FunTimeFunestra, HudModel | None] = {}
         self._osr2_told: dict[FunTimeFunestra, bool] = {}
         self._shown_favorite = ShownFavorite(
@@ -159,17 +158,8 @@ class HudFeed:
         path = self.config.satellite(funestra).origenerator_hud_file
         if path is None:
             return None
-        hosted = self._hosted_files.get(funestra)
-        if hosted is None:
-            hosted = self._hosted_files[funestra] = ReadWhenChanged(path, read_the_hosted_hud)
-        try:
-            hud = self._hosted_huds[funestra] = hosted.latest()
-        except OSError:
-            return self._the_hud_the_app_is_republishing(funestra)
+        hud = self._hosted_huds[funestra] = published_hud(path)
         return hud
-
-    def _the_hud_the_app_is_republishing(self, funestra: FunTimeFunestra) -> HudModel | None:
-        return self._hosted_huds.get(funestra)
 
     def _genau_pace_s(self) -> int:
         drive = read_drive(self.config.genau_drive_file)
