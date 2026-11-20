@@ -455,8 +455,15 @@ def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
         bench.release_to_production(head)
     except OSError as held:
         bench.record({"kind": "release not written", "commit": head, "why": str(held)})
-    if bench.coverage_map_is_stale():
+    if bench.coverage_map_is_stale() and _still_main(bench, head):
         bench.measure_coverage(head)
+
+
+def _still_main(bench: Bench, commit: str) -> bool:
+    try:
+        return bench.head() == commit
+    except CommandFailed:
+        return False
 
 
 class _Reach:
