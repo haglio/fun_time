@@ -7,6 +7,8 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
+from .read_when_changed import ReadWhenChanged
+
 PRESS_PORT_FILENAME = "dashboard_press_port.txt"
 
 _MAX_DATAGRAM = 65536
@@ -55,11 +57,36 @@ class LoopbackInbox:
                 break
 
 
-def post_to_inbox(port_file: Path, text: str) -> bool:
+def _port_in(port_file: Path) -> int | None:
     try:
-        port = int(port_file.read_text(encoding="utf-8"))
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
-            sender.sendto(text.encode("utf-8"), ("127.0.0.1", port))
-    except (OSError, ValueError):
-        return False
-    return True
+        return int(port_file.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+
+
+class InboxSender:
+    def __init__(self, port_file: Path) -> None:
+        self._port = ReadWhenChanged(port_file, _port_in)
+        self._socket: socket.socket | None = None
+
+    def post(self, text: str) -> bool:
+        port = self._port.latest()
+        if port is None:
+            return False
+        if self._socket is None:
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            self._socket.sendto(text.encode("utf-8"), ("127.0.0.1", port))
+        except OSError:
+            return False
+        return True
+
+
+_SENDERS: dict[Path, InboxSender] = {}
+
+
+def post_to_inbox(port_file: Path, text: str) -> bool:
+    sender = _SENDERS.get(port_file)
+    if sender is None:
+        sender = _SENDERS.setdefault(port_file, InboxSender(port_file))
+    return sender.post(text)
