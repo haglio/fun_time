@@ -53,7 +53,7 @@ CONFIRMING_RUNS = 3
 NOT_AT_THAT_COMMIT = pytest.ExitCode.NO_TESTS_COLLECTED
 _PASSED = frozenset({"passed", "flaky"})
 _STILL_FIXING = frozenset({"working", "blocked", "failed"})
-_FIXED_BY_A_SESSION_OF_ITS_OWN = frozenset({"unreliable check", "broken outside main"})
+_FIXED_BY_A_SESSION_OF_ITS_OWN = frozenset({"unreliable check", "broken outside main", "broken run"})
 _log = logging.getLogger("main_verifier")
 _SUMMARY_LINE = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
 
@@ -449,6 +449,31 @@ def fixing_an_outside_break(head: str, last_passed: str, tests: list[str], log: 
     ]))
 
 
+def fixing_a_broken_run(head: str, log: Path) -> FixSession:
+    checkout = f"fix-broken-run-{head[:8]}"
+    return FixSession(checkout, f"Find what stopped the integration run on {head[:8]}", "\n".join([
+        ("Fun Time's main verifier started this session. It is a program on this machine, not him, so report "
+         "the way the laws ask of work another agent assigned you."),
+        "",
+        (f"The verifier ran Fun Time's whole integration suite on main at {head}, and the run ended before it "
+         f"could name a failed test: a test that stayed stuck past its time limit, a crash, or a run that could not "
+         f"start. Until main passes again, his production Fun Time stays on the commit that last passed. The "
+         f"run's output is in {log}."),
+        "",
+        "Make the suite run to its end:",
+        ("1. Read the end of that output for what stopped the run: the test it was in, and what it was waiting "
+         "for."),
+        (f"2. Fix the cause on this branch, {branch_of(checkout)}. A test that can get stuck is changed to fail with "
+         "a message instead, so one stuck check never again ends the whole run. A test that turns out to be "
+         "wrong is fixed like any other code, never deleted, skipped or loosened to pass."),
+        ("3. Run the unit suite and the integration test file it stopped in "
+         "(python -m tests.integration.hidden_desktop -x -k <file stem>) until every run passes."),
+        ("4. If your fix changes nothing he would see, ship it the way this repo's CLAUDE.md says, without "
+         "asking him. If it does change something he would see, do not ship it: open it as a draft pull "
+         "request, say in your reply what he would see differently, and stop."),
+    ]))
+
+
 def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
     ledger.passed(head)
     try:
@@ -525,7 +550,9 @@ def _verify(ledger: Ledger, bench: Bench, head: str) -> str:
         return "passed"
     again = bench.run(head, whole.failed).verdict if whole.failed else Verdict.NONE
     if again is Verdict.NONE:
-        bench.record({"kind": "broken run", "commit": head, "log": whole.log})
+        _record_with_a_fix_session(bench, {"kind": "broken run", "commit": head, "tests": whole.failed,
+                                           "log": whole.log},
+                                   lambda: fixing_a_broken_run(head, whole.log))
         ledger.failed(head)
         return "broken run"
     if again is Verdict.PASSES:
@@ -615,7 +642,7 @@ def _unreliable(bench: Bench, head: str, whole: RunResult, facts: dict, why: str
 
 def _record_with_a_fix_session(bench: Bench, incident: dict, fix: Callable[[], FixSession]) -> None:
     try:
-        if fixing := _session_fixing(bench, incident["tests"]):
+        if fixing := _session_fixing(bench, incident):
             incident["being_fixed_by"] = fixing
         else:
             incident["fix_session"] = bench.start_fix_session(fix())
@@ -624,12 +651,18 @@ def _record_with_a_fix_session(bench: Bench, incident: dict, fix: Callable[[], F
     bench.record(incident)
 
 
-def _session_fixing(bench: Bench, tests: list[str]) -> str | None:
+def _session_fixing(bench: Bench, new: dict) -> str | None:
     states = bench.fix_session_states()
-    return next((incident["fix_session"] for incident in bench.incidents()
-                 if incident.get("kind") in _FIXED_BY_A_SESSION_OF_ITS_OWN
-                 and set(incident.get("tests", ())) & set(tests)
-                 and states.get(incident.get("fix_session")) in _STILL_FIXING), None)
+    return next((earlier["fix_session"] for earlier in bench.incidents()
+                 if earlier.get("kind") in _FIXED_BY_A_SESSION_OF_ITS_OWN
+                 and _the_same_trouble(earlier, new)
+                 and states.get(earlier.get("fix_session")) in _STILL_FIXING), None)
+
+
+def _the_same_trouble(earlier: dict, new: dict) -> bool:
+    if new["kind"] == "broken run":
+        return earlier["kind"] == "broken run"
+    return bool(set(earlier.get("tests", ())) & set(new["tests"]))
 
 
 def failed_tests(run_output: str) -> list[str]:
