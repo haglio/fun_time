@@ -15,6 +15,7 @@ from funestra.genau_refresh import SEND_THREAD
 from funestra.inclusion_pair import BOTH
 from funestra.main_hud import ModeHud
 from funestra.modes import MessageLevel
+from funestra.off_the_loop import AtOnce
 
 from fun_time import genau_engine
 from fun_time.arrivals import LOOK_EVERY_S
@@ -103,6 +104,7 @@ class WorldSetup:
     starred: tuple = ()
     shaped: tuple = ()
     flipped: tuple = ()
+    off_the_loop: Callable = AtOnce
 
 
 class World:
@@ -157,6 +159,7 @@ class World:
                 start_thread=setup.start_thread,
                 clock=self.clock,
                 log=logging.getLogger("test.genau"),
+                off_the_loop=setup.off_the_loop,
             ),
         )
 
@@ -180,6 +183,30 @@ class World:
 
 def test_genau_is_a_thing_a_funestra_runs(tmp_path):
     assert isinstance(World(tmp_path).genau, User)
+
+
+class HandsWritesOn(AtOnce):
+    def __init__(self) -> None:
+        self.published: list[Path] = []
+        self.closed = False
+
+    def publish(self, path: Path, text: str) -> bool:
+        self.published.append(path)
+        return super().publish(path, text)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_genaus_drive_file_is_written_by_the_worker_behind_the_loop(tmp_path):
+    worker = HandsWritesOn()
+    world = World(tmp_path, WorldSetup(off_the_loop=lambda: worker))
+
+    world.tick()
+    world.genau.close()
+
+    assert world.channels.drive in worker.published
+    assert worker.closed
 
 
 class TestTheFlickOnScreen:

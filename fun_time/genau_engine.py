@@ -26,6 +26,7 @@ from funestra.genau_files import GenauFiles
 from funestra.genau_refresh import GenauRefreshController
 from funestra.inclusion_pair import PROJECTION
 from funestra.learned_motion import LearnedMotionState, load_default_model
+from funestra.off_the_loop import AtOnce, OffTheLoop
 from funestra.robot_hand import RobotHandState, bpm_for_speed
 from funestra.robot_hand_beat import BeatEngine, BeatTuning
 from funestra.robot_hand_driver import RobotHandTCodeDriver
@@ -48,6 +49,7 @@ class GenauEngine:
     driver: RobotHandTCodeDriver
     narrow: Callable[[Callable[[], list[Path]]], None]
     play_next: Callable[[Path], None]
+    behind: OffTheLoop
 
     @property
     def current_flick(self) -> Path | None:
@@ -78,6 +80,7 @@ class GenauEngine:
 
     def close(self) -> None:
         self.driver.close()
+        self.behind.close()
 
 
 @dataclass(frozen=True)
@@ -118,6 +121,7 @@ class EngineSeams:
     start_thread: Callable = start_daemon_thread
     clock: Callable[[], float] = time.monotonic
     log: logging.Logger = logger
+    off_the_loop: Callable[[], OffTheLoop] = AtOnce
 
 
 def build_genau_engine(
@@ -128,6 +132,7 @@ def build_genau_engine(
     seams: EngineSeams | None = None,
 ) -> GenauEngine:
     seams = seams or EngineSeams()
+    behind = seams.off_the_loop()
     stop_event, decode, start_thread, clock, log = (
         seams.stop_event, seams.decode, seams.start_thread, seams.clock, seams.log)
     sequence = FlickSequenceController(library.flicks, start_at=library.start_flick)
@@ -196,6 +201,7 @@ def build_genau_engine(
         logger=log,
         now_source=clock,
         start_thread=start_thread,
+        publish=behind.publish,
     )
 
     def holding_what_is_on_screen() -> None:
@@ -208,7 +214,8 @@ def build_genau_engine(
 
     selection.set_current_flick(selection.current_path)
     return GenauEngine(controls=controls, controller=controller, renderer=renderer,
-                       driver=driver, narrow=narrow_to, play_next=selection.play_next)
+                       driver=driver, narrow=narrow_to, play_next=selection.play_next,
+                       behind=behind)
 
 
 def _rescanned(rescan: Callable[[], list[Path]], log: logging.Logger) -> list[Path] | None:
