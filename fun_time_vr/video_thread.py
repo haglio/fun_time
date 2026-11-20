@@ -14,8 +14,27 @@ from .scheduling import scheduled_as_a_game
 logger = logging.getLogger(__name__)
 
 PAINT_POLL_S = 0.002
+NOTHING_NEW_FROM_MPV_FOR_AT_MOST_S = 0.1
 A_STILL_JUST_ENOUGH_FOR_A_FISHEYES_EDGE_PX = (512, 256)
 CLOSE_TIMEOUT_S = 10.0
+
+
+class PaintPace:
+    def __init__(self, *, sleep=time.sleep) -> None:
+        self._woken = threading.Event()
+        self._sleep = sleep
+
+    def wake(self) -> None:
+        self._woken.set()
+
+    def look_again(self) -> None:
+        self._woken.clear()
+
+    def rest(self, *, card_busy: bool) -> None:
+        if card_busy:
+            self._sleep(PAINT_POLL_S)
+        else:
+            self._woken.wait(NOTHING_NEW_FROM_MPV_FOR_AT_MOST_S)
 
 
 class VideoThread:
@@ -30,6 +49,7 @@ class VideoThread:
         self._new_gpu = contexts.gpu
         self._new_target = contexts.render_target
         self._stop = threading.Event()
+        self._pace = PaintPace()
         self._built = threading.Event()
         self._fault: BaseException | None = None
         self.engine = None
@@ -48,6 +68,7 @@ class VideoThread:
 
     def ask_for_a_still(self) -> None:
         self._frames.still.ask()
+        self._pace.wake()
 
     def take_a_still(self):
         return self._frames.still.take()
@@ -57,6 +78,7 @@ class VideoThread:
 
     def close(self) -> None:
         self._stop.set()
+        self._pace.wake()
         self._thread.join(timeout=self.close_timeout_s)
         if self._thread.is_alive():
             logger.error(
@@ -77,6 +99,7 @@ class VideoThread:
             still = self._new_target()
             still.ensure(*A_STILL_JUST_ENOUGH_FOR_A_FISHEYES_EDGE_PX)
             self.engine = build_engine()
+            self.engine.wake_on_updates(self._pace.wake)
             painting = Painting(self.engine, self._frames, gpu=self._new_gpu(), perf=self._perf)
         except BaseException as fault:  # noqa: BLE001 -- raised again on the frame loop's thread
             self._fault = fault
@@ -100,5 +123,6 @@ class VideoThread:
 
     def _paint(self, painting: Painting, targets: list[RenderTarget], still: RenderTarget) -> None:
         while not self._stop.is_set():
+            self._pace.look_again()
             if painting.paint(targets, still):
-                time.sleep(PAINT_POLL_S)
+                self._pace.rest(card_busy=painting.card_busy)
