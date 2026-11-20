@@ -16,6 +16,7 @@ from funestra.main_hud import BROKER_PRESS
 from shared_ui.message_shape import answering_what_he_said
 
 from .bridge_records import BridgeConfig, Op, WindowOp
+from .command_bell import ring as ring_the_bell
 from .command_dispatch import app_at_defaults, dispatch_command
 from .command_value import Command, parse_command
 from .dashboard_actions import (
@@ -256,6 +257,7 @@ def _quit(answering: CommandAnswering, spoken_at: float | None) -> None:
 def _begin_an_ending_esc_can_call_off(answering: CommandAnswering, asked_by: str) -> None:
     mark_session_end(answering.config.state_dir, asked_by)
     answering.ahk_cmd_file.write_text("end_session", encoding="utf-8")
+    ring_the_bell(answering.ahk_cmd_file)
 
 
 def _cross(target: HandoffTarget, answering: CommandAnswering,
@@ -371,6 +373,7 @@ def _headset(answering: CommandAnswering, signal: str) -> None:
         return
     logger.info("The headset is %s", "off: only quit is heard" if off else "back on")
     append_command(answering.ahk_cmd_file, signal)
+    ring_the_bell(answering.ahk_cmd_file)
     answering.voice.suspend_as_the_app_is(paused=answering.state.omni_paused)
 
 
@@ -438,6 +441,7 @@ def _run_ahk_passthrough(answering: CommandAnswering, op: WindowOp) -> None:
     if op.op == Op.UNSUSPEND_HOTKEYS and answering.env.integration:
         return
     append_command(answering.ahk_cmd_file, op.op)
+    ring_the_bell(answering.ahk_cmd_file)
 
 
 OP_HANDLERS: dict[str, Callable[[CommandAnswering, WindowOp], None]] = {

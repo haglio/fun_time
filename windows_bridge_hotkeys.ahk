@@ -81,7 +81,13 @@ global StartupSuspended := true
 global PauseHold := false
 global HeadsetOff := false
 
-SetTimer(ProcessAhkCommand, 50)
+global AhkBell := DllCall("CreateEventW", "Ptr", 0, "Int", 0, "Int", 0, "Str", BellNameOf(AHK_CMD_FILE), "Ptr")
+if (AhkBell) {
+    SetTimer(ProcessAhkCommandWhenRung, 10)
+    SetTimer(ProcessAhkCommand, 1000)
+} else {
+    SetTimer(ProcessAhkCommand, 50)
+}
 SetTimer(WatchStartup, 150)
 
 ; Liveness beacon: a periodic line proving the hotkey script's message pump is
@@ -407,10 +413,13 @@ QueueCommand(cmd) {
         RingTheCommandBell()
 }
 
+BellNameOf(path) {
+    return "Local\FunTime_" . RegExReplace(StrLower(path), "[^a-z0-9]", "_")
+}
+
 RingTheCommandBell() {
     global DASHBOARD_CMD_FILE
-    name := "Local\FunTime_" . RegExReplace(StrLower(DASHBOARD_CMD_FILE), "[^a-z0-9]", "_")
-    bell := DllCall("OpenEventW", "UInt", 0x0002, "Int", 0, "Str", name, "Ptr")
+    bell := DllCall("OpenEventW", "UInt", 0x0002, "Int", 0, "Str", BellNameOf(DASHBOARD_CMD_FILE), "Ptr")
     if (bell) {
         DllCall("SetEvent", "Ptr", bell)
         DllCall("CloseHandle", "Ptr", bell)
@@ -455,6 +464,12 @@ AppendWithRetry(text, path, attempts := 320, delayMs := 5, access := "exclusive"
         Sleep(delayMs)
     }
     return false
+}
+
+ProcessAhkCommandWhenRung() {
+    global AhkBell
+    if (DllCall("WaitForSingleObject", "Ptr", AhkBell, "UInt", 0, "UInt") = 0)
+        ProcessAhkCommand()
 }
 
 ProcessAhkCommand() {

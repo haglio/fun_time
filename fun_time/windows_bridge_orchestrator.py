@@ -26,6 +26,7 @@ from . import preview_marker
 from .append_only import append_line
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
+from .command_bell import ring as ring_the_bell
 from .config import load_config
 from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
@@ -396,6 +397,8 @@ def _ask_the_script_to_release_the_keyboard(ahk_cmd_file: Path) -> None:
         ahk_cmd_file.write_text("exit", encoding="utf-8")
     except OSError:
         logger.warning("Could not ask the hotkey script to exit", exc_info=True)
+        return
+    ring_the_bell(ahk_cmd_file)
 
 
 def _kill_a_script_still_swallowing_the_keys(proc: subprocess.Popen) -> None:

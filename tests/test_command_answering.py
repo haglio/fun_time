@@ -9,6 +9,7 @@ from shared_ui.message_shape import HEARD_MARK
 from fun_time import command_answering
 from fun_time.bridge_records import Op, WindowOp
 from fun_time.command_answering import AHK_PASSTHROUGH_OPS, LOOP_COMMANDS, OP_HANDLERS
+from fun_time.command_bell import CommandBell
 from fun_time.command_value import parse_command
 from fun_time.dashboard_bridge import DashboardSnapshotWriter
 from fun_time.dashboard_runtime import load_dashboard_snapshot, snapshot_in
@@ -186,6 +187,18 @@ def test_an_unknown_op_is_an_error_not_an_ahk_verb(tmp_path, caplog):
 
     assert not (tmp_path / "ahk_cmd.txt").exists()
     assert any("frobnicate" in record.message for record in caplog.records)
+
+
+def test_lifting_the_pause_off_the_keys_rings_the_hotkey_script_at_once(tmp_path):
+    answering = made_up_answering(tmp_path)
+    bell = CommandBell(answering.ahk_cmd_file)
+    try:
+        answering.take(answering.state, [WindowOp(op=Op.UNSUSPEND_HOTKEYS)])
+
+        assert bell.wait(None) is True
+        assert answering.ahk_cmd_file.read_text(encoding="utf-8").split() == ["unsuspend_hotkeys"]
+    finally:
+        bell.close()
 
 
 def test_quit_is_one_of_the_loops_own_commands():
