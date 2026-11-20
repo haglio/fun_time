@@ -415,18 +415,6 @@
       "status": "kept"
     },
     {
-      "id": "tile",
-      "thing": "a square in a grid of items, as in Origenerator's gallery",
-      "screen": null,
-      "his_word": "tile (2026-10-09)",
-      "code_today": [
-        "tile"
-      ],
-      "code_word": "tile",
-      "status": "ruled",
-      "ruled": "Origenerator's glossary"
-    },
-    {
       "id": "thumbnail",
       "thing": "the small picture of a video",
       "screen": null,
