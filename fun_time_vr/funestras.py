@@ -66,7 +66,7 @@ from main_funestra.contract import MainChannels
 from main_funestra.gallery_names import GalleryNames
 from main_funestra.genau import (
     ROBOT_HAND,
-    EngineSeams,
+    STANDARD_SEAMS,
     GenauChannels,
     GenauFlicks,
     GenauOutputs,
@@ -647,7 +647,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             tcode_sink=_osr2_slot(commands, ROBOT_HAND),
             messages=MessageWriter(Path(commands.main_funestra_notice_file)),
         ),
-        seams=EngineSeams(stop_event=stop),
+        seams=replace(STANDARD_SEAMS, stop_event=stop),
     )
     return users
 
