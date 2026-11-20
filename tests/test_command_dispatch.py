@@ -39,6 +39,7 @@ from fun_time.rfb_mode import with_the_browser_in_its_place
 from fun_time.rfb_modes import RfbMode
 from fun_time.satellite_groups import send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
+from fun_time.sound_wake import READ_THE_FILES_AGAIN, listen_for_the_session
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
 from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_orientations
 from tests.bridge_configs import made_up_bridge_config
@@ -595,6 +596,20 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
     assert config.main_funestra.paused_file.read_text(encoding="utf-8") == "0"
 
 
+@pytest.mark.parametrize(("paused_before", "paused_after"), [(False, "1"), (True, "0")])
+def test_an_omnipause_toggle_tells_the_sound_once_its_pause_is_written(
+        tmp_path: Path, paused_before: bool, paused_after: str):
+    config = _make_config(tmp_path)
+    sound = listen_for_the_session("127.0.0.1", 0, config.state_dir)
+
+    dispatch_command("omnipause_toggle", _make_state(omni_paused=paused_before), config)
+
+    word, _ = sound.recvfrom(4096)
+    assert word.decode("utf-8") == READ_THE_FILES_AGAIN
+    assert config.audio_paused_file.read_text(encoding="utf-8") == paused_after
+    sound.close()
+
+
 def test_the_main_funestra_named_turns_its_own_favorites_on_alone(tmp_path: Path):
     config, builds = _recording(_make_config(tmp_path))
     for funestra in FunTimeFunestra.SATELLITES:
@@ -922,6 +937,20 @@ def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
     assert config.main_funestra.cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 90 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "90"
     assert ops == [WindowOp(op="message", key="Volume 90%", source="main")]
+
+
+@pytest.mark.parametrize(("command", "level"), [("audio_volume_up", "50"), ("audio_mute", "0")])
+def test_a_change_of_volume_tells_the_sound_once_its_level_is_written(
+        tmp_path: Path, command: str, level: str):
+    config = _make_config(tmp_path)
+    sound = listen_for_the_session("127.0.0.1", 0, config.state_dir)
+
+    dispatch_command(command, _make_state(volume=40), config)
+
+    word, _ = sound.recvfrom(4096)
+    assert word.decode("utf-8") == READ_THE_FILES_AGAIN
+    assert config.audio_volume_file.read_text(encoding="utf-8") == level
+    sound.close()
 
 
 def test_volume_up_steps_both_audio_sinks_up(tmp_path: Path):

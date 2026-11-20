@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
+
 from fun_time.audio_companion_runtime import AudioCompanionRuntime
 
 
@@ -71,6 +73,33 @@ def test_a_restarted_companion_applies_the_published_level_on_its_first_pass(tmp
 
     runtime.process_iteration()
 
+    controller.set_volume.assert_called_once_with(30)
+
+
+class _TheTestIsOver(Exception):
+    pass
+
+
+def test_a_starting_companion_reads_its_files_before_anything_is_said_to_it(tmp_path: Path):
+    sock = Mock()
+    sock.recvfrom.side_effect = _TheTestIsOver()
+    controller = Mock()
+    runtime = AudioCompanionRuntime(
+        sock=sock,
+        controller=controller,
+        mode_file=tmp_path / "mode.txt",
+        read_mode_active=Mock(return_value=True),
+        paused_file=tmp_path / "paused.txt",
+        read_paused_state=Mock(return_value=True),
+        volume_file=tmp_path / "volume.txt",
+        read_volume=Mock(return_value=30),
+    )
+
+    with pytest.raises(_TheTestIsOver):
+        runtime.run_forever()
+
+    controller.set_mode_active.assert_called_once_with(True)
+    controller.set_manual_paused.assert_called_once_with(True)
     controller.set_volume.assert_called_once_with(30)
 
 

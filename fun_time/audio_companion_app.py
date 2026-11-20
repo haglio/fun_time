@@ -4,7 +4,6 @@ import argparse
 import logging
 import math
 import os
-import socket
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -22,6 +21,7 @@ from pygame._sdl2.audio import get_audio_device_names
 from .audio_companion_runtime import AudioCompanionRuntime
 from .audio_volume import MAX_VOLUME, read_volume
 from .config import load_config
+from .sound_wake import listen_for_the_session
 from .win32_desktop import on_hidden_desktop
 
 SUPPORTED_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a"]
@@ -269,9 +269,7 @@ def main(argv: list[str] | None = None) -> None:
         logger.info("Audio muted (FUN_TIME_MUTE_AUDIO=1)")
     logger.info("Audio companion listening on %s:%s", args.host, args.port)
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((args.host, args.port))
-    sock.settimeout(0.15)
+    sock = listen_for_the_session(args.host, args.port, config.paths.state_dir)
 
     def read_flag(path: Path) -> bool:
         return read_paused_state(path, logger=logger)

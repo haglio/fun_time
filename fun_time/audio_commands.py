@@ -10,6 +10,7 @@ from .event_log import SOURCE_MAIN
 from .fun_time_funestras import FunTimeFunestra
 from .satellite_groups import send_satellite
 from .shared_state import BridgeState
+from .sound_wake import tell_the_sound
 
 _STEP_BY = {"volume_down": -VOLUME_STEP, "volume_up": VOLUME_STEP}
 _MUTED_BY = {"mute": True, "unmute": False}
@@ -62,6 +63,7 @@ def _dispatch_audio(
         volume=state.volume,
         muted=state.muted,
     )
+    tell_the_sound(config.state_dir)
     return state, [_sound_notice(state.volume, state.muted, SOURCE_MAIN)]
 
 

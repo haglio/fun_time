@@ -36,6 +36,7 @@ from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_resume import drop_what_the_last_session_drew
 from .shared_state import BridgeState, read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
+from .sound_wake import tell_the_sound
 from .startup_steps import timed_step
 from .win32 import (
     find_windows_by_class,
@@ -164,6 +165,7 @@ def release_the_funestras(m: LaunchManifest, main_mode: MainMode) -> None:
     write_flag_file(m.commands.main_funestra_paused_file, kinos_video_stays_held_under_genau)
     for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
         write_flag_file(flag_file, False)
+    tell_the_sound(m.commands.state_dir)
 
 
 def run_startup_sequence(
