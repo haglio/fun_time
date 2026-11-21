@@ -8,6 +8,7 @@ from pathlib import Path
 from app_support import osr2_hold
 from funestra.file_channel import append_command
 from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
+from funestra.genau_controls import PLAY_WITHOUT_THE_OSR2
 from funestra.main_hud import HOLD_VERB, OSR2_DRIVING
 
 from .config import FunestraChannel
@@ -29,6 +30,7 @@ class Osr2Turn:
     hand_playing: bool = True
     hand_heard: bool = True
     held_at: str | None = None
+    genau_plays_without_it: bool = False
 
 
 class DeviceArbiter:
@@ -54,7 +56,7 @@ class DeviceArbiter:
              control: str = OSR2_DRIVING, holder: FunTimeFunestra = FunTimeFunestra.MAIN) -> None:
         turn = self._turn(main_mode, paused=paused, control=control, holder=holder)
         if not self._device_on():
-            turn = replace(turn, hand_playing=False, held_at=None)
+            turn = replace(turn, hand_playing=False, held_at=None, genau_plays_without_it=not paused)
         if turn != self._stated and self._state(turn):
             self._stated = turn
 
@@ -119,11 +121,18 @@ class DeviceArbiter:
             starts.append((genau, "RESUME"))
         else:
             stops.append((genau, "PAUSE"))
+        if turn.genau_plays_without_it != self._genau_plays_without_it:
+            plays = (genau, f"{PLAY_WITHOUT_THE_OSR2} {int(turn.genau_plays_without_it)}")
+            (starts if turn.genau_plays_without_it else stops).append(plays)
         if turn.held_at is not None:
             starts.append((genau, turn.held_at))
         if turn.script is not None:
             starts.append((self._funestras[turn.script].cmd_file, TCODE_ON))
         return stops, starts
+
+    @property
+    def _genau_plays_without_it(self) -> bool:
+        return self._stated is not None and self._stated.genau_plays_without_it
 
     def _the_blue_ending_the_trace_drew_lies_ahead(self, status: ScriptedStatus) -> bool:
         touch = status.handoff_touch_ms

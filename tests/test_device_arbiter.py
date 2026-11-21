@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from funestra.file_channel import append_command as real_append
 from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
+from funestra.genau_controls import PLAY_WITHOUT_THE_OSR2
 from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 
 from fun_time.bridge_records import BridgeConfig
@@ -72,6 +73,15 @@ def the_hand_is_playing(driver: DeviceArbiter) -> bool:
     return [verb for verb in genau(driver) if verb in ("PAUSE", "RESUME")][-1] == "RESUME"
 
 
+PLAYS_WITHOUT_THE_OSR2 = f"{PLAY_WITHOUT_THE_OSR2} 1"
+PLAYS_WITH_THE_OSR2 = f"{PLAY_WITHOUT_THE_OSR2} 0"
+
+
+def genau_plays_without_the_osr2(driver: DeviceArbiter) -> bool:
+    said = [verb for verb in genau(driver) if verb in (PLAYS_WITHOUT_THE_OSR2, PLAYS_WITH_THE_OSR2)]
+    return bool(said) and said[-1] == PLAYS_WITHOUT_THE_OSR2
+
+
 AN_HOUR_S = 3600
 
 HAND_DRIVES = [TCODE_ON, "RESUME"]
@@ -116,7 +126,8 @@ class TestNobodyDriving:
 
         assert genau(driver) == [TCODE_OFF, "PAUSE", "RETRACT", TCODE_OFF, "RESUME", "RETRACT"]
 
-    def test_a_switched_off_device_stops_genaus_flick_where_it_is_whatever_the_control(self, tmp_path):
+    def test_a_switched_off_device_stills_the_hand_and_lets_genau_play_without_it_whatever_the_control(
+            self, tmp_path):
         for control in (OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED):
             driver = make_driver(tmp_path / control, device_on=lambda: False)
             publish_main_funestra(driver)
@@ -125,6 +136,7 @@ class TestNobodyDriving:
 
             assert not the_hand_is_playing(driver), control
             assert not {"PARK", "RETRACT"} & set(genau(driver)), control
+            assert genau_plays_without_the_osr2(driver), control
 
     def test_a_device_switched_on_again_plays_genaus_flick_on(self, tmp_path):
         device = {"on": False}
@@ -136,6 +148,7 @@ class TestNobodyDriving:
         driver.sync("genau", paused=False)
 
         assert the_hand_is_playing(driver)
+        assert not genau_plays_without_the_osr2(driver)
 
     def test_a_device_switched_on_under_a_hold_takes_genaus_flick_there_at_once(self, tmp_path):
         device = {"on": False}
@@ -146,7 +159,8 @@ class TestNobodyDriving:
         device["on"] = True
         driver.sync("genau", paused=False, control=OSR2_PARKED)
 
-        assert genau(driver) == [TCODE_OFF, "PAUSE", *PARKED]
+        assert genau(driver) == [TCODE_OFF, "PAUSE", PLAYS_WITHOUT_THE_OSR2,
+                                 TCODE_OFF, PLAYS_WITH_THE_OSR2, "RESUME", "PARK"]
 
     def test_a_hold_is_stated_once_however_long_it_lasts(self, tmp_path):
         clock = HandDrivenClock()
@@ -199,6 +213,15 @@ class TestNobodyDriving:
         driver.sync("genau", paused=True)
 
         assert genau(driver) == ["PAUSE", TCODE_ON]
+
+    def test_omnipause_stops_genau_playing_without_a_switched_off_device(self, tmp_path):
+        driver = make_driver(tmp_path, device_on=lambda: False)
+        publish_main_funestra(driver)
+        driver.sync("genau", paused=False)
+
+        driver.sync("genau", paused=True)
+
+        assert not genau_plays_without_the_osr2(driver)
 
     def test_leaving_omnipause_in_genau_mode_gives_the_hand_the_device_back(self, tmp_path):
         driver = make_driver(tmp_path)

@@ -88,6 +88,7 @@ class World:
             seams=EngineSeams(
                 stop_event=self.stop,
                 decode=lambda _path: _frames(),
+                frame_rate=lambda _flick: 30.0,
                 start_thread=setup.start_thread,
                 clock=lambda: self.now,
                 log=logging.getLogger("test.genau_in_the_headset"),
