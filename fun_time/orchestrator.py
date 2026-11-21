@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
 
     _mutex_handle = claim_the_session(the_one_sessions_mutex(config))
     if _mutex_handle is None:
-        logger.warning("Another Fun Time instance is already running; exiting")
+        logger.info("Another Fun Time instance is already running; exiting")
         tell_the_hidden_launcher_startup_resolved(config)
         show_already_running_message("Another copy of Fun Time is already running.")
         return 1

@@ -742,6 +742,17 @@ def test_a_vr_session_and_a_desktop_session_claim_one_mutex(config):
     assert claimed["fun_time_vr.orchestrator"] == claimed["fun_time.orchestrator"] != ""
 
 
+@pytest.mark.parametrize("module", [desktop_orchestrator, orchestrator])
+def test_a_second_launch_writes_no_warning_in_the_log(module, config, caplog):
+    with patch.object(module, "set_up_logging", return_value=logging.getLogger(module.__name__)), \
+         patch.object(module, "show_already_running_message"), \
+         patch.object(module, "claim_the_session", return_value=None), \
+         caplog.at_level(logging.INFO):
+        assert module.main(["--config", str(config.config_path)]) == 1
+
+    assert [record.levelname for record in caplog.records if "already running" in record.getMessage()] == ["INFO"]
+
+
 class TestTheCheckoutsItsOwnCheckoutNames:
     def test_the_session_runs_the_sibling_checkouts_this_checkout_names(
             self, config, tmp_path, monkeypatch):

@@ -34,9 +34,9 @@ class TrackedViews:
         if located:
             logger.info("Views located again; drawing to the headset once more")
         else:
-            logger.warning(
-                "The runtime cannot locate the views — submitting no layers, so the "
-                "headset is showing its own environment until tracking returns"
+            logger.info(
+                "The runtime cannot locate the views, so no layers are submitted and the "
+                "headset shows its own environment until tracking returns"
             )
 
 

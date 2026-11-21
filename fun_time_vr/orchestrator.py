@@ -707,7 +707,7 @@ def main(argv: list[str] | None = None) -> int:
 
     _mutex_handle = claim_the_session(the_one_sessions_mutex(config))
     if _mutex_handle is None:
-        logger.warning("Another Fun Time session (desktop or VR) is already running; exiting")
+        logger.info("Another Fun Time session (desktop or VR) is already running; exiting")
         tell_the_hidden_launcher_startup_resolved(config, VR_STARTUP_MARKER_NAME)
         show_already_running_message(
             "Another copy of Fun Time (desktop or VR) is already running."

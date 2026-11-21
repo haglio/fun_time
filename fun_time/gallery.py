@@ -12,6 +12,8 @@ from app_support import gallery_rows, haglio_settings, kino_folder, siblings
 from app_support.gallery_records import FLIPPED, GENAU_SECTION, RECORD_COLUMNS, GalleryReading
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+from .modes import BEING_WRITTEN_MARK
+
 logger = logging.getLogger(__name__)
 
 CONTRACT_FILE = "origenerator_gallery_contract.json"
@@ -22,7 +24,7 @@ _OPTIONAL = (*(column for column in RECORD_COLUMNS if column not in _COLUMNS), "
 def ai_videos_of_the_library() -> list[Path]:
     folders = (kino_folder.upscales_in(kino_folder.kino_dir()), Path(haglio_settings.value("genau_dir")))
     return [video for folder in folders if folder.is_dir() for video in sorted(_files_under(folder))
-            if gallery_rows.is_video_name(video.name) and ".partial." not in video.name
+            if gallery_rows.is_video_name(video.name) and BEING_WRITTEN_MARK not in video.name.lower()
             and kino_folder.is_ai_video(video)]
 
 
