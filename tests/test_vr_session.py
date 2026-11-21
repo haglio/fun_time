@@ -155,14 +155,14 @@ class TestTheViewsToDraw:
         assert views.to_draw(xr.ViewStateFlags.ORIENTATION_VALID_BIT, ("left",)) == ["left"]
         assert views.tracked is False
 
-    def test_losing_and_finding_the_views_is_said_once_each(self, caplog):
+    def test_losing_and_finding_the_views_is_said_once_each_and_never_as_a_warning(self, caplog):
         views = TrackedViews()
 
         with caplog.at_level(logging.INFO):
             for flags in (_TRACKED, 0, 0, _TRACKED, _TRACKED):
                 views.to_draw(flags, ("left",))
 
-        assert [record.levelname for record in caplog.records] == ["WARNING", "INFO"]
+        assert [record.levelname for record in caplog.records] == ["INFO", "INFO"]
 
 
 class TestTheLayersOfAFrame:

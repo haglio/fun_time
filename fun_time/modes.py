@@ -21,8 +21,12 @@ PLAYLIST_LANDSCAPE = "landscape_playlist"
 PLAYLIST_MAIN_FUNESTRA = "main_player_playlist"
 
 
+BEING_WRITTEN_MARK = ".partial."
+
+
 def is_supported_video_path(path: str) -> bool:
-    return Path(path).suffix.lower() in SUPPORTED_VIDEO_EXTS
+    name = Path(path).name
+    return Path(name).suffix.lower() in SUPPORTED_VIDEO_EXTS and BEING_WRITTEN_MARK not in name.lower()
 
 
 def source_roots(source_spec: str) -> list[Path]:
