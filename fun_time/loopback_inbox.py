@@ -7,7 +7,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from .read_when_changed import ReadWhenChanged
+from app_support.written_file import ReadWhenChanged
 
 PRESS_PORT_FILENAME = "dashboard_press_port.txt"
 

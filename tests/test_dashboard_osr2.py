@@ -10,7 +10,9 @@ from funestra.osr2_visualizer import DriveHud
 
 from fun_time.dashboard_osr2 import Osr2PartWidget
 from fun_time.fun_time_funestras import FunTimeFunestra
+from fun_time.osr2_section import osr2_part_path, osr2_readout_path
 from tests.made_up_osr2_parts import a_part, a_readout, handed_on, published
+from tests.standing_files import left_to_stand
 
 
 def _drawn(part: MainHudModel, readout: DriveHud | None = None):
@@ -62,6 +64,7 @@ def test_a_read_that_changes_what_it_draws_repaints_it_and_one_that_does_not_rep
 def test_reads_with_nothing_republished_open_neither_file_again(widget, tmp_path, monkeypatch):
     published(tmp_path, a_part())
     handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout())
+    left_to_stand(osr2_part_path(tmp_path), osr2_readout_path(tmp_path, FunTimeFunestra.MAIN.label))
     opened = []
     real_read_text = Path.read_text
     monkeypatch.setattr(Path, "read_text",

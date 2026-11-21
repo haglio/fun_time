@@ -6,8 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app_support.file_channel import read_key_values
-
-from .read_when_changed import ReadWhenChanged
+from app_support.written_file import ReadWhenChanged
 
 WRITTEN_IN_THE_SAME_TICK_S = 0.032
 

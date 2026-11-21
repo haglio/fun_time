@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app_support.written_file import ReadWhenChanged
 from funestra.main_hud import OSR2_DRIVING, MainHudModel, read_main_hud
 from funestra.main_hud_painter import MainHud
 from funestra.modes import MainMode, Osr2State
@@ -11,7 +12,6 @@ from funestra.robot_hand import FULL_INTENSITY, WaveformShape
 
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.osr2_section import Osr2PartFacts, osr2_part, osr2_part_path, osr2_readout_path
-from fun_time.read_when_changed import ReadWhenChanged
 
 
 def room_for_a_whole_part() -> tuple[int, int]:

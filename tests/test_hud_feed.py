@@ -30,6 +30,7 @@ from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from fun_time.shared_state import BridgeState, SatelliteState
 from tests.bridge_configs import made_up_bridge_config
 from tests.made_up_gallery import a_row
+from tests.standing_files import left_to_stand
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
@@ -213,6 +214,7 @@ class TestHudPublishing:
         feed = make_feed(tmp_path, config=make_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
         publish_whole(hosted_file, hud_text(HudModel(funestra="portrait", title="Locked")))
+        left_to_stand(hosted_file)
         reads: list[Path] = []
         real_read = Path.read_text
 

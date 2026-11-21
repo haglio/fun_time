@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Protocol
 
 from app_support.file_channel import consume_command_file
+from app_support.written_file import ReadWhenChanged
 
 from .bridge_records import BridgeConfig
 from .command_answering import CommandAnswering
@@ -20,7 +21,6 @@ from .latest_arrivals import LatestArrivals
 from .lock import a_lock_holds
 from .mode_plan import kino_shows
 from .origenerator_opening import OrigeneratorOpening
-from .read_when_changed import ReadWhenChanged
 from .rfb_mode import switch_the_rfb_mode
 from .rfb_modes import RfbMode
 from .rfb_slideshow import RfbSlideshow
