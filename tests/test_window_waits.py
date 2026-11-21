@@ -75,3 +75,21 @@ def test_each_minute_with_calls_is_summed_up(caplog):
         "Window calls over 61 s: 4 to other programs' windows, 2 over 16.7 ms, "
         "2 over 100 ms, 1 given up on, 1653.0 ms waited in all, "
         "worst 1500.0 ms (set_always_on_top(3, True))")
+
+
+def test_a_slow_call_says_which_of_the_apps_windows_it_was_for(caplog):
+    clock = WoundClock()
+    waits = _waits(clock)
+    waits.call_it(4242, "the Main Funestra")
+
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        waits.waited("set_always_on_top(4242, True)", 0.250, answered=True, hwnd=4242)
+        clock.now += 61
+        waits.waited("place_window(7)", 0.001, answered=True, hwnd=7)
+
+    assert caplog.messages == [
+        "Slow window call: set_always_on_top(4242, True) on the Main Funestra waited 250.0 ms; "
+        "1 slow call(s) since the last line",
+        "Window calls over 61 s: 2 to other programs' windows, 1 over 16.7 ms, "
+        "1 over 100 ms, 0 given up on, 251.0 ms waited in all, "
+        "worst 250.0 ms (set_always_on_top(4242, True) on the Main Funestra)"]

@@ -51,7 +51,7 @@ from .window_layout import (
     compute_main_media_rect,
     screen_layout,
 )
-from .window_names import MANAGED_WINDOWS, window_is_topmost
+from .window_names import MANAGED_WINDOWS, name_in_the_record, window_is_topmost
 from .windows_bridge_random_faves_browser import (
     CHROME_WINDOW_CLASS,
     close_tabs_it_did_not_open_while_it_starts,
@@ -124,6 +124,7 @@ def apply_topmost_bands(hwnds_by_window: dict[str, int], *, beneath: int = 0,
     for window_name in MANAGED_WINDOWS:
         hwnd = hwnds_by_window.get(window_name, 0)
         if hwnd:
+            name_in_the_record(window_name, hwnd)
             set_always_on_top(hwnd, window_is_topmost(window_name, rfb_mode), under=beneath)
 
 

@@ -31,6 +31,7 @@ from .window_names import (
     ORIGENERATOR_WINDOW,
     RFB_MODE_WINDOWS,
     is_origenerators_caption,
+    name_in_the_record,
     window_is_topmost,
 )
 from .windows_bridge_startup import (
@@ -106,6 +107,7 @@ class FunTimeWindows:
             hwnd = find_origenerators_window(self.pids.origenerator)
         if hwnd:
             self._hwnds_kept_for_when_hidden[window_name] = hwnd
+            name_in_the_record(window_name, hwnd)
         return hwnd
 
     def _forget_origenerators_loading_screen_once_it_closes(self) -> None:
