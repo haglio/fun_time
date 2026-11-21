@@ -13,7 +13,7 @@ from fun_time.fun_time_windows import (
 )
 from fun_time.rfb_modes import RfbMode
 from fun_time.window_layout import WindowRect
-from fun_time.window_names import ORIGENERATOR_TITLE, ORIGENERATOR_WINDOW
+from fun_time.window_names import MANAGED_WINDOWS, ORIGENERATOR_TITLE, ORIGENERATOR_WINDOW
 from fun_time.windows_bridge_sequencer import apply_topmost_bands
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -451,3 +451,27 @@ class TestParkedAndMinimized:
             windows.restore_parked()
 
         assert self._restored_by(minimize_all_then_come_back) == [PORTRAIT_HWND, MAIN_FUNESTRA_HWND]
+
+
+def test_each_window_found_is_named_in_the_record_of_slow_window_calls():
+    windows = make_windows(pids={"origenerator": HOSTED_PID}, rfb_hwnd=RFB_HWND)
+    named: list[tuple[int, str]] = []
+
+    with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+         patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+         patch("fun_time.fun_time_windows.find_window_for_process", side_effect=lookup_hosted), \
+         patch("fun_time.fun_time_windows.window_exists", return_value=True), \
+         patch("fun_time.window_names.name_the_window",
+               side_effect=lambda hwnd, kind: named.append((hwnd, kind))):
+        for window_name in MANAGED_WINDOWS:
+            windows.hwnd(window_name)
+            windows.hwnd(window_name)
+
+    assert named == [
+        (PORTRAIT_HWND, "the Portrait Satellite"),
+        (LANDSCAPE_HWND, "the Landscape Satellite"),
+        (DASHBOARD_HWND, "the Dashboard"),
+        (MAIN_FUNESTRA_HWND, "the Main Funestra"),
+        (RFB_HWND, "the Random Faves Browser"),
+        (HOSTED_HWND, "Origenerator Core"),
+    ]

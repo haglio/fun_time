@@ -930,6 +930,16 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
             "Windows puts a window made topmost at the very top, over the loading screen, "
             "until the loading screen takes the top back")
 
+    def test_each_window_banded_is_named_in_the_record_of_slow_window_calls(self):
+        named: list[tuple[int, str]] = []
+        with patch("fun_time.window_names.name_the_window",
+                   side_effect=lambda hwnd, kind: named.append((hwnd, kind))):
+            self._calls()
+
+        assert named == [(22, "the Portrait Satellite"), (33, "the Landscape Satellite"),
+                         (44, "the Dashboard"), (55, "the Main Funestra"),
+                         (11, "the Random Faves Browser")]
+
     def test_the_walk_still_promotes_in_role_order(self):
         banded = [h for h, on, _under in self._calls(beneath=self.LOADING_SCREEN) if on]
         plain = [h for h, on, _under in self._calls() if on]

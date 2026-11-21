@@ -198,6 +198,10 @@ STALLED_WINDOW_TIMEOUT_S = 1.5
 _WINDOW_WAITS = WindowWaits()
 
 
+def name_the_window(hwnd: int, kind: str) -> None:
+    _WINDOW_WAITS.call_it(hwnd, kind)
+
+
 def window_process(hwnd: int) -> int:
     pid = ctypes.wintypes.DWORD()
     _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
@@ -217,7 +221,7 @@ def _without_hanging(call, hwnd, *args, what: str, waits: WindowWaits | None = N
     asked_at = clock()
     answered = _ONE_CALL_AT_A_TIME.make(hwnd, lambda: call(hwnd, *args), what=what).wait(
         STALLED_WINDOW_TIMEOUT_S)
-    (waits or _WINDOW_WAITS).waited(what, clock() - asked_at, answered=answered)
+    (waits or _WINDOW_WAITS).waited(what, clock() - asked_at, answered=answered, hwnd=hwnd)
     if answered:
         return True
     logger.warning(

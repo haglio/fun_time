@@ -29,10 +29,15 @@ class WindowWaits:
         self._calls = self._slow = self._long = self._given_up = 0
         self._waited = 0.0
         self._worst = _Wait()
+        self._kinds: dict[int, str] = {}
 
-    def waited(self, what: str, took: float, *, answered: bool) -> None:
+    def call_it(self, hwnd: int, kind: str) -> None:
+        self._kinds[hwnd] = kind
+
+    def waited(self, what: str, took: float, *, answered: bool, hwnd: int = 0) -> None:
         now = self._clock()
-        self._count(_Wait(took, what), answered=answered)
+        kind = self._kinds.get(hwnd)
+        self._count(_Wait(took, f"{what} on {kind}" if kind else what), answered=answered)
         if self._unsaid_slow and now - self._said_at >= QUIET_S:
             self._say(now)
         if now - self._summed_at >= SUM_UP_EVERY_S:

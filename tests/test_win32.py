@@ -260,16 +260,16 @@ class TestAWindowThatHasStoppedAnswering:
     def test_each_wait_on_another_programs_window_is_written_down(self, monkeypatch):
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         clock = iter([10.0, 10.25])
-        written: list[tuple[str, float, bool]] = []
+        written: list[tuple[str, float, bool, int]] = []
 
         class Spy:
-            def waited(self, what, took, *, answered):
-                written.append((what, took, answered))
+            def waited(self, what, took, *, answered, hwnd):
+                written.append((what, took, answered, hwnd))
 
         win32._without_hanging(lambda *_a: None, 111, what="place_window(111)",
                                waits=Spy(), clock=lambda: next(clock))
 
-        assert written == [("place_window(111)", 0.25, True)]
+        assert written == [("place_window(111)", 0.25, True, 111)]
 
     def test_it_says_which_window_stopped_answering(self, monkeypatch, caplog):
         with (
