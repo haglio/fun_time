@@ -64,6 +64,18 @@ def test_a_file_read_in_the_tick_it_was_written_is_read_again_until_that_tick_is
     assert counted.reads == 3
 
 
+def test_a_file_published_a_tenth_of_a_second_ago_is_read_once_however_often_asked(tmp_path):
+    status = tmp_path / "main_funestra_status.txt"
+    _published_long_ago(status, "speed=1.0\n")
+    counted = CountsReads()
+    values = StatusValues(read=counted, clock=lambda: LONG_AGO + 0.1)
+
+    for _ in range(5):
+        values.read(status)
+
+    assert counted.reads == 1
+
+
 def test_a_read_that_failed_is_tried_again_on_the_next_ask(tmp_path):
     status = tmp_path / "main_funestra_status.txt"
     values = StatusValues()

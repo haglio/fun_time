@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 
-from app_support.written_file import ReadWhenChanged
+from app_support.written_file import ReadEachWhenChanged, ReadWhenChanged
 from funestra.main_hud import OSR2_DRIVING, MainHudModel, read_main_hud
 from funestra.main_hud_painter import MainHud
 from funestra.modes import MainMode, Osr2State
@@ -13,6 +14,7 @@ from funestra.robot_hand import FULL_INTENSITY, WaveformShape
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.osr2_section import Osr2PartFacts, osr2_part, osr2_part_path, osr2_readout_path
 
+_HOLDERS_KEPT = 8
 
 def room_for_a_whole_part() -> tuple[int, int]:
     whole = osr2_part(FunTimeFunestra.MAIN, Osr2PartFacts(
@@ -28,21 +30,16 @@ class Osr2PartReader:
         self._part: MainHudModel | None = None
         self._readout: DriveHud | None = None
         self._part_file = ReadWhenChanged(osr2_part_path(self._state_dir), read_main_hud)
-        self._readout_files: dict[str, ReadWhenChanged[DriveHud | None]] = {}
+        readout_of = partial(osr2_readout_path, self._state_dir)
+        self._readouts: ReadEachWhenChanged[str, DriveHud | None] = ReadEachWhenChanged(
+            lambda holder: read_drive(readout_of(holder)), most=_HOLDERS_KEPT, path_of=readout_of)
 
     def read(self) -> MainHud | None:
         part = self._part_file.latest() or self._part
         if part is None:
             return None
         same_holder = self._part is not None and part.funestra == self._part.funestra
-        self._readout = (self._readout_of(part.funestra).latest()
+        self._readout = (self._readouts.latest(part.funestra)
                          or (self._readout if same_holder else None))
         self._part = part
         return MainHud(main_hud_model=part, drive=self._readout)
-
-    def _readout_of(self, holder: str) -> ReadWhenChanged[DriveHud | None]:
-        reader = self._readout_files.get(holder)
-        if reader is None:
-            reader = self._readout_files[holder] = ReadWhenChanged(
-                osr2_readout_path(self._state_dir, holder), read_drive)
-        return reader
