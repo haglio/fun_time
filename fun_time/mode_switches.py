@@ -12,6 +12,7 @@ from funestra.playlist import PlaylistItem
 from .bridge_records import BridgeConfig, Handler, Route, WindowOp
 from .command_value import Command
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
+from .funestra_status import GenauStatus
 from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE
 from .modes import scripted_item
 from .rfb_mode import core_shows, switch_the_rfb_mode
@@ -46,7 +47,7 @@ def _dispatch_mode_switch(
         main_funestra_paused_file=config.main_funestra.paused_file,
         main_funestra_cmd_file=config.main_funestra.cmd_file,
     )
-    state = replace(state, main_mode=result.next_mode)
+    state = replace(state, main_mode=result.next_mode, genau_waits_for="")
     if result.is_transition:
         ops.extend(_main_funestra_ops())
     if result.log_message:
@@ -81,9 +82,24 @@ PLAY_IN_GENAU = "genau_play"
 
 def _play_in_genau(command: Command, state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    state, ops = _dispatch_mode_switch(MAIN_GENAU_MODE, state, config, [])
     append_command(config.genau.cmd_file, play_file(PlaylistItem(Path(command.argument))))
-    return state, ops
+    if state.main_mode == MAIN_GENAU_MODE:
+        return state, []
+    return replace(state, genau_waits_for=command.argument), []
+
+
+def genau_comes_up_once_the_flick_is_whole(
+        state: BridgeState, config: BridgeConfig, genau: GenauStatus,
+) -> tuple[BridgeState, list[WindowOp]]:
+    if not state.genau_waits_for or Path(genau.flick) != Path(state.genau_waits_for):
+        return state, []
+    if genau.whole:
+        return _dispatch_mode_switch(MAIN_GENAU_MODE, state, config, [])
+    if genau.unreadable:
+        logger.warning("Genau could not decode %s, so the Main Funestra stays in Kino",
+                       Path(genau.flick).name)
+        return replace(state, genau_waits_for=""), []
+    return state, []
 
 
 VALUED: dict[str, Route] = {PLAY_IN_KINO: _play_in_kino, PLAY_IN_GENAU: _play_in_genau}

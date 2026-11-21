@@ -112,6 +112,8 @@ class GenauStatus:
     flipped: bool = False
     portrait: bool | None = None
     up_at: float | None = None
+    whole: bool = False
+    unreadable: bool = False
 
 
 def _status_bool(values: dict[str, str], key: str, *, on_at_rest: bool = False) -> bool:
@@ -143,6 +145,8 @@ def _genau_status_from(values: dict) -> GenauStatus:
         flipped=_status_bool(values, "flipped"),
         portrait=_status_flag_or_none(values, "portrait"),
         up_at=_status_seconds_or_none(values, "up_at"),
+        whole=_status_bool(values, "whole"),
+        unreadable=_status_bool(values, "unreadable"),
     )
 
 

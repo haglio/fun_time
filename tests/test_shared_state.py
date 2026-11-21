@@ -312,6 +312,7 @@ _EXPECTED_STATE_KEYS = {
     "headset_layout": "",
     "genau_flick_seconds": "10", "genau_learned": "0", "genau_robot_hand_off": "0",
     "genau_locked": "1",
+    "genau_waits_for": "",
 }
 
 

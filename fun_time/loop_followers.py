@@ -16,10 +16,12 @@ from .dashboard_actions import ENTER_OMNIPAUSE
 from .dispatch_loop_setup import Publishing, SessionFiles
 from .funestra_messages import FunestraMessages
 from .funestra_settings import FunestraReporting
+from .funestra_status import read_genau_status
 from .hud_feed import HudFeed
 from .latest_arrivals import LatestArrivals
 from .lock import a_lock_holds
 from .mode_plan import kino_shows
+from .mode_switches import genau_comes_up_once_the_flick_is_whole
 from .origenerator_opening import OrigeneratorOpening
 from .rfb_mode import switch_the_rfb_mode
 from .rfb_modes import RfbMode
@@ -129,6 +131,17 @@ class LocksWhatTheMainFunestraHolds:
                 core_is_there=answering.lock_follower.core_is_at(held)))
 
 
+class GenauWhenTheFlickIsWhole:
+    def tick(self, now: float, answering: CommandAnswering) -> None:
+        if not answering.state.genau_waits_for:
+            return
+        config = answering.config
+        state, ops = genau_comes_up_once_the_flick_is_whole(
+            answering.state, config, read_genau_status(config.genau.status_file))
+        if state is not answering.state:
+            answering.take(state, ops)
+
+
 class TheBrowsersSlideshow:
     def __init__(self, slideshow: RfbSlideshow) -> None:
         self._slideshow = slideshow
@@ -178,6 +191,7 @@ def the_followers(parts: LoopParts) -> tuple[Follower, ...]:
         )),
         EachTick(lambda now, answering: parts.latest_arrivals.deliver(answering.state)),
         LocksWhatTheMainFunestraHolds(),
+        GenauWhenTheFlickIsWhole(),
         EachTick(lambda now, answering: answering.watch.sample_due(
             now=now, omni_paused=answering.state.omni_paused,
             genau_on_screen=not kino_shows(answering.state.main_mode))),
