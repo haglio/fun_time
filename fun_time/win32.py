@@ -258,6 +258,8 @@ def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
 def set_always_on_top(hwnd: int, on_top: bool, *, under: int = 0) -> None:
     # Windows' SetWindowPos waits for the target's own thread, which is why this goes through
     # _without_hanging.
+    if _already_stacked_there(hwnd, on_top, under=under):
+        return
     if not on_top:
         insert_after = HWND_NOTOPMOST
     elif under:
@@ -265,6 +267,18 @@ def set_always_on_top(hwnd: int, on_top: bool, *, under: int = 0) -> None:
     else:
         insert_after = _AT_THE_TOP_OF_THE_TOPMOST_BAND
     _stack_after(hwnd, insert_after, what=f"set_always_on_top({hwnd}, {on_top})")
+
+
+def _already_stacked_there(hwnd: int, on_top: bool, *, under: int) -> bool:
+    if _ONE_CALL_AT_A_TIME.waiting(hwnd):
+        return False
+    if not on_top:
+        return not is_window_topmost(hwnd)
+    if not is_window_topmost(hwnd):
+        return False
+    if under:
+        return _user32.GetWindow(under, GW_HWNDNEXT) == hwnd
+    return _user32.GetTopWindow(0) == hwnd
 
 
 def raise_above_every_window_not_on_top(hwnd: int) -> None:

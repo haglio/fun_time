@@ -24,6 +24,10 @@ class CallsInTurn:
                              name=self._thread_name(key)).start()
         return done
 
+    def waiting(self, key: Hashable) -> int:
+        with self._lock:
+            return len(self._waiting.get(key, ()))
+
     def _make_in_turn(self, key: Hashable) -> None:
         finished = False
         while not finished:
