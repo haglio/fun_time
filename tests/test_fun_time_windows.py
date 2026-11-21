@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import threading
 from functools import partial
 from unittest.mock import patch
 
 import pytest
 from shared_ui.preview import Preview, window_title
 
+from fun_time.calls_in_turn import AtOnce
 from fun_time.fun_time_windows import (
     MAIN_BLANK_SETTLE_S,
+    WINDOW_WORK_THREAD,
     ChildPids,
     FunTimeWindows,
 )
@@ -47,12 +50,13 @@ def make_windows(**overrides) -> FunTimeWindows:
     pids = {"main_funestra": MAIN_FUNESTRA_PID, "portrait": PORTRAIT_PID,
                 "landscape": LANDSCAPE_PID, "dashboard": DASHBOARD_PID}
     pids.update(overrides.pop("pids", {}))
-    return FunTimeWindows(pids=ChildPids(**pids), **overrides)
+    return FunTimeWindows(pids=ChildPids(**pids), **{"calls": AtOnce(), **overrides})
 
 
 def test_a_window_hidden_since_startup_is_reached_by_its_startup_handle():
     windows = FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID),
-                             hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND})
+                             hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND},
+                             calls=AtOnce())
 
     with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
          patch("fun_time.fun_time_windows.find_window_by_title", return_value=0):
@@ -60,7 +64,8 @@ def test_a_window_hidden_since_startup_is_reached_by_its_startup_handle():
 
 
 def test_with_no_pids_and_no_window_found_every_window_op_is_a_no_op():
-    windows = FunTimeWindows(pids=ChildPids())
+    clock = HandDrivenClock()
+    windows = FunTimeWindows(pids=ChildPids(), calls=AtOnce(), clock=clock)
 
     with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
          patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
@@ -71,7 +76,9 @@ def test_with_no_pids_and_no_window_found_every_window_op_is_a_no_op():
          patch("fun_time.fun_time_windows.set_always_on_top") as topmost:
         windows.show("main_funestra")
         windows.activate("portrait")
-        windows.minimize("landscape")
+        windows.hide_after_settle("landscape")
+        clock.advance(MAIN_BLANK_SETTLE_S)
+        windows.flush_pending_hides()
         windows.park("dashboard")
         windows.remove_all_topmost()
 
@@ -421,11 +428,15 @@ class TestParkedAndMinimized:
         minimize.assert_called_once_with(PORTRAIT_HWND, activate_the_next_window=False)
 
     def test_a_window_a_mode_minimizes_is_not_one_the_next_resume_restores(self):
-        windows = self._windows()
+        clock = HandDrivenClock()
+        windows = make_windows(clock=clock,
+                               hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND})
 
         def switch_then_resume():
             with patch("fun_time.fun_time_windows.minimize_window"):
-                windows.minimize("main_funestra")
+                windows.hide_after_settle("main_funestra")
+                clock.advance(MAIN_BLANK_SETTLE_S)
+                windows.flush_pending_hides()
             windows.restore_parked()
 
         assert self._restored_by(switch_then_resume) == []
@@ -475,3 +486,90 @@ def test_each_window_found_is_named_in_the_record_of_slow_window_calls():
         (RFB_HWND, "the Random Faves Browser"),
         (HOSTED_HWND, "Origenerator Core"),
     ]
+
+
+class TestTheWindowsMoveBehindWhoeverAsked:
+    def test_a_move_is_made_on_the_window_works_own_thread_and_the_ask_returns_at_once(self):
+        windows = FunTimeWindows(pids=ChildPids(),
+                                 hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND})
+        answering = threading.Event()
+        made_on: list[str] = []
+
+        def a_window_that_has_not_answered_yet(_hwnd, *, activate):
+            made_on.append(threading.current_thread().name)
+            answering.wait()
+
+        with patch("fun_time.fun_time_windows.restore_window",
+                   side_effect=a_window_that_has_not_answered_yet):
+            moved = windows.show("main_funestra")
+            asked_by = threading.current_thread().name
+            assert not moved.is_set()
+            answering.set()
+            moved.wait()
+
+        assert made_on == [WINDOW_WORK_THREAD]
+        assert asked_by != WINDOW_WORK_THREAD
+
+    @staticmethod
+    def _held_up() -> tuple[FunTimeWindows, threading.Event, HandDrivenClock]:
+        clock = HandDrivenClock()
+        windows = FunTimeWindows(pids=ChildPids(origenerator=HOSTED_PID), clock=clock,
+                                 hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND,
+                                                           ORIGENERATOR_WINDOW: HOSTED_HWND})
+        let_go = threading.Event()
+        windows.in_turn("a window that has not answered yet", let_go.wait)
+        return windows, let_go, clock
+
+    def test_no_band_or_place_is_read_while_window_work_asked_before_it_is_still_being_made(self):
+        windows, let_go, _clock = self._held_up()
+        read: list[int] = []
+
+        with patch("fun_time.fun_time_windows.window_exists", return_value=True), \
+             patch("fun_time.fun_time_windows.is_window_minimized",
+                   side_effect=lambda hwnd: read.append(hwnd) or True), \
+             patch("fun_time.fun_time_windows.window_rect", side_effect=read.append):
+            windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
+            windows.place([("main_funestra", WindowRect(0, 0, 10, 10))])
+            read_while_held_up = list(read)
+            let_go.set()
+            windows.in_turn("the test's own look", lambda: None).wait()
+            windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
+
+        assert read_while_held_up == []
+        assert read[0] == HOSTED_HWND
+
+    def test_a_hide_settles_from_when_it_was_asked_for_however_late_the_window_work_gets_to_it(
+            self):
+        windows, let_go, clock = self._held_up()
+        minimized: list[int] = []
+
+        with patch("fun_time.fun_time_windows.minimize_window",
+                   side_effect=lambda hwnd, **_kw: minimized.append(hwnd)):
+            windows.hide_after_settle("main_funestra")
+            clock.advance(MAIN_BLANK_SETTLE_S)
+            let_go.set()
+            windows.in_turn("the test's own look", lambda: None).wait()
+            windows.flush_pending_hides()
+            windows.in_turn("the test's own look", lambda: None).wait()
+
+        assert minimized == [MAIN_FUNESTRA_HWND]
+
+    def test_window_work_is_made_in_the_order_it_was_asked_for(self):
+        windows, let_go, _clock = self._held_up()
+        made: list[tuple] = []
+
+        with patch("fun_time.fun_time_windows.restore_window",
+                   side_effect=lambda hwnd, **_kw: made.append(("restore", hwnd))), \
+             patch("fun_time.fun_time_windows.minimize_window",
+                   side_effect=lambda hwnd, **_kw: made.append(("minimize", hwnd))), \
+             patch("fun_time.fun_time_windows.set_always_on_top",
+                   side_effect=lambda hwnd, on_top: made.append(("on top", hwnd, on_top))), \
+             patch("fun_time.fun_time_windows.window_exists", return_value=True):
+            windows.park("main_funestra")
+            windows.restack_rfb_mode(RfbMode.ORIGENERATOR)
+            windows.restore_parked()
+            let_go.set()
+            windows.in_turn("the test's own look", lambda: None).wait()
+
+        assert made == [("minimize", MAIN_FUNESTRA_HWND), ("on top", HOSTED_HWND, True),
+                        ("restore", MAIN_FUNESTRA_HWND)]

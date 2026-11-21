@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from fun_time.calls_in_turn import AtOnce
 from fun_time.dashboard_actions import ENTER_OMNIPAUSE
 from fun_time.dispatch_loop_setup import Publishing, SessionStart
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
@@ -33,7 +34,7 @@ class _WritesDownEachTick:
 def _a_loop(tmp_path, followers, clock=None) -> DispatchLoopRunner:
     return DispatchLoopRunner(
         made_up_bridge_config(tmp_path), made_up_session_files(tmp_path),
-        SessionStart(windows=FunTimeWindows(pids=ChildPids())),
+        SessionStart(windows=FunTimeWindows(pids=ChildPids(), calls=AtOnce())),
         Publishing(dashboard_enabled=False),
         followers=followers, clock=clock or HandDrivenClock())
 

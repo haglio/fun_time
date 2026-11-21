@@ -116,6 +116,20 @@ class TestTheTabsWaitingForTheBrowser:
         assert work.pending_rfb_urls == ["file:///tab.html"]
 
 
+    def test_tabs_asked_for_while_the_windows_are_still_moving_wait_until_they_have(
+            self, tmp_path):
+        opened: list = []
+        work, (exists, foreground, open_tab) = self._work(tmp_path, opened)
+        work.pending_rfb_urls = ["file:///tab.html"]
+        work.windows.moving = lambda: True
+
+        with exists, foreground, open_tab:
+            work.flush_rfb_tabs(BridgeState())
+
+        assert opened == []
+        assert work.pending_rfb_urls == ["file:///tab.html"]
+
+
 class TestOrigeneratorWindowConverger:
     def test_no_converge_undoes_where_omnipause_put_the_hosted_window(self, tmp_path):
         windows = WindowsThatWriteDownWhatTheyAreAsked()
