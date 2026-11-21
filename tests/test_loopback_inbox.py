@@ -5,6 +5,7 @@ from pathlib import Path
 from app_support.threading_utils import wait_until
 
 from fun_time.loopback_inbox import LoopbackInbox, post_to_inbox
+from tests.standing_files import left_to_stand
 
 
 def _counting_reads_of(port_file: Path, monkeypatch) -> list[Path]:
@@ -23,6 +24,7 @@ def _counting_reads_of(port_file: Path, monkeypatch) -> list[Path]:
 def test_each_press_echoed_reads_the_port_file_only_when_it_changed(tmp_path, monkeypatch):
     port_file = tmp_path / "dashboard_press_port.txt"
     inbox = LoopbackInbox(port_file, listener_name="test-press-listener")
+    left_to_stand(port_file)
     try:
         reads = _counting_reads_of(port_file, monkeypatch)
 

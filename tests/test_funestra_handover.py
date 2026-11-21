@@ -9,6 +9,7 @@ from fun_time import funestra_handover
 from fun_time.config import SatelliteChannel
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_handover import show_has_something_to_reset, shows_button_lit
+from tests.standing_files import left_to_stand
 
 LANDSCAPE = FunTimeFunestra.LANDSCAPE
 
@@ -37,6 +38,7 @@ def _counting_parses(monkeypatch) -> list[str]:
 def test_a_hud_nobody_republished_is_parsed_once_over_many_passes(tmp_path, monkeypatch):
     channel = SatelliteChannel.in_state_dir(tmp_path, LANDSCAPE)
     _publish(channel, favorites=True, nothing_to_reset=False)
+    left_to_stand(channel.origenerator_hud_file)
     parsed = _counting_parses(monkeypatch)
 
     answers = [(shows_button_lit(channel, "favorites"), show_has_something_to_reset(channel))

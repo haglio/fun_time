@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app_support.written_file import ReadWhenChanged
 from funestra.hud_button import Button
 from funestra.satellite_hud import HudModel, parse_hud
 
@@ -9,7 +10,6 @@ from .bridge_records import BridgeConfig
 from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
 from .polled_files import FileStamp, file_stamp
-from .read_when_changed import ReadWhenChanged
 
 HudStamp = FileStamp | None
 
