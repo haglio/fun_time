@@ -12,6 +12,8 @@ import time
 from pathlib import Path
 from unittest.mock import call, patch
 
+from app_support.threading_utils import wait_until
+
 from fun_time import library_browser, loading_screen, preview_marker, win32, win32_process
 from fun_time.dashboard_layout import Rect
 from fun_time.fun_time_windows import find_origenerators_window
@@ -145,6 +147,47 @@ class TestSetAlwaysOnTop:
             set_always_on_top(111, False, under=99)
 
         assert mock.SetWindowPos.call_args[0][1] == HWND_NOTOPMOST
+
+    def test_a_window_already_outside_the_band_is_not_asked_to_leave_it(self):
+        with _user32_mocked() as mock:
+            mock.GetWindowLongW.return_value = 0
+            set_always_on_top(7301, False)
+
+        assert mock.SetWindowPos.call_args_list == []
+
+    def test_a_window_already_at_the_top_of_every_window_is_not_raised_again(self):
+        with _user32_mocked() as mock:
+            mock.GetWindowLongW.return_value = WS_EX_TOPMOST
+            mock.GetTopWindow.return_value = 7302
+            set_always_on_top(7302, True)
+
+        assert mock.SetWindowPos.call_args_list == []
+
+    def test_a_window_on_top_with_another_above_it_is_raised(self):
+        with _user32_mocked() as mock:
+            mock.GetWindowLongW.return_value = WS_EX_TOPMOST
+            mock.GetTopWindow.return_value = 222
+            set_always_on_top(7303, True)
+
+        assert mock.SetWindowPos.call_args[0][:2] == (7303, HWND_TOPMOST)
+
+    def test_a_window_already_directly_under_the_one_it_goes_under_is_left_there(self):
+        with _user32_mocked() as mock:
+            mock.GetWindowLongW.return_value = WS_EX_TOPMOST
+            mock.GetWindow.side_effect = (
+                lambda hwnd, which: 7304 if (hwnd, which) == (99, win32.GW_HWNDNEXT) else 0)
+            set_always_on_top(7304, True, under=99)
+            set_always_on_top(7304, True, under=98)
+
+        assert [placed[0][1].value for placed in mock.SetWindowPos.call_args_list] == [98]
+
+    def test_a_window_outside_the_band_goes_under_the_one_it_is_asked_to(self):
+        with _user32_mocked() as mock:
+            mock.GetWindowLongW.return_value = 0
+            mock.GetWindow.return_value = 7305
+            set_always_on_top(7305, True, under=99)
+
+        assert mock.SetWindowPos.call_args[0][1].value == 99
 
     def test_a_band_change_moves_and_resizes_nothing(self):
         with _user32_mocked() as mock:
@@ -302,6 +345,34 @@ class TestAWindowThatHasStoppedAnswering:
             assert both_landed.wait(5), f"only {happened} happened"
 
         assert happened == ["not on top sent", "not on top landed", "on top sent", "on top landed"]
+
+    def test_a_call_after_one_still_waiting_is_made_whatever_the_window_reads_as_now(
+            self, monkeypatch):
+        monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
+        answering = threading.Event()
+        both_landed = threading.Event()
+        landed: list = []
+
+        def place(_hwnd, insert_after, *_args):
+            answering.wait()
+            landed.append(insert_after)
+            if len(landed) == 2:
+                both_landed.set()
+
+        def ask(on_top: bool) -> None:
+            threading.Thread(target=set_always_on_top, args=(7306, on_top), daemon=True).start()
+
+        with _user32_mocked() as mock:
+            mock.GetWindowLongW.return_value = 0
+            mock.SetWindowPos.side_effect = place
+            ask(True)
+            wait_until(lambda: win32._ONE_CALL_AT_A_TIME.waiting(7306) == 1)
+            ask(False)
+            wait_until(lambda: win32._ONE_CALL_AT_A_TIME.waiting(7306) == 2)
+            answering.set()
+            both_landed.wait()
+
+        assert landed == [HWND_TOPMOST, HWND_NOTOPMOST]
 
     def test_a_call_that_fails_is_named_and_holds_up_none_of_the_windows_later_calls(
             self, monkeypatch, caplog):
