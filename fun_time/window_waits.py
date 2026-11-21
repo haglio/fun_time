@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable
 from typing import NamedTuple
@@ -11,6 +12,7 @@ A_FRAME_S = 1.0 / 60.0
 LONG_S = 0.1
 QUIET_S = 1.0
 SUM_UP_EVERY_S = 60.0
+THE_LOOPS_THREAD = "dispatch-loop"
 
 
 class _Wait(NamedTuple):
@@ -18,16 +20,22 @@ class _Wait(NamedTuple):
     what: str = ""
 
 
+def _asked_on_the_loop() -> bool:
+    return threading.current_thread().name == THE_LOOPS_THREAD
+
+
 class WindowWaits:
-    def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, *, clock: Callable[[], float] = time.monotonic,
+                 on_the_loop: Callable[[], bool] = _asked_on_the_loop) -> None:
         self._clock = clock
+        self.on_the_loop = on_the_loop
         now = clock()
         self._said_at = now - QUIET_S
         self._summed_at = now
         self._unsaid_slow = 0
         self._worst_unsaid = _Wait()
         self._calls = self._slow = self._long = self._given_up = 0
-        self._waited = 0.0
+        self._waited = self._held_the_loop = 0.0
         self._worst = _Wait()
         self._kinds: dict[int, str] = {}
 
@@ -46,6 +54,8 @@ class WindowWaits:
     def _count(self, this: _Wait, *, answered: bool) -> None:
         self._calls += 1
         self._waited += this.took
+        if self.on_the_loop():
+            self._held_the_loop += this.took
         self._given_up += not answered
         self._long += this.took > LONG_S
         if this.took > self._worst.took:
@@ -67,11 +77,12 @@ class WindowWaits:
     def _sum_up(self, now: float) -> None:
         logger.info(
             "Window calls over %.0f s: %d to other programs' windows, %d over %.1f ms, "
-            "%d over %.0f ms, %d given up on, %.1f ms waited in all, worst %.1f ms (%s)",
+            "%d over %.0f ms, %d given up on, %.1f ms waited in all, worst %.1f ms (%s); "
+            "%.1f ms of it held Fun Time's loop",
             now - self._summed_at, self._calls, self._slow, A_FRAME_S * 1000.0,
             self._long, LONG_S * 1000.0, self._given_up, self._waited * 1000.0,
-            self._worst.took * 1000.0, self._worst.what)
+            self._worst.took * 1000.0, self._worst.what, self._held_the_loop * 1000.0)
         self._summed_at = now
         self._calls = self._slow = self._long = self._given_up = 0
-        self._waited = 0.0
+        self._waited = self._held_the_loop = 0.0
         self._worst = _Wait()

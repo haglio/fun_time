@@ -27,6 +27,7 @@ WHAT_THE_RECORD_CALLS_EACH_WINDOW: dict[str, str] = {
     "dashboard": "the Dashboard",
     "rfb": "the Random Faves Browser",
     ORIGENERATOR_WINDOW: "Origenerator Core",
+    "library": "the library",
 }
 
 

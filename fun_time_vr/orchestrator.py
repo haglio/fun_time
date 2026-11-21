@@ -117,6 +117,7 @@ from fun_time.startup_steps import timed_step
 from fun_time.state_file_names import take_up_the_retired_state_file_names
 from fun_time.unlogged_messages import wake_the_dashboard
 from fun_time.vr_videos import shapes_verb
+from fun_time.window_waits import THE_LOOPS_THREAD
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     Publishing,
@@ -551,7 +552,7 @@ def _open_the_room(
     launch.room_ready_file.unlink(missing_ok=True)
 
     dispatch_thread = threading.Thread(
-        target=dispatch_runner.run, daemon=True, name="dispatch-loop")
+        target=dispatch_runner.run, daemon=True, name=THE_LOOPS_THREAD)
     dispatch_thread.start()
     return TheControls(dispatch_runner, dispatch_thread, voice_controller, voice_thread)
 

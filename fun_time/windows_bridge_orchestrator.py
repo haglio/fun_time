@@ -24,6 +24,7 @@ from voice_core.whisper_reader import WhisperReader
 
 from . import preview_marker
 from .append_only import append_line
+from .calls_in_turn import AtOnce
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
 from .command_bell import ring as ring_the_bell
@@ -140,6 +141,7 @@ from .win32 import (
 from .win32_events import PressAndCaretWatch
 from .win32_process import is_process_alive
 from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
+from .window_waits import THE_LOOPS_THREAD
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     Publishing,
@@ -621,7 +623,8 @@ def seat_the_secondary_monitor(manifest: LaunchManifest, hwnds_by_window: dict[s
         return
     most = majority_now(state, Path(manifest.commands.main_funestra_status_file),
                         Path(manifest.commands.genau_status_file))
-    FunTimeWindows(pids=ChildPids(), hwnds_seen_while_visible=hwnds_by_window).seat(rects(majority=most))
+    FunTimeWindows(pids=ChildPids(), hwnds_seen_while_visible=hwnds_by_window,
+                   calls=AtOnce()).seat(rects(majority=most))
 
 
 def _reveal_the_app(
@@ -882,7 +885,7 @@ def _build_the_dispatch_loop(
 
 
 def _start_the_dispatch_loop(dispatch_runner: DispatchLoopRunner) -> threading.Thread:
-    dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
+    dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name=THE_LOOPS_THREAD)
     dispatch_thread.start()
     logger.info("Background dispatch loop started")
     return dispatch_thread

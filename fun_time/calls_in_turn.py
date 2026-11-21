@@ -43,3 +43,14 @@ class CallsInTurn:
                 if finished:
                     del self._waiting[key]
             done.set()
+
+
+class AtOnce:
+    def make(self, _key: Hashable, call: Callable[[], object], *, what: str) -> threading.Event:
+        call()
+        done = threading.Event()
+        done.set()
+        return done
+
+    def waiting(self, _key: Hashable) -> int:
+        return 0

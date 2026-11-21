@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from functools import partial
 
 from app_support.win32 import window_exists
 
 from . import preview_marker
+from .calls_in_turn import AtOnce, CallsInTurn
 from .rfb_modes import RfbMode
 from .win32 import (
     activate_window,
@@ -70,6 +73,10 @@ class ChildPids:
     origenerator: int = 0
 
 
+WINDOW_WORK_THREAD = "fun-time-window-work"
+_THE_WINDOW_WORK = "the window work"
+
+
 class FunTimeWindows:
     def __init__(
         self,
@@ -78,14 +85,22 @@ class FunTimeWindows:
         rfb_hwnd: int = 0,
         hwnds_seen_while_visible: dict[str, int] | None = None,
         clock: Callable[[], float] = time.monotonic,
+        calls: CallsInTurn | AtOnce | None = None,
     ) -> None:
         self.pids = pids
         self.rfb_hwnd = rfb_hwnd
         self._hwnds_kept_for_when_hidden: dict[str, int] = dict(hwnds_seen_while_visible or {})
         self.clock = clock
+        self._calls = calls or CallsInTurn(lambda _key: WINDOW_WORK_THREAD)
         self._pending_hides: dict[str, float] = {}
         self._parked_hwnds: list[int] = []
         self._minimized_hwnds: list[int] = []
+
+    def in_turn(self, what: str, work: Callable[[], object]) -> threading.Event:
+        return self._calls.make(_THE_WINDOW_WORK, work, what=what)
+
+    def moving(self) -> bool:
+        return bool(self._calls.waiting(_THE_WINDOW_WORK))
 
     def hwnd(self, window_name: str) -> int:
         if window_name == ORIGENERATOR_WINDOW:
@@ -113,7 +128,7 @@ class FunTimeWindows:
     def _forget_origenerators_loading_screen_once_it_closes(self) -> None:
         hwnd = self._hwnds_kept_for_when_hidden.get(ORIGENERATOR_WINDOW, 0)
         if hwnd and not window_exists(hwnd):
-            del self._hwnds_kept_for_when_hidden[ORIGENERATOR_WINDOW]
+            self._hwnds_kept_for_when_hidden.pop(ORIGENERATOR_WINDOW, None)
 
     def _dashboard_hwnd(self) -> int:
         hwnd = find_window_by_pid(self.pids.dashboard) if self.pids.dashboard else 0
@@ -127,36 +142,49 @@ class FunTimeWindows:
                 )
         return hwnd
 
-    def show(self, window_name: str) -> None:
+    def show(self, window_name: str) -> threading.Event:
+        return self.in_turn(f"show({window_name})", lambda: self._show(window_name))
+
+    def _show(self, window_name: str) -> None:
         self._pending_hides.pop(window_name, None)
         hwnd = self.hwnd(window_name)
         if hwnd:
             _restore_where_windows_kept_it(hwnd)
 
-    def activate(self, window_name: str) -> None:
+    def activate(self, window_name: str) -> threading.Event:
+        return self.in_turn(f"activate({window_name})", lambda: self._activate(window_name))
+
+    def _activate(self, window_name: str) -> None:
         hwnd = self.hwnd(window_name)
         if hwnd:
             activate_window(hwnd)
 
-    def hide_after_settle(self, window_name: str) -> None:
+    def hide_after_settle(self, window_name: str) -> threading.Event:
         # Minimizing freezes a window's Alt-Tab thumbnail, since Windows stops compositing it, so
         # the window gets a frame or two first.
-        self._pending_hides[window_name] = self.clock() + MAIN_BLANK_SETTLE_S
+        due = self.clock() + MAIN_BLANK_SETTLE_S
+        return self.in_turn(f"hide_after_settle({window_name})",
+                            lambda: self._pending_hides.__setitem__(window_name, due))
 
     def flush_pending_hides(self) -> None:
-        if not self._pending_hides:
-            return
         now = self.clock()
+        if any(now >= due for due in list(self._pending_hides.values())):
+            self.in_turn("flush_pending_hides", lambda: self._minimize_what_is_due(now))
+
+    def _minimize_what_is_due(self, now: float) -> None:
         for window_name in [r for r, due in self._pending_hides.items() if now >= due]:
             del self._pending_hides[window_name]
-            self.minimize(window_name)
+            self._minimize(window_name)
 
-    def minimize(self, window_name: str) -> None:
+    def _minimize(self, window_name: str) -> None:
         hwnd = self.hwnd(window_name)
         if hwnd:
             _minimize_to_its_taskbar_button(hwnd)
 
-    def park(self, window_name: str) -> None:
+    def park(self, window_name: str) -> threading.Event:
+        return self.in_turn(f"park({window_name})", lambda: self._park(window_name))
+
+    def _park(self, window_name: str) -> None:
         hwnd = self.hwnd(window_name)
         if not hwnd:
             return
@@ -164,12 +192,19 @@ class FunTimeWindows:
         if hwnd not in self._parked_hwnds:
             self._parked_hwnds.append(hwnd)
 
-    def restore_parked(self) -> None:
+    def restore_parked(self) -> threading.Event:
+        return self.in_turn("restore_parked", self._restore_parked)
+
+    def _restore_parked(self) -> None:
         for hwnd in self._parked_hwnds:
             _restore_where_windows_kept_it(hwnd)
         self._parked_hwnds = []
 
-    def minimize_all(self, window_names: Iterable[str]) -> None:
+    def minimize_all(self, window_names: Iterable[str]) -> threading.Event:
+        window_names = tuple(window_names)
+        return self.in_turn("minimize_all", lambda: self._minimize_all(window_names))
+
+    def _minimize_all(self, window_names: tuple[str, ...]) -> None:
         self._minimized_hwnds = []
         for window_name in window_names:
             hwnd = self.hwnd(window_name)
@@ -177,7 +212,10 @@ class FunTimeWindows:
                 _minimize_to_its_taskbar_button(hwnd)
                 self._minimized_hwnds.append(hwnd)
 
-    def restore_minimized(self) -> None:
+    def restore_minimized(self) -> threading.Event:
+        return self.in_turn("restore_minimized", self._restore_minimized)
+
+    def _restore_minimized(self) -> None:
         for hwnd in self._minimized_hwnds:
             _restore_where_windows_kept_it(hwnd)
         self._minimized_hwnds = []
@@ -195,6 +233,12 @@ class FunTimeWindows:
         return bool(hwnd) and process == window_process(hwnd)
 
     def place(self, placements: Iterable[tuple[str, WindowRect]]) -> None:
+        placements = tuple(placements)
+        if self.moving() or not self._moves(placements):
+            return
+        self.in_turn("place", lambda: self._place(placements))
+
+    def _moves(self, placements: tuple[tuple[str, WindowRect], ...]) -> list[tuple[int, WindowRect]]:
         moves = []
         for window_name, rect in placements:
             hwnd = self.hwnd(window_name)
@@ -204,23 +248,36 @@ class FunTimeWindows:
             if now != (rect.x, rect.y, rect.width, rect.height):
                 growth = rect.width * rect.height - (now[2] * now[3] if now else 0)
                 moves.append((growth, hwnd, rect))
-        for _growth, hwnd, rect in sorted(moves, key=lambda move: move[0]):
+        return [(hwnd, rect) for _growth, hwnd, rect in sorted(moves, key=lambda move: move[0])]
+
+    def _place(self, placements: tuple[tuple[str, WindowRect], ...]) -> None:
+        for hwnd, rect in self._moves(placements):
             place_window(hwnd, rect.x, rect.y, rect.width, rect.height)
 
-    def remove_all_topmost(self) -> None:
+    def remove_all_topmost(self) -> threading.Event:
+        return self.in_turn("remove_all_topmost", self._remove_all_topmost)
+
+    def _remove_all_topmost(self) -> None:
         for window_name in MANAGED_WINDOWS:
             hwnd = self.hwnd(window_name)
             if hwnd:
                 set_always_on_top(hwnd, False)
 
-    def restore_all_topmost(self, rfb_mode: RfbMode) -> None:
+    def restore_all_topmost(self, rfb_mode: RfbMode) -> threading.Event:
+        return self.in_turn("restore_all_topmost", lambda: self._restore_all_topmost(rfb_mode))
+
+    def _restore_all_topmost(self, rfb_mode: RfbMode) -> None:
         for window_name in FIXED_TOPMOST_WINDOWS:
             hwnd = self.hwnd(window_name)
             if hwnd:
                 set_always_on_top(hwnd, True)
-        self.restack_rfb_mode(rfb_mode)
+        self._restack_rfb_mode(rfb_mode)
 
-    def restack_rfb_mode(self, rfb_mode: RfbMode, *, paused: bool = False) -> None:
+    def restack_rfb_mode(self, rfb_mode: RfbMode, *, paused: bool = False) -> threading.Event:
+        return self.in_turn("restack_rfb_mode",
+                            lambda: self._restack_rfb_mode(rfb_mode, paused=paused))
+
+    def _restack_rfb_mode(self, rfb_mode: RfbMode, *, paused: bool = False) -> None:
         if paused:
             holder = self.hwnd(ORIGENERATOR_WINDOW if rfb_mode is RfbMode.ORIGENERATOR else "rfb")
             if holder:
@@ -236,19 +293,29 @@ class FunTimeWindows:
             set_always_on_top(hwnd, True)
 
     def converge_origenerator_window(self, rfb_mode: RfbMode) -> None:
-        if not self.pids.origenerator:
+        if self.moving() or not self._converging(rfb_mode):
             return
+        self.in_turn("converge_origenerator_window", lambda: self._converge(rfb_mode))
+
+    def _converge(self, rfb_mode: RfbMode) -> None:
+        for step in self._converging(rfb_mode):
+            step()
+
+    def _converging(self, rfb_mode: RfbMode) -> list[Callable[[], None]]:
+        if not self.pids.origenerator:
+            return []
         hwnd = self.hwnd(ORIGENERATOR_WINDOW)
         if not hwnd:
-            return
+            return []
         minimized = is_window_minimized(hwnd)
-        if rfb_mode is RfbMode.ORIGENERATOR:
-            if minimized:
-                _restore_where_windows_kept_it(hwnd)
-            if minimized or self._an_rfb_mode_window_out_of_its_band(rfb_mode):
-                self.restack_rfb_mode(rfb_mode)
-        elif not minimized:
-            _minimize_to_its_taskbar_button(hwnd)
+        if rfb_mode is not RfbMode.ORIGENERATOR:
+            return [] if minimized else [partial(_minimize_to_its_taskbar_button, hwnd)]
+        steps: list[Callable[[], None]] = []
+        if minimized:
+            steps.append(partial(_restore_where_windows_kept_it, hwnd))
+        if minimized or self._an_rfb_mode_window_out_of_its_band(rfb_mode):
+            steps.append(partial(self._restack_rfb_mode, rfb_mode))
+        return steps
 
     def _an_rfb_mode_window_out_of_its_band(self, rfb_mode: RfbMode) -> bool:
         return any(is_window_topmost(hwnd) != window_is_topmost(window_name, rfb_mode)

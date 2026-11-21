@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -21,43 +22,66 @@ def made_up_session_files(tmp_path: Path, *, manifest: Path | None = None) -> Se
         manifest=manifest)
 
 
+def _done() -> threading.Event:
+    done = threading.Event()
+    done.set()
+    return done
+
+
 class WindowsThatWriteDownWhatTheyAreAsked:
     def __init__(self, rfb_hwnd: int = 0) -> None:
         self.rfb_hwnd = rfb_hwnd
         self.asked: list[tuple] = []
 
-    def show(self, window_name: str) -> None:
+    def in_turn(self, _what: str, work) -> threading.Event:
+        work()
+        return _done()
+
+    def moving(self) -> bool:
+        return False
+
+    def show(self, window_name: str) -> threading.Event:
         self.asked.append(("show", window_name))
+        return _done()
 
-    def hide_after_settle(self, window_name: str) -> None:
+    def hide_after_settle(self, window_name: str) -> threading.Event:
         self.asked.append(("hide_after_settle", window_name))
+        return _done()
 
-    def park(self, window_name: str) -> None:
+    def park(self, window_name: str) -> threading.Event:
         self.asked.append(("park", window_name))
+        return _done()
 
-    def restore_parked(self) -> None:
+    def restore_parked(self) -> threading.Event:
         self.asked.append(("restore_parked",))
+        return _done()
 
-    def activate(self, window_name: str) -> None:
+    def activate(self, window_name: str) -> threading.Event:
         self.asked.append(("activate", window_name))
+        return _done()
 
-    def restack_rfb_mode(self, rfb_mode: RfbMode, *, paused: bool = False) -> None:
+    def restack_rfb_mode(self, rfb_mode: RfbMode, *, paused: bool = False) -> threading.Event:
         self.asked.append(("restack_rfb_mode", rfb_mode, paused))
+        return _done()
 
-    def remove_all_topmost(self) -> None:
+    def remove_all_topmost(self) -> threading.Event:
         self.asked.append(("remove_all_topmost",))
+        return _done()
 
-    def restore_all_topmost(self, rfb_mode: RfbMode) -> None:
+    def restore_all_topmost(self, rfb_mode: RfbMode) -> threading.Event:
         self.asked.append(("restore_all_topmost", rfb_mode))
+        return _done()
 
     def converge_origenerator_window(self, rfb_mode: RfbMode) -> None:
         self.asked.append(("converge_origenerator_window", rfb_mode))
 
-    def minimize_all(self, window_names: Iterable[str]) -> None:
+    def minimize_all(self, window_names: Iterable[str]) -> threading.Event:
         self.asked.append(("minimize_all", tuple(window_names)))
+        return _done()
 
-    def restore_minimized(self) -> None:
+    def restore_minimized(self) -> threading.Event:
         self.asked.append(("restore_minimized",))
+        return _done()
 
     def topmost_report(self) -> str:
         return "a made-up report"

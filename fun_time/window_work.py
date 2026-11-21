@@ -27,7 +27,7 @@ from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import BridgeState
 from .shortcuts import Shortcut
 from .win32 import find_window_for_process, set_always_on_top, window_rect
-from .window_names import visible_windows
+from .window_names import name_in_the_record, visible_windows
 from .windows_bridge_random_faves_browser import open_rfb_tab
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ def raise_a_browse_the_restack_left_underneath(browsing: subprocess.Popen | None
         return 0
     hwnd = find_window_for_process(browsing.pid)
     if hwnd:
+        name_in_the_record("library", hwnd)
         set_always_on_top(hwnd, True)
     return hwnd
 
@@ -84,6 +85,8 @@ class WindowWork:
         # RFB window is activated first.
         if state.rfb_mode is RfbMode.ORIGENERATOR:
             return
+        if self.windows.moving():
+            return
         urls = self.pending_rfb_urls
         self.pending_rfb_urls = []
         if not urls or not self.rfb_shortcut.target:
@@ -107,11 +110,14 @@ class WindowWork:
         self.windows.converge_origenerator_window(state.rfb_mode)
 
     def raise_a_browse_the_restack_left_underneath(self) -> None:
-        raise_a_browse_the_restack_left_underneath(self.browser_process)
+        browsing = self.browser_process
+        if browsing is not None:
+            self.windows.in_turn("raise_a_browse_the_restack_left_underneath",
+                                 lambda: raise_a_browse_the_restack_left_underneath(browsing))
 
     def log_topmost_state(self, label: str, state: BridgeState) -> None:
-        logger.info("Topmost [%s] mode=%s: %s", label, state.main_mode,
-                    self.windows.topmost_report())
+        self.windows.in_turn("log_topmost_state", lambda: logger.info(
+            "Topmost [%s] mode=%s: %s", label, state.main_mode, self.windows.topmost_report()))
 
     def browse_library(self, state_now: Callable[[], BridgeState]) -> None:
         if not self._browse_lock.acquire(blocking=False):
@@ -127,7 +133,7 @@ class WindowWork:
         omnipause_already_holds_them_down = state.omni_paused
 
         if not omnipause_already_holds_them_down:
-            self.windows.remove_all_topmost()
+            self.windows.remove_all_topmost().wait()
             append_command(self._ahk_cmd_file, Op.SUSPEND_HOTKEYS)
 
         try:
@@ -151,7 +157,7 @@ class WindowWork:
                                play_file(scripted_item(selected, config.regen_metadata_root)))
         finally:
             if not omnipause_already_holds_them_down:
-                self.windows.restore_all_topmost(state_now().rfb_mode)
+                self.windows.restore_all_topmost(state_now().rfb_mode).wait()
                 append_command(self._ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
 
     def run_browser(self, command, **kwargs) -> None:

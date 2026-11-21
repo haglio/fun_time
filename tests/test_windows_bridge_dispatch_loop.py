@@ -30,6 +30,7 @@ from voice_core.listening import Heard
 from fun_time import command_answering, load_config
 from fun_time.arrivals import keep_looking
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
+from fun_time.calls_in_turn import AtOnce, CallsInTurn
 from fun_time.command_value import parse_command
 from fun_time.config import VoiceControlConfig
 from fun_time.content import load_web_providers
@@ -156,6 +157,7 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
         rfb_hwnd=kwargs.pop("rfb_hwnd", 0),
         hwnds_seen_while_visible=kwargs.pop("hwnds_by_window", None),
         **({"clock": kwargs.pop("clock")} if "clock" in kwargs else {}),
+        calls=kwargs.pop("calls", AtOnce()),
     )
     start = {name: kwargs.pop(name) for name in (
         "rfb_shortcut", "rfb_slideshow", "press_and_caret_watch", "origenerator_already_open",
@@ -431,6 +433,30 @@ class TestDispatchLoopRunner:
         assert runner.answering.state.omni_paused is False
         assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS
         assert activated == [MAIN_FUNESTRA_HWND]
+
+    def test_the_loop_answers_the_next_command_while_a_window_has_not_answered_the_last(
+            self, tmp_path):
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, calls=CallsInTurn(lambda _key: "made-up"))
+        commands = tmp_path / "dashboard_cmd.txt"
+        a_window_answers = threading.Event()
+        bands: list[tuple[int, bool]] = []
+
+        def a_window_that_answers_late(hwnd, on_top):
+            a_window_answers.wait()
+            bands.append((hwnd, on_top))
+
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid),              patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title),              patch("fun_time.fun_time_windows.is_window_topmost", return_value=False),              patch("fun_time.fun_time_windows.activate_window"),              patch("fun_time.fun_time_windows.set_always_on_top",
+                   side_effect=a_window_that_answers_late):
+            commands.write_text("omnipause_toggle", encoding="utf-8")
+            runner.tick()
+            commands.write_text("omnipause_toggle", encoding="utf-8")
+            runner.tick()
+            answered_before_any_window = (runner.answering.state.omni_paused, list(bands))
+            a_window_answers.set()
+            runner.answering.window_work.windows.in_turn("the test's own look", lambda: None).wait()
+
+        assert answered_before_any_window == (False, [])
+        assert [on_top for _hwnd, on_top in bands] == [False] * 5 + [True] * 5
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -1698,6 +1724,53 @@ class TestBrowseLibrary:
 
         removed = {h for h, v in topmost_calls if not v}
         assert removed == TOPMOST_HWNDS
+
+    def test_the_library_opens_only_once_every_window_is_out_of_the_band(self, tmp_path):
+        happened: list[str] = []
+
+        class WorkMadeWhenTheTestSays:
+            def __init__(self) -> None:
+                self.held: list = []
+
+            def make(self, _key, call, *, what):
+                made = threading.Event()
+                waited_for = made.wait
+
+                def wait():
+                    happened.append(f"waited for {what}")
+                    waited_for()
+
+                made.wait = wait
+                self.held.append((call, made))
+                return made
+
+            def waiting(self, _key) -> int:
+                return len(self.held)
+
+            def make_what_is_held(self) -> None:
+                while self.held:
+                    call, made = self.held.pop(0)
+                    call()
+                    made.set()
+
+        calls = WorkMadeWhenTheTestSays()
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, calls=calls)
+
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid),              patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title),              patch("fun_time.window_work.browse_library",
+                   side_effect=lambda *_a, **_kw: happened.append("the library")):
+            browsing = threading.Thread(
+                target=runner.window_work.browse_library, args=(lambda: runner.answering.state,))
+            browsing.start()
+            wait_until(lambda: happened)
+            first = happened[0]
+            calls.make_what_is_held()
+            wait_until(lambda: calls.held or not browsing.is_alive())
+            calls.make_what_is_held()
+            browsing.join()
+
+        assert first == "waited for remove_all_topmost"
+        assert happened == ["waited for remove_all_topmost", "the library",
+                            "waited for restore_all_topmost"]
 
     def test_the_browser_stands_over_the_window_its_pick_will_play_in(self, tmp_path):
         config = make_config(tmp_path, python_exe=r"C:\python.exe")
