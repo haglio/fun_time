@@ -28,6 +28,8 @@ from funestra.flick_overlay import (
 )
 from funestra.funestra import Funestra
 from funestra.funestra_setup import FunestraSetup
+from funestra.genau import ROBOT_HAND
+from funestra.genau_engine import GenauChannels
 from funestra.host_controls import BarHud, HostControlsHud
 from funestra.hud_corners import CORNER_PLUS_OVERLAY_ID
 from funestra.hud_overlay import HUD_OVERLAY_ID
@@ -201,7 +203,6 @@ from fun_time_vr.wrap_readout import WrapReadout, label
 from fun_time_vr.wraps import immersive_wrap
 from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.contract import MainChannels
-from main_funestra.genau import ROBOT_HAND, GenauChannels
 from tests.headset_layout_reports import reported_layout
 from tests.made_up_genau import with_made_up_genau
 from tests.made_up_osr2_parts import a_part, a_readout, band_of, center_of, handed_on, published
@@ -500,6 +501,7 @@ class TestGenauOnTheMainFunestra:
         vr = replace(_A_SESSION, flicks_folder=flicks_folder)
         stop = threading.Event()
         with patch.multiple("fun_time_vr.funestras", GenauInTheHeadset=DEFAULT,
+                            FlicksInTheHeadset=DEFAULT,
                             GenauNotifier=DEFAULT, Osr2Sender=DEFAULT, MessageWriter=DEFAULT,
                             the_librarys_gallery=DEFAULT) as fakes, \
                 patch("fun_time_vr.funestras.read_genau_status",
@@ -518,30 +520,32 @@ class TestGenauOnTheMainFunestra:
         built = self._users(tmp_path, flicks_folder=tmp_path)
 
         assert set(built.users) == {MainMode.KINO, MainMode.GENAU}
-        genau_call = built.fakes["GenauInTheHeadset"].call_args
-        handed, flicks = genau_call.kwargs, genau_call.args[0]
+        handed = built.fakes["GenauInTheHeadset"].call_args.kwargs
+        flicks = built.fakes["FlicksInTheHeadset"].call_args
         commands = built.manifest.commands
-        assert flicks.folder == tmp_path
+        assert built.fakes["GenauInTheHeadset"].call_args.args == (
+            built.fakes["FlicksInTheHeadset"].return_value,)
+        assert flicks.args == (tmp_path,)
         assert handed["channels"] == GenauChannels(
             command=Path(commands.genau_cmd_file), paused=Path(commands.genau_paused_file),
             status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file))
         assert handed["seams"].stop_event is built.stop
-        assert flicks.metadata_root == Path(built.manifest.regen.metadata_root)
-        assert flicks.gallery is built.fakes["the_librarys_gallery"].return_value
+        assert flicks.kwargs["metadata_root"] == Path(built.manifest.regen.metadata_root)
+        assert flicks.kwargs["gallery"] is built.fakes["the_librarys_gallery"].return_value
 
     def test_the_order_left_browsing_is_handed_in_with_the_flick_never_sent_after(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path, resumed=BridgeState(genau_latest=True))
 
         assert built.read_state.call_args.args == (
             shared_state_path(Path(built.manifest.commands.state_dir)),)
-        assert built.fakes["GenauInTheHeadset"].call_args.args[0].latest is True
+        assert built.fakes["GenauInTheHeadset"].call_args.kwargs["latest"] is True
         assert not Path(built.manifest.commands.genau_cmd_file).exists()
 
     def test_it_opens_with_the_favorites_it_was_left_with(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path,
                             resumed=BridgeState(genau_favorites_filter=True))
 
-        assert built.fakes["GenauInTheHeadset"].call_args.args[0].favorites is True
+        assert built.fakes["FlicksInTheHeadset"].call_args.kwargs["favorites"] is True
 
     def test_its_drive_file_is_written_behind_the_loop_as_the_main_funestras_is(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path)
@@ -1617,7 +1621,7 @@ def _keyword_given(source_of, call: str, keyword: str) -> str:
 
 
 def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records():
-    assert _keyword_given(funestras._users, "GenauFlicks", "metadata_root") == (
+    assert _keyword_given(funestras._users, "FlicksInTheHeadset", "metadata_root") == (
         "manifest.regen.metadata_folder")
 
 

@@ -4,7 +4,7 @@ Fun Time is a Windows desktop setup that launches and coordinates:
 
 - the Main Funestra, which plays the main library's funscript videos (this repo's `main_funestra` package, launched as `python -m main_funestra`)
 - two Satellite Funestras, portrait and landscape (this repo's own mpv-based `satellite` package, launched as `python -m satellite`)
-- Genau, a visualizer for OSR2 auto mode: short looping videos, its flicks, scrubbed to wherever the OSR2 is, on the Main Funestra (`main_funestra/genau.py`; the layout of its flicks folder is `app_support.flick_folder`'s). The apps show and hear the flicks under the word the content overlay's `genau_flick_words` gives them
+- Genau, a visualizer for OSR2 auto mode: short looping videos, its flicks, scrubbed to wherever the OSR2 is, on the Main Funestra (funestra's `funestra.genau`, playing the flicks `main_funestra/library_flicks.py` picks; the layout of its flicks folder is `app_support.flick_folder`'s). The apps show and hear the flicks under the word the content overlay's `genau_flick_words` gives them
 - a Genau audio companion
 - a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
 
@@ -98,7 +98,7 @@ Serial / mode control:
 
 - the real OSR2 is on its USB serial adapter, which the **broker** — the separate `../broker` project — finds on whichever USB socket it is plugged into, by the adapter's USB identity rather than a COM name; the broker is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/broker_mode.txt`.
 - **the Main Funestra** — this repo's `main_funestra` package — never opens the OSR2's port. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/main_player_cmd.txt`, and publishes playback status to `state/main_player_status.txt`.
-- **Genau** — run on the Main Funestra (`main_funestra/genau.py`) — never opens the OSR2's port either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the Main Funestra in Kino mode, and reads video and Robot Hand commands from `state/genau_cmd.txt`.
+- **Genau** — run on the Main Funestra (funestra's `funestra.genau`, on the flicks `main_funestra/library_flicks.py` picks) — never opens the OSR2's port either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the Main Funestra in Kino mode, and reads video and Robot Hand commands from `state/genau_cmd.txt`.
 
 See those projects for the serial parsing, COM-port recovery, and playback internals.
 

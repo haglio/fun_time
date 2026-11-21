@@ -23,7 +23,10 @@ from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 from funestra.funestra import Funestra
 from funestra.funestra_setup import FunestraSetup
+from funestra.genau import ROBOT_HAND, STANDARD_SEAMS, GenauOutputs
+from funestra.genau_engine import GenauChannels
 from funestra.genau_notifier import GenauNotifier
+from funestra.genau_settings import GenauSettings
 from funestra.messages import MessageWriter
 from funestra.modes import MainMode
 from funestra.off_the_loop import BehindTheLoop
@@ -44,7 +47,6 @@ from fun_time.event_log import SOURCE_MAIN, event_log_path, flash_message
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status
 from fun_time.gallery import the_librarys_gallery
-from fun_time.genau_config import GenauSettings
 from fun_time.hosted_contract import (
     gallery_names_args,
     gallery_names_file,
@@ -61,13 +63,6 @@ from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
 from main_funestra.contract import MainChannels
 from main_funestra.gallery_names import GalleryNames
-from main_funestra.genau import (
-    ROBOT_HAND,
-    STANDARD_SEAMS,
-    GenauChannels,
-    GenauFlicks,
-    GenauOutputs,
-)
 from main_funestra.kino import Kino
 from satellite.contract import SatelliteChannels
 
@@ -88,7 +83,7 @@ from .frame_look import FrameLook
 from .gallery_panel import GalleryPanel
 from .gallery_panel import hover_line as gallery_hover_line
 from .gallery_panel import scroll_line as gallery_scroll_line
-from .genau_in_the_headset import GenauInTheHeadset
+from .genau_in_the_headset import FlicksInTheHeadset, GenauInTheHeadset
 from .headset_engine import HeadsetEngine
 from .headset_verbs import HeadsetVerbs
 from .headset_wear import HeadsetWear
@@ -610,10 +605,8 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
     commands = manifest.commands
     resumed = read_shared_state(shared_state_path(Path(commands.state_dir))) or BridgeState()
     users[MainMode.GENAU] = lambda _playback: GenauInTheHeadset(
-        GenauFlicks(
-            folder=vr.flicks_folder,
-            start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
-            latest=resumed.genau_latest,
+        FlicksInTheHeadset(
+            vr.flicks_folder,
             favorites=resumed.genau_favorites_filter,
             enhanced=resumed.genau_enhanced_filter,
             orientations=(resumed.genau_plays_portrait, resumed.genau_plays_landscape),
@@ -630,6 +623,8 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             tcode_sink=_osr2_slot(commands, ROBOT_HAND),
             messages=MessageWriter(Path(commands.main_funestra_notice_file)),
         ),
+        start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
+        latest=resumed.genau_latest,
         seams=replace(STANDARD_SEAMS, stop_event=stop),
     )
     return users

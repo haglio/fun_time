@@ -59,3 +59,11 @@ def point_the_shared_settings_at(monkeypatch, genau: Path, audio: Path | None = 
     settings = write_settings_naming_genau(genau.parent, genau, audio or genau_audio_beside(genau),
                                            kino=made_up_kino(genau.parent / "videos" / "videos"))
     monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))
+
+
+def the_flicks_are_called_pips(monkeypatch, folder: Path) -> None:
+    settings = folder / SETTINGS_NAME
+    settings.write_text(json.dumps({**haglio_settings.load(),
+                                    "genau_flick_words": {"one": "pip", "many": "pips"}}),
+                        encoding="utf-8")
+    monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))

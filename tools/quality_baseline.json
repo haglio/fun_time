@@ -11,8 +11,7 @@
     "fun_time/audio_companion_app.py": 1
   },
   "private_reaches": {
-    "fun_time_vr/funestras.py": 1,
-    "main_funestra/genau.py": 5
+    "fun_time_vr/funestras.py": 1
   },
   "prose_lines": {},
   "trailing_comments": {},
@@ -60,7 +59,6 @@
     "tests/test_integration_support.py": 8,
     "tests/test_line_record.py": 4,
     "tests/test_loopback_server.py": 1,
-    "tests/test_main_funestra_genau.py": 4,
     "tests/test_main_list_builds.py": 13,
     "tests/test_measured_process_startup.py": 3,
     "tests/test_no_process_outlives_its_test.py": 3,

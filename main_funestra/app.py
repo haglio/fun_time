@@ -10,7 +10,10 @@ from app_support.osr2_slot import Osr2Sender
 from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
 from funestra.funestra_setup import FunestraSetup
+from funestra.genau import ROBOT_HAND, Genau, GenauOutputs
+from funestra.genau_engine import GenauChannels
 from funestra.genau_notifier import GenauNotifier
+from funestra.genau_settings import GenauSettings
 from funestra.messages import MessageWriter
 from funestra.modes import MainMode
 from funestra.program.input import Input
@@ -24,7 +27,6 @@ from funestra.program.window import (
 )
 
 from fun_time.gallery import the_librarys_gallery
-from fun_time.genau_config import GenauSettings
 
 from .cli import (
     audio_muted,
@@ -37,8 +39,8 @@ from .cli import (
 )
 from .contract import MainChannels
 from .gallery_names import GalleryNames
-from .genau import ROBOT_HAND, Genau, GenauChannels, GenauFlicks, GenauOutputs
 from .genau_verbs import orientations_from
+from .library_flicks import LibraryFlicks
 from .loading import LoadingCanceled, LoadingScreen
 
 logger = logging.getLogger(__name__)
@@ -63,16 +65,15 @@ def _genau(args):
         command=args.genau_command_file, paused=args.genau_paused_file,
         status=args.genau_status_file, drive=args.drive)
     return lambda _playback: Genau(
-        GenauFlicks(
-            folder=args.flicks_dir,
-            start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
-            latest=args.genau_latest,
+        LibraryFlicks(
+            args.flicks_dir,
             favorites=args.genau_favorites,
             enhanced=args.genau_enhanced,
             orientations=orientations_from(args.genau_orientations),
             metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
             gallery=the_librarys_gallery(),
             gallery_names=GalleryNames(args.gallery_names_file),
+            origenerator_commands=args.origenerator_command_file,
         ),
         settings=GenauSettings.read(args.config),
         channels=channels,
@@ -80,8 +81,9 @@ def _genau(args):
             notifier=GenauNotifier(args.notify_host, args.notify_port),
             tcode_sink=Osr2Sender(ROBOT_HAND, port=args.osr2_port),
             messages=MessageWriter(args.notice),
-            origenerator_commands=args.origenerator_command_file,
         ),
+        start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
+        latest=args.genau_latest,
     )
 
 

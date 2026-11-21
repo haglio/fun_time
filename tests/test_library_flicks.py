@@ -3,43 +3,33 @@ from __future__ import annotations
 import json
 import logging
 import os
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
 from app_support.flick_folder import trash_folder_in
-from funestra.funestra import User
-from funestra.genau_refresh import SEND_THREAD
+from funestra.flick_folder import no_other_flicks
+from funestra.genau import Genau, GenauOutputs
+from funestra.genau_engine import EngineSeams, GenauChannels
+from funestra.genau_settings import GenauSettings
 from funestra.inclusion_pair import BOTH
 from funestra.main_hud import ModeHud
 from funestra.modes import MessageLevel
-from funestra.off_the_loop import AtOnce
-
-from fun_time import genau_engine
-from fun_time.arrivals import LOOK_EVERY_S
-from fun_time.content import Noun
-from fun_time.gallery import Gallery
-from fun_time.genau_config import GenauSettings
-from fun_time.media_metadata import mark_favorite, metadata_path_for
-from main_funestra.gallery_names import NO_GALLERY_NAMES, GalleryNames
-from main_funestra.genau import (
-    EngineSeams,
-    Genau,
-    GenauChannels,
-    GenauFlicks,
-    GenauOutputs,
-)
-from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_orientations
-from tests.disk_looks import DiskLooks
-from tests.genau_fakes import (
+from funestra.testing import (
     FakeNotifier,
     FakeSink,
     HeldDecodes,
-    ThreadsAsked,
     every_thread_now_but_the_ones_that_run_for_good,
 )
+
+from fun_time.arrivals import LOOK_EVERY_S
+from fun_time.gallery import Gallery
+from fun_time.media_metadata import mark_favorite, metadata_path_for
+from main_funestra.gallery_names import NO_GALLERY_NAMES, GalleryNames
+from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_orientations
+from main_funestra.library_flicks import LibraryFlicks
+from tests.disk_looks import DiskLooks
 from tests.made_up_gallery import a_row
 
 
@@ -63,36 +53,11 @@ def _frames(count: int = 8, width: int = 16, height: int = 8) -> list[np.ndarray
     return [np.full((height, width, 3), i, dtype=np.uint8) for i in range(count)]
 
 
-class _CondemningInTheBackground:
-    def __init__(self) -> None:
-        self.threads: list[threading.Thread] = []
-
-    def __call__(self, *, target, args=(), name=""):
-        if name != "genau-condemn":
-            every_thread_now_but_the_ones_that_run_for_good(target=target, args=args, name=name)
-            return
-        thread = threading.Thread(target=target, args=args, name=name)
-        self.threads.append(thread)
-        thread.start()
-
-
-class _CondemningWhenTold:
-    def __init__(self) -> None:
-        self.waiting: list = []
-
-    def __call__(self, *, target, args=(), name=""):
-        if name != "genau-condemn":
-            every_thread_now_but_the_ones_that_run_for_good(target=target, args=args, name=name)
-            return
-        self.waiting.append(lambda: target(*args))
-
-
 @dataclass(frozen=True)
 class WorldSetup:
     flicks: tuple = ("alpha one.mp4", "beta two.mp4", "gamma three.mp4")
     favorites: tuple = ()
     favorites_only: bool = False
-    start_flick: str | None = None
     latest: bool = False
     metadata_root: Path | None = None
     turned: tuple = ()
@@ -104,7 +69,6 @@ class WorldSetup:
     starred: tuple = ()
     shaped: tuple = ()
     flipped: tuple = ()
-    off_the_loop: Callable = AtOnce
 
 
 class World:
@@ -131,15 +95,11 @@ class World:
         self.channels = GenauChannels(
             command=state / "genau_cmd.txt", paused=state / "genau_paused.txt",
             status=state / "genau_status.txt", drive=state / "genau_drive.txt")
-        self.sink = FakeSink()
-        self.notifier = FakeNotifier()
         self.messages = FakeMessages()
         self.clock = Clock()
         self.genau = Genau(
-            GenauFlicks(
-                folder=self.flicks_folder,
-                start_flick=setup.start_flick,
-                latest=setup.latest,
+            LibraryFlicks(
+                self.flicks_folder,
                 favorites=setup.favorites_only,
                 orientations=setup.orientations,
                 metadata_root=self.metadata_root,
@@ -148,19 +108,20 @@ class World:
                                        genau_flipped=int(name in setup.flipped))
                                  for name in {*setup.starred, *dict(setup.shaped), *setup.flipped}]),
                 gallery_names=setup.gallery_names,
+                origenerator_commands=setup.origenerator_commands,
+                clock=self.clock,
             ),
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
-            outputs=GenauOutputs(notifier=self.notifier, tcode_sink=self.sink,
-                                 messages=self.messages,
-                                 origenerator_commands=setup.origenerator_commands),
+            outputs=GenauOutputs(notifier=FakeNotifier(), tcode_sink=FakeSink(),
+                                 messages=self.messages),
+            latest=setup.latest,
             seams=EngineSeams(
                 decode=lambda _path: _frames(),
                 frame_rate=lambda _flick: 30.0,
                 start_thread=setup.start_thread,
                 clock=self.clock,
-                log=logging.getLogger("test.genau"),
-                off_the_loop=setup.off_the_loop,
+                log=logging.getLogger("test.library_flicks"),
             ),
         )
 
@@ -173,49 +134,14 @@ class World:
         self.clock.now += seconds
         self.genau.tick()
 
-    def beat_of_the_send_clock(self, seconds: float = 1 / 30) -> None:
-        self.clock.now += seconds
-        self.genau.send_between_passes(self.clock.now)
-
     def status(self) -> dict[str, str]:
         lines = self.channels.status.read_text(encoding="utf-8").splitlines()
         return dict(line.split("=", 1) for line in lines if "=" in line)
 
 
-def test_genau_is_a_thing_a_funestra_runs(tmp_path):
-    assert isinstance(World(tmp_path).genau, User)
-
-
-class HandsWritesOn(AtOnce):
-    def __init__(self) -> None:
-        self.published: list[Path] = []
-        self.closed = False
-
-    def publish(self, path: Path, text: str) -> bool:
-        self.published.append(path)
-        return super().publish(path, text)
-
-    def close(self) -> None:
-        self.closed = True
-
-
-def test_genaus_drive_file_is_written_by_the_worker_behind_the_loop(tmp_path):
-    worker = HandsWritesOn()
-    world = World(tmp_path, WorldSetup(off_the_loop=lambda: worker))
-
-    world.tick()
-    world.genau.close()
-
-    assert world.channels.drive in worker.published
-    assert worker.closed
-
-
 class TestTheFlickOnScreen:
-    def test_it_opens_on_the_first_flick_of_the_folder_and_tells_the_audio_companion(self, tmp_path):
-        world = World(tmp_path)
-
-        assert world.genau.top_block() == ModeHud(video="alpha one")
-        assert world.notifier.flicks == [world.flat_dir / "alpha one.mp4"]
+    def test_it_opens_on_the_first_flick_of_the_folder(self, tmp_path):
+        assert World(tmp_path).genau.top_block() == ModeHud(video="alpha one")
 
     def test_a_flick_origenerator_made_wears_its_name_in_origenerators_gallery(self, tmp_path):
         published = tmp_path / "gallery_names.json"
@@ -225,40 +151,6 @@ class TestTheFlickOnScreen:
 
         assert world.genau.top_block() == ModeHud(video="3FA9C0D2 004")
 
-    def test_its_verbs_arrive_on_its_own_channel_and_never_on_the_funestras(self, tmp_path):
-        world = World(tmp_path)
-
-        assert world.genau.apply_command("NEXT") is False
-        world.send("NEXT")
-
-        assert world.genau.top_block() == ModeHud(video="beta two")
-
-    def test_while_it_has_the_window_a_step_on_the_funestras_channel_steps_its_flicks(
-            self, tmp_path):
-        world = World(tmp_path)
-        world.genau.set_showing(True)
-
-        assert world.genau.apply_command("NEXT 12.500") is True
-        world.tick()
-
-        assert world.genau.top_block() == ModeHud(video="beta two")
-
-    def test_it_publishes_its_own_status_and_adds_no_line_to_the_funestras(self, tmp_path):
-        world = World(tmp_path)
-
-        world.tick()
-
-        assert world.status()["flick"] == str(world.flat_dir / "alpha one.mp4")
-        assert world.genau.status_fields() == {}
-
-    def test_its_status_says_when_human_inspired_motion_has_the_hand_and_nothing_of_cruise(self, tmp_path):
-        world = World(tmp_path)
-
-        world.send("LEARNED_ON")
-
-        assert world.status()["learned"] == "1"
-        assert "cruise" not in world.status()
-
     def test_trash_moves_the_flick_to_the_pile_beside_the_folder(self, tmp_path):
         world = World(tmp_path)
 
@@ -266,34 +158,6 @@ class TestTheFlickOnScreen:
 
         assert (trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4").is_file()
         assert world.genau.top_block() == ModeHud(video="beta two")
-
-    def test_trash_moves_the_file_off_the_window_s_pass_since_a_move_in_the_library_can_take_long(self, tmp_path):
-        condemning = _CondemningWhenTold()
-        world = World(tmp_path, WorldSetup(start_thread=condemning))
-        flick = world.flat_dir / "alpha one.mp4"
-
-        world.send("TRASH")
-        up_next, still_there = world.genau.top_block(), flick.is_file()
-        for job in condemning.waiting:
-            job()
-
-        assert (up_next, still_there) == (ModeHud(video="beta two"), True)
-        assert len(condemning.waiting) == 1
-        assert (trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4").is_file()
-
-    def test_trash_moves_a_flick_still_being_read_once_it_is_let_go(self, tmp_path):
-        condemning = _CondemningInTheBackground()
-        world = World(tmp_path, WorldSetup(start_thread=condemning))
-        flick = world.flat_dir / "alpha one.mp4"
-
-        with flick.open("rb"):
-            world.send("TRASH")
-            assert flick.is_file()
-        for thread in condemning.threads:
-            thread.join(5)
-
-        assert (trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4").is_file()
-        assert not flick.exists()
 
     def test_trash_tells_a_hosted_origenerator_where_the_flick_went(self, tmp_path):
         commands = tmp_path / "origenerator_cmd.txt"
@@ -304,45 +168,6 @@ class TestTheFlickOnScreen:
         landed = trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4"
         assert commands.read_text(encoding="utf-8").splitlines() == [
             f"TRASH_FILE|{world.flat_dir / 'alpha one.mp4'}|{landed}"]
-
-    def test_trash_tells_origenerator_of_a_flick_still_being_read_once_it_is_let_go(self, tmp_path):
-        commands = tmp_path / "origenerator_cmd.txt"
-        condemning = _CondemningInTheBackground()
-        world = World(tmp_path, WorldSetup(start_thread=condemning,
-                                           origenerator_commands=commands))
-
-        with (world.flat_dir / "alpha one.mp4").open("rb"):
-            world.send("TRASH")
-            told_while_open = commands.exists()
-        for thread in condemning.threads:
-            thread.join(5)
-
-        assert not told_while_open
-        assert commands.read_text(encoding="utf-8").startswith("TRASH_FILE|")
-
-    def test_trash_gives_up_on_a_flick_that_stays_open_and_says_so(self, tmp_path, monkeypatch, caplog):
-        monkeypatch.setattr(genau_engine, "CONDEMN_PATIENCE_S", 0.5)
-        condemning = _CondemningInTheBackground()
-        world = World(tmp_path, WorldSetup(start_thread=condemning))
-        flick = world.flat_dir / "alpha one.mp4"
-
-        with flick.open("rb"), caplog.at_level(logging.ERROR, logger="test.genau"):
-            world.send("TRASH")
-            for thread in condemning.threads:
-                thread.join(5)
-
-        assert flick.is_file()
-        assert "alpha one.mp4 was still open" in caplog.text
-
-    def test_latest_rescans_the_folder_newest_first(self, tmp_path):
-        world = World(tmp_path)
-        newest = world.flat_dir / "delta four.mp4"
-        newest.write_bytes(b"flick")
-        os.utime(newest, (4_000_000_000, 4_000_000_000))
-
-        world.send("LATEST")
-
-        assert world.genau.top_block() == ModeHud(video="delta four")
 
 
 class TestWhatArrivesInItsFolder:
@@ -493,8 +318,7 @@ class TestFavorites:
         assert world.genau.top_block().video == "alpha one"
 
     def test_with_no_favorites_it_holds_the_flick_on_screen_and_says_no_other_is_included(
-            self, tmp_path, monkeypatch):
-        monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
+            self, tmp_path):
         world = World(tmp_path)
         world.send("LOCK_OFF")
 
@@ -503,128 +327,28 @@ class TestFavorites:
 
         assert world.genau.top_block().video == "alpha one"
         assert world.status()["locked"] == "1"
-        assert world.messages.said == [("Including no other pips", MessageLevel.WARNING)]
+        assert world.messages.said == [(no_other_flicks(), MessageLevel.WARNING)]
 
     def test_it_opens_on_the_favorites_when_the_room_kept_them_on(self, tmp_path):
         world = World(tmp_path, WorldSetup(favorites=("beta two.mp4",), favorites_only=True))
 
         assert world.genau.top_block() == ModeHud(video="beta two")
 
-    def test_opening_on_the_favorites_with_none_holds_the_first_flick_and_says_so(
-            self, tmp_path, monkeypatch):
-        monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
-
+    def test_opening_on_the_favorites_with_none_holds_the_first_flick_and_says_so(self, tmp_path):
         world = World(tmp_path, WorldSetup(favorites_only=True))
         world.tick()
 
         assert world.genau.top_block().video == "alpha one"
         assert world.status()["locked"] == "1"
-        assert world.messages.said == [("Including no other pips", MessageLevel.WARNING)]
+        assert world.messages.said == [(no_other_flicks(), MessageLevel.WARNING)]
 
+    def test_opening_on_the_favorites_with_none_holds_the_first_flick_turned_as_asked(
+            self, tmp_path):
+        world = World(tmp_path, WorldSetup(
+            favorites_only=True, orientations=(True, False),
+            turned=(("alpha one.mp4", "landscape"), ("beta two.mp4", "portrait"))))
 
-class TestItsFrame:
-    def test_the_frame_the_motion_chose_is_the_frame_counted_up(self, tmp_path):
-        world = World(tmp_path)
-        world.send("RESUME")
-        shown = set()
-        for _ in range(40):
-            world.tick(0.05)
-            flick_frame = world.genau.own_frame()
-            if flick_frame.frame is not None:
-                shown.add(int(flick_frame.frame[0, 0, 0]))
-                assert flick_frame.count == 8
-                assert 0 <= flick_frame.played < 8
-
-        assert len(shown) > 1
-
-    def test_a_press_on_its_dial_moves_the_device(self, tmp_path):
-        world = World(tmp_path)
-        world.send("RESUME")
-        world.tick(0.05)
-        sent_before = len(world.sink.sent)
-
-        world.genau.own_frame().seek_loop(0.5)
-        world.tick(0.05)
-        world.beat_of_the_send_clock()
-
-        assert len(world.sink.sent) > sent_before
-
-    def test_the_osr2_s_positions_go_out_on_a_thread_of_their_own_and_no_pass_of_the_window_sends_one(self, tmp_path):
-        threads = ThreadsAsked()
-        world = World(tmp_path, WorldSetup(start_thread=threads))
-        world.send("RESUME")
-
-        for _pass in range(4):
-            world.tick(0.016)
-        sent_by_the_passes = list(world.sink.sent)
-        for _beat in range(3):
-            world.beat_of_the_send_clock()
-
-        assert threads.named.count(SEND_THREAD) == 1
-        assert sent_by_the_passes == []
-        assert len(world.sink.sent) == 3
-
-    def test_the_frame_carries_every_frame_of_its_flick_so_the_window_can_scale_them_ahead(self, tmp_path):
-        world = World(tmp_path)
-        world.tick(0.05)
-
-        first, again = world.genau.own_frame(), world.genau.own_frame()
-
-        assert len(first.frames) == 8
-        assert any(frame is first.frame for frame in first.frames)
-        assert again.frames is first.frames
-
-    def test_the_frame_carries_the_flicks_time_on_screen(self, tmp_path):
-        world = World(tmp_path)
-        world.tick(0.05)
-
-        flick_frame = world.genau.own_frame()
-
-        assert (flick_frame.elapsed_ms, flick_frame.interval_ms) == (0.0, 10_000.0)
-
-    def test_a_press_along_its_track_puts_the_flick_that_far_into_its_time(self, tmp_path):
-        world = World(tmp_path)
-        world.tick(0.05)
-
-        world.genau.own_frame().seek_time(7_000.0)
-
-        assert world.genau.own_frame().elapsed_ms == 7_000.0
-
-    def test_what_is_still_decoding_is_said_on_the_frame(self, tmp_path):
-        world = World(tmp_path)
-
-        assert world.genau.own_frame().loading is None
-
-
-class TestWhoHasTheWindow:
-    def test_shown_it_tells_the_audio_companion_it_is_visible_and_hidden_that_it_is_not(self, tmp_path):
-        world = World(tmp_path)
-
-        world.genau.set_showing(True)
-        world.tick()
-        world.genau.set_showing(False)
-        world.tick()
-
-        assert world.notifier.visible[-2:] == [True, False]
-
-
-def test_closing_it_closes_the_device_line_and_the_audio_companion(tmp_path):
-    world = World(tmp_path)
-
-    world.genau.close()
-
-    assert (world.sink.closed, world.notifier.closed) == (True, True)
-
-
-def test_it_answers_the_apps_volume_though_it_draws_no_volume_control_since_an_unanswered_verb_is_logged_each_time_the_volume_moves(
-        tmp_path, caplog):
-    world = World(tmp_path)
-
-    with caplog.at_level(logging.WARNING):
-        world.send("SET_VOLUME 70 1")
-
-    assert [record.getMessage() for record in caplog.records
-            if record.levelno >= logging.WARNING] == []
+        assert world.genau.top_block().video == "beta two"
 
 
 class TestTurnedAsAsked:

@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from functools import partial
 
 from funestra.file_channel import append_command
+from funestra.flick_folder import no_other_flicks
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, set_speed
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 from funestra.inclusion_pair import (
@@ -24,7 +25,6 @@ from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_ori
 from main_funestra.snippet_controller import SnippetState
 
 from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, Op, WindowOp, ignored
-from .content import no_other_flicks
 from .event_log import SOURCE_MAIN
 from .funestra_status import MainFunestraStatus, read_main_funestra_status
 from .main_funestra_commands import MAIN_FUNESTRA_CMD_MAP, MAIN_LOCK_COMMANDS

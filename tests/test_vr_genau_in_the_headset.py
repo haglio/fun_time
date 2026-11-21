@@ -10,26 +10,27 @@ from pathlib import Path
 import numpy as np
 import pytest
 from app_support.flick_folder import trash_folder_in
-from funestra.funestra import User
+from funestra.flick_folder import no_other_flicks
+from funestra.genau import GenauOutputs
+from funestra.genau_engine import EngineSeams, GenauChannels
 from funestra.genau_refresh import SEND_THREAD
+from funestra.genau_settings import GenauSettings
 from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
-
-from fun_time.arrivals import LOOK_EVERY_S
-from fun_time.content import no_other_flicks
-from fun_time.gallery import Gallery
-from fun_time.genau_config import GenauSettings
-from fun_time.media_metadata import mark_favorite
-from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
-from main_funestra.genau import EngineSeams, GenauChannels, GenauFlicks, GenauOutputs
-from main_funestra.genau_verbs import genau_favorites
-from tests.genau_fakes import (
+from funestra.runs_here import User
+from funestra.testing import (
     FakeNotifier,
     FakeSink,
     HeldDecodes,
     ThreadsAsked,
     every_thread_now_but_the_ones_that_run_for_good,
 )
+
+from fun_time.arrivals import LOOK_EVERY_S
+from fun_time.gallery import Gallery
+from fun_time.media_metadata import mark_favorite
+from fun_time_vr.genau_in_the_headset import FlicksInTheHeadset, GenauInTheHeadset
+from main_funestra.genau_verbs import genau_favorites
 from tests.made_up_gallery import a_row
 
 
@@ -74,17 +75,18 @@ class World:
         self.now = 100.0
         self.notice_file = state / "notice.txt"
         self.genau = GenauInTheHeadset(
-            GenauFlicks(
-                folder=self.flicks_folder,
-                start_flick=setup.start_flick,
-                latest=setup.latest,
+            FlicksInTheHeadset(
+                self.flicks_folder,
                 metadata_root=self.metadata_root,
                 gallery=Gallery([a_row(f"gen {name}", name, starred=1) for name in setup.starred]),
+                clock=lambda: self.now,
             ),
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
             outputs=GenauOutputs(notifier=self.notifier, tcode_sink=self.sink,
                                  messages=MessageWriter(self.notice_file)),
+            start_flick=setup.start_flick,
+            latest=setup.latest,
             seams=EngineSeams(
                 stop_event=self.stop,
                 decode=lambda _path: _frames(),

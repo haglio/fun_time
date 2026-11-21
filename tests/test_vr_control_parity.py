@@ -16,36 +16,37 @@ from funestra.funestra_controls import apply_command as apply_satellite_command
 from funestra.funestra_setup import FunestraSetup
 from funestra.funestra_verbs import SHOW
 from funestra.funscript_jumps import FunscriptJumps
+from funestra.genau import GenauOutputs
 from funestra.genau_controls import VERBS as GENAU_VERBS
+from funestra.genau_engine import EngineSeams, GenauChannels
+from funestra.genau_settings import GenauSettings
 from funestra.messages import MessageWriter
 from funestra.modes import MainMode
 from funestra.playback import Playback
 from funestra.playlist import read_playlist
-from funestra.testing import FakeEngine
+from funestra.testing import (
+    FakeEngine,
+    FakeNotifier,
+    FakeSink,
+    every_thread_now_but_the_ones_that_run_for_good,
+)
 from shared_ui.orientation import PORTRAIT
 
 from fun_time.bridge_records import Op
 from fun_time.command_answering import AHK_PASSTHROUGH_OPS, HANDOFF_COMMANDS
 from fun_time.command_dispatch import dispatch_command
 from fun_time.dashboard_actions import HELP_REFERENCE_COMMANDS
-from fun_time.genau_config import GenauSettings
 from fun_time.mode_plan import MAIN_KINO_MODE
 from fun_time.shared_state import BridgeState
 from fun_time_vr import headset_verbs
-from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
+from fun_time_vr.genau_in_the_headset import FlicksInTheHeadset, GenauInTheHeadset
 from fun_time_vr.headset_verbs import HeadsetVerbs
 from main_funestra import controls as main_funestra_controls
 from main_funestra import genau_verbs as genaus_verbs_on_the_main_funestra
 from main_funestra.clip_nav import ClipNav
-from main_funestra.genau import EngineSeams, GenauChannels, GenauFlicks, GenauOutputs
 from main_funestra.kino import Kino, KinoLibrary
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from tests.dispatch_sweep import every_command, headset_config, sweep
-from tests.genau_fakes import (
-    FakeNotifier,
-    FakeSink,
-    every_thread_now_but_the_ones_that_run_for_good,
-)
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
 _OPS_ON_WINDOWS_VR_HAS_NONE_OF = frozenset({
@@ -152,7 +153,7 @@ def _genau_in_the_headset(tmp_path: Path) -> GenauInTheHeadset:
     (flat / "made up flick.mp4").write_bytes(b"flick")
     state = tmp_path / "genau"
     return GenauInTheHeadset(
-        GenauFlicks(folder=flicks), settings=GenauSettings(shuffle_on_load=False),
+        FlicksInTheHeadset(flicks), settings=GenauSettings(shuffle_on_load=False),
         channels=GenauChannels(command=state / "genau_cmd.txt", paused=state / "genau_paused.txt",
                                status=state / "genau_status.txt", drive=state / "genau_drive.txt"),
         outputs=GenauOutputs(notifier=FakeNotifier(), tcode_sink=FakeSink()),

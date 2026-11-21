@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support.testing import mutex_free
+from funestra.genau_settings import GenauSettings
 from funestra.modes import MainMode
 
 from fun_time import (
@@ -35,7 +36,6 @@ from fun_time.funestra_deaths import (
     ORIGENERATOR_NEVER_CAME_UP,
     origenerator_never_came_up_message,
 )
-from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import OUR_RUNTIME_NAME
 from fun_time.hosted_origenerator import HostedApp
 from fun_time.manifest import (
