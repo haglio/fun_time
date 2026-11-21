@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from app_support.file_channel import read_key_values
+from funestra.genau_status import GenauStatus, genau_status_from
 from funestra.modes import read_mode
 from funestra.status import FunestraStatus, parse_status
 
@@ -32,7 +33,6 @@ def scripted_fields(values: dict[str, str]) -> dict:
 
 
 MAIN_FUNESTRA_OPENS_LOCKED = True
-GENAU_OPENS_LOCKED = True
 
 
 @dataclass(frozen=True)
@@ -102,27 +102,13 @@ def _status_touch(values: dict) -> int | None:
     return int(raw) if raw.isdigit() else None
 
 
-@dataclass(frozen=True)
-class GenauStatus:
-    learned_active: bool = False
-    robot_hand_off: bool = False
-    locked: bool = GENAU_OPENS_LOCKED
-    shape: str = "sine"
-    flick: str = ""
-    flipped: bool = False
-    portrait: bool | None = None
-    up_at: float | None = None
-    whole: bool = False
-    unreadable: bool = False
-
-
 def _status_bool(values: dict[str, str], key: str, *, on_at_rest: bool = False) -> bool:
     return values.get(key, "1" if on_at_rest else "0").strip() not in ("0", "false", "")
 
 
 def read_genau_status(path: Path) -> GenauStatus:
     try:
-        return _genau_status_from(read_status_values(path))
+        return genau_status_from(read_status_values(path))
     except (OSError, ValueError):
         return GenauStatus()
 
@@ -130,30 +116,8 @@ def read_genau_status(path: Path) -> GenauStatus:
 def published_genau_status(path: Path) -> GenauStatus | None:
     try:
         values = read_status_values(path)
-        return _genau_status_from(values) if "locked" in values else None
+        return genau_status_from(values) if "locked" in values else None
     except (OSError, ValueError):
-        return None
-
-
-def _genau_status_from(values: dict) -> GenauStatus:
-    return GenauStatus(
-        learned_active=_status_bool(values, "learned"),
-        robot_hand_off=_status_bool(values, "robot_hand_off"),
-        locked=_status_bool(values, "locked", on_at_rest=GENAU_OPENS_LOCKED),
-        shape=values.get("shape", "sine").strip(),
-        flick=values.get("flick", "").strip(),
-        flipped=_status_bool(values, "flipped"),
-        portrait=_status_flag_or_none(values, "portrait"),
-        up_at=_status_seconds_or_none(values, "up_at"),
-        whole=_status_bool(values, "whole"),
-        unreadable=_status_bool(values, "unreadable"),
-    )
-
-
-def _status_seconds_or_none(values: dict[str, str], key: str) -> float | None:
-    try:
-        return float(values.get(key, ""))
-    except ValueError:
         return None
 
 
