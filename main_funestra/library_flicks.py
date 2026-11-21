@@ -24,10 +24,13 @@ from .genau_verbs import apply_command as answer_genaus_verb
 @dataclass(frozen=True)
 class _TrashBesideTheFolder:
     folder: Path
-    went: Callable[[Path, Path], None]
+    tell: Callable[[Path, Path], None]
 
     def folder_for(self, flick: Path) -> Path:
         return trash_folder_for(flick, self.folder)
+
+    def went(self, flick: Path, landed: Path) -> None:
+        self.tell(flick, landed)
 
 
 class LibraryFlicks:
