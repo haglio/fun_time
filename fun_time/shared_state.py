@@ -80,6 +80,7 @@ class BridgeState:
     genau_learned: bool = False
     genau_robot_hand_off: bool = False
     genau_locked: bool = True
+    genau_waits_for: str = ""
     mic_muted: bool = False
     headset_layout: str = ""
     osr2_control: str = OSR2_DRIVING

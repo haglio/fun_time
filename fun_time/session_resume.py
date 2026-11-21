@@ -42,10 +42,12 @@ ROBOT_HAND_OFF = "ROBOT_HAND_OFF"
 
 _STARTUP_CLEARS_IT_BEFORE_THE_FUNESTRAS_LAUNCH = frozenset({"omni_paused"})
 _A_KEYBOARD_SELECTION_ENDS_WITH_ITS_SESSION = frozenset({"active_funestra", "core_named_last"})
+_A_FLICK_WAITED_FOR_IS_ASKED_OF_THIS_SESSIONS_GENAU = frozenset({"genau_waits_for"})
 
 NOT_RESUMED = (
     _STARTUP_CLEARS_IT_BEFORE_THE_FUNESTRAS_LAUNCH
     | _A_KEYBOARD_SELECTION_ENDS_WITH_ITS_SESSION
+    | _A_FLICK_WAITED_FOR_IS_ASKED_OF_THIS_SESSIONS_GENAU
     | frozenset({"origenerator_core_ready", "majority"})
 )
 

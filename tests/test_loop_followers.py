@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from funestra.modes import MainMode
+
 from fun_time.calls_in_turn import AtOnce
 from fun_time.dashboard_actions import ENTER_OMNIPAUSE
 from fun_time.dispatch_loop_setup import Publishing, SessionStart
@@ -229,3 +231,20 @@ class TestPollDashboardCommands:
         result = poll_dashboard_commands(cmd_file)
 
         assert result == ["main_prev"]
+
+
+def test_the_loop_brings_genau_up_once_it_says_the_flick_the_gallery_asked_for_is_whole(tmp_path):
+    loop = _a_loop(tmp_path, the_followers)
+    flick = tmp_path / "flicks" / "flick one.mp4"
+    loop.answering.keep(replace(loop.answering.state, main_mode=MainMode.KINO,
+                                genau_waits_for=str(flick)))
+    status = loop.answering.config.genau.status_file
+    status.parent.mkdir(parents=True, exist_ok=True)
+    status.write_text(f"locked=1\nflick={flick}\nwhole=0\n", encoding="utf-8")
+
+    loop.tick()
+    assert loop.answering.state.main_mode is MainMode.KINO
+
+    status.write_text(f"locked=1\nflick={flick}\nwhole=1\n", encoding="utf-8")
+    loop.tick()
+    assert loop.answering.state.main_mode is MainMode.GENAU

@@ -176,6 +176,12 @@ class TestResumeSharedState:
         for name in NOT_RESUMED:
             assert getattr(state, name) == getattr(fresh, name)
 
+    def test_a_flick_the_last_session_waited_for_is_not_waited_for_after_a_restart(self, tmp_path: Path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(genau_waits_for=str(tmp_path / "flick one.mp4")))
+
+        assert resume_shared_state(state_file).genau_waits_for == ""
+
     def test_an_app_reopens_with_the_windows_where_startup_puts_them(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(crowned=Crown.MAIN, majority=Crown.MAIN))

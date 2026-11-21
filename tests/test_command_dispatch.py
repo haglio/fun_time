@@ -26,6 +26,7 @@ from fun_time.crown import Crown
 from fun_time.device_arbiter import TCODE_OFF
 from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.fun_time_funestras import FunTimeFunestra
+from fun_time.funestra_status import GenauStatus
 from fun_time.gallery import Gallery, GalleryKeptOffTheLoop
 from fun_time.genaumacher_save import _genaumacher_project_dir
 from fun_time.hosted_contract import WhenSaid
@@ -37,7 +38,11 @@ from fun_time.media_metadata import (
     mark_favorite,
     metadata_path_for,
 )
-from fun_time.mode_switches import PLAY_IN_GENAU, PLAY_IN_KINO
+from fun_time.mode_switches import (
+    PLAY_IN_GENAU,
+    PLAY_IN_KINO,
+    genau_comes_up_once_the_flick_is_whole,
+)
 from fun_time.modes import scripted_item
 from fun_time.rfb_mode import with_the_browser_in_its_place
 from fun_time.rfb_modes import RfbMode
@@ -777,20 +782,33 @@ def test_a_headset_sessions_main_funestra_is_handed_a_video_from_the_vr_folders_
         play_file(scripted_item(str(video), config.regen_metadata_root)))
 
 
-def test_a_flick_the_gallery_hands_over_plays_in_genau_which_the_main_funestra_goes_to_for_it(
-        tmp_path: Path):
+def test_a_flick_the_gallery_hands_over_in_kino_is_decoded_while_kino_plays_on(tmp_path: Path):
     config = _make_config(tmp_path)
     flick = tmp_path / "genau" / "flicks" / "2D" / "flick one.mp4"
 
     state, ops = dispatch_command(f"{PLAY_IN_GENAU}|{flick}", _make_state(main_mode=MainMode.KINO),
                                   config)
 
-    assert state.main_mode is MainMode.GENAU
-    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW genau"]
+    assert state.main_mode is MainMode.KINO
+    assert state.genau_waits_for == str(flick)
+    assert not config.main_funestra.cmd_file.exists()
     assert config.genau.cmd_file.read_text(encoding="utf-8").splitlines() == [
         play_file(PlaylistItem(flick))]
-    assert ops == [WindowOp(op="show_window", key="main_funestra"),
-                   WindowOp(op="activate_window", key="main_funestra")]
+    assert ops == []
+
+
+def test_a_flick_the_gallery_hands_over_in_genau_plays_there_as_it_always_has(tmp_path: Path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "genau" / "flicks" / "2D" / "flick one.mp4"
+
+    state, ops = dispatch_command(f"{PLAY_IN_GENAU}|{flick}", _make_state(main_mode=MainMode.GENAU),
+                                  config)
+
+    assert state.main_mode is MainMode.GENAU
+    assert state.genau_waits_for == ""
+    assert config.genau.cmd_file.read_text(encoding="utf-8").splitlines() == [
+        play_file(PlaylistItem(flick))]
+    assert ops == []
 
 
 def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
@@ -3092,3 +3110,72 @@ def test_kinos_trash_with_nothing_on_screen_does_nothing(tmp_path):
 
     assert (_lines(config.main_funestra.cmd_file), _lines(config.origenerator.cmd_file), ops) == (
         [], [], [])
+
+
+def _waiting_for(flick: Path) -> BridgeState:
+    return _make_state(main_mode=MainMode.KINO, genau_waits_for=str(flick))
+
+
+def test_kino_plays_on_while_genau_is_still_decoding_the_flick_the_gallery_asked_for(tmp_path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "genau" / "flicks" / "2D" / "flick one.mp4"
+
+    state, ops = genau_comes_up_once_the_flick_is_whole(
+        _waiting_for(flick), config, GenauStatus(flick=str(flick), whole=False))
+
+    assert (state.main_mode, state.genau_waits_for) == (MainMode.KINO, str(flick))
+    assert not config.main_funestra.cmd_file.exists()
+    assert ops == []
+
+
+def test_genau_comes_up_the_moment_the_whole_flick_the_gallery_asked_for_is_decoded(tmp_path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "genau" / "flicks" / "2D" / "flick one.mp4"
+
+    state, ops = genau_comes_up_once_the_flick_is_whole(
+        _waiting_for(flick), config, GenauStatus(flick=str(flick), whole=True))
+
+    assert (state.main_mode, state.genau_waits_for) == (MainMode.GENAU, "")
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW genau"]
+    assert ops == [WindowOp(op="show_window", key="main_funestra"),
+                   WindowOp(op="activate_window", key="main_funestra")]
+
+
+def test_a_flick_genau_could_not_decode_leaves_kino_playing_and_is_waited_for_no_longer(
+        tmp_path, caplog):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "genau" / "flicks" / "2D" / "flick one.mp4"
+
+    with caplog.at_level(logging.WARNING):
+        state, ops = genau_comes_up_once_the_flick_is_whole(
+            _waiting_for(flick), config, GenauStatus(flick=str(flick), unreadable=True))
+
+    assert (state.main_mode, state.genau_waits_for) == (MainMode.KINO, "")
+    assert not config.main_funestra.cmd_file.exists()
+    assert ops == []
+    assert "could not decode" in caplog.text
+
+
+def test_a_video_asked_for_while_a_flick_is_being_decoded_wins_and_the_flick_is_waited_for_no_longer(
+        tmp_path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "genau" / "flicks" / "2D" / "flick one.mp4"
+    video = tmp_path / "videos" / "video one.mp4"
+
+    state, _ops = dispatch_command(f"{PLAY_IN_KINO}|{video}", _waiting_for(flick), config)
+    state, ops = genau_comes_up_once_the_flick_is_whole(
+        state, config, GenauStatus(flick=str(flick), whole=True))
+
+    assert (state.main_mode, state.genau_waits_for) == (MainMode.KINO, "")
+    assert ops == []
+
+
+def test_the_flick_genau_names_is_the_one_asked_for_however_its_path_is_spelled(tmp_path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "genau" / "flicks" / "2D" / "flick one.mp4"
+    asked = _make_state(main_mode=MainMode.KINO, genau_waits_for=flick.as_posix())
+
+    state, _ops = genau_comes_up_once_the_flick_is_whole(
+        asked, config, GenauStatus(flick=str(flick), whole=True))
+
+    assert state.main_mode is MainMode.GENAU
