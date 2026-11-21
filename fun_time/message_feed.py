@@ -5,8 +5,14 @@ from pathlib import Path
 
 from fun_time.config import LayoutConfig
 from fun_time.crown import Crown
-from fun_time.event_log import EVENT_LOG_FILENAME, EventRecord, is_announcement, read_events
-from fun_time.message_placement import FunestraRects, message_target_rect
+from fun_time.event_log import (
+    EVENT_LOG_FILENAME,
+    SOURCE_DASH,
+    EventRecord,
+    is_announcement,
+    read_events,
+)
+from fun_time.message_placement import FunestraRects, funestra_window, message_target_rect
 from fun_time.overlay_progress import loading_screen_is_up
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.unlogged_messages import UnloggedMessages
@@ -43,7 +49,9 @@ class MessageFeed:
         list_what_was_heard: Callable[[list[EventRecord]], None],
         list_records: Callable[[list[EventRecord]], None] = lambda _records: None,
         on_arrival: Callable[[], None] = lambda: None,
+        dashboard_window: Callable[[], int | None] = lambda: None,
     ) -> None:
+        self._dashboard_window = dashboard_window
         self._state_dir = state_dir
         self._offset = 0
         self._held = held
@@ -89,7 +97,13 @@ class MessageFeed:
             return
         rects = self.funestra_rects
         for record in announcements:
-            self.overlay.flash(record, message_target_rect(record.source, rects))
+            self.overlay.flash(record, message_target_rect(record.source, rects),
+                               window=self._window_under(record.source))
+
+    def _window_under(self, source: str) -> int | None:
+        if source == SOURCE_DASH:
+            return self._dashboard_window()
+        return funestra_window(self._state_dir, source)
 
     def shutdown(self) -> None:
         if self._unlogged is not None:

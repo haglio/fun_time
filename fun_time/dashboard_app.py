@@ -574,6 +574,7 @@ class DashboardWindow(QMainWindow):
             list_what_was_heard=self._log_widget.show_what_was_heard,
             list_records=self._log_widget.take_records,
             on_arrival=self._message_arrived.emit,
+            dashboard_window=lambda: int(self.winId()),
         )
         self._message_arrived.connect(messages.poll)
         self._timer_calling(messages.poll).start(FLASH_POLL_MS)

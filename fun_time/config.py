@@ -23,6 +23,8 @@ from .fun_time_funestras import FunTimeFunestra
 from .loopback_server import LOOPBACK_PORT
 from .project_paths import PROJECT_DIR
 
+MAIN_FUNESTRA_STATUS = "main_player_status.txt"
+
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
 EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
 
@@ -202,7 +204,7 @@ class ProjectConfig:
         state_dir = self.paths.state_dir
         return FunestraChannel(cmd_file=state_dir / "main_player_cmd.txt",
                                paused_file=state_dir / "main_player_paused.txt",
-                               status_file=state_dir / "main_player_status.txt",
+                               status_file=state_dir / MAIN_FUNESTRA_STATUS,
                                notice_file=state_dir / "main_player_notice.txt")
 
     @property

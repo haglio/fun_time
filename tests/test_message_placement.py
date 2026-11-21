@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import logging
 
-from fun_time.dashboard_layout import Rect, Size
+from fun_time.config import MAIN_FUNESTRA_STATUS
+from fun_time.dashboard_layout import Rect
 from fun_time.event_log import MESSAGE, EventRecord, is_announcement
 from fun_time.message_placement import (
     FunestraRects,
+    funestra_window,
     message_target_rect,
-    top_center_position,
 )
 
 
@@ -47,23 +48,19 @@ class TestNoticeTargetRect:
         assert message_target_rect("nonsense", rects) == rects.main
 
 
-class TestTopCenterPosition:
-    def test_centers_horizontally_and_sits_near_the_top(self):
-        target = Rect(2560, 0, 1440, 1000)
-        x, y = top_center_position(target, Size(300, 40), margin=24)
+class TestFunestraWindow:
+    def test_a_satellites_message_sits_on_the_window_its_status_names(self, tmp_path):
+        (tmp_path / "portrait_status.txt").write_text("video=a.mp4\nwindow=4242\n", encoding="utf-8")
 
-        assert x == 2560 + (1440 - 300) // 2
-        assert y == 24
+        assert funestra_window(tmp_path, "portrait") == 4242
 
-    def test_respects_the_targets_screen_offset(self):
-        target = Rect(1700, 500, 860, 1392)
-        x, y = top_center_position(target, Size(200, 40), margin=10)
+    def test_the_main_funestras_window_is_read_from_its_own_status(self, tmp_path):
+        (tmp_path / MAIN_FUNESTRA_STATUS).write_text("window=777\n", encoding="utf-8")
 
-        assert x == 1700 + (860 - 200) // 2
-        assert y == 500 + 10
+        assert (funestra_window(tmp_path, "main"), funestra_window(tmp_path, "system")) == (777, 777)
 
-    def test_an_overlay_wider_than_its_target_is_clamped_to_the_left_edge(self):
-        target = Rect(100, 0, 120, 400)
-        x, _y = top_center_position(target, Size(400, 40), margin=8)
+    def test_a_funestra_that_has_not_named_its_window_yet_has_none(self, tmp_path):
+        (tmp_path / "landscape_status.txt").write_text("video=a.mp4\n", encoding="utf-8")
 
-        assert x == 100
+        assert (funestra_window(tmp_path, "landscape"), funestra_window(tmp_path, "portrait")) == (
+            None, None)

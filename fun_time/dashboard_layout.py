@@ -12,12 +12,6 @@ from shared_ui.spacing import (
 
 
 @dataclass(frozen=True)
-class Size:
-    width: int
-    height: int
-
-
-@dataclass(frozen=True)
 class Rect:
     x: int
     y: int
