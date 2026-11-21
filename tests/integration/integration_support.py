@@ -29,6 +29,7 @@ from app_support.state_files import OSR2_SERIAL_RX
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.threading_utils import start_daemon_thread
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
+from funestra.genau_settings import GenauSettings
 from funestra.playlist import PlaylistItem
 
 from fun_time.branch_session import _apply_sibling_checkouts_override, as_a_filename
@@ -47,7 +48,6 @@ from fun_time.funestra_status import (
     MainFunestraStatus,
     read_main_funestra_status,
 )
-from fun_time.genau_config import GenauSettings
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.media_metadata import is_favorite, mark_favorite
 from fun_time.modes import (

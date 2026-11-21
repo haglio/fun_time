@@ -23,7 +23,8 @@ _.release  # the headset's dash panel lets go of whichever pressed part it holds
 _.handles  # the registry and expectation tests ask it whether a command is answered
 _.downloaded_set_number_of  # main_funestra.library tells the videos of one downloaded set apart with it
 _.ERROR_CHECKING  # PyOpenGL reads it once, when OpenGL.GL is first imported
-_.tick  # the Funestra (funestra) ticks main_funestra's Genau and Kino each pass
+_.tick  # the Funestra (funestra) ticks main_funestra's Kino each pass
+_.close  # the Funestra (funestra) closes main_funestra's Kino with the window
 _.optionxform  # ConfigParser hook, set to keep key case
 
 # --- Win32 struct fields written for an API call, never read back ---
@@ -31,14 +32,9 @@ _.cbSize
 dwSize  # PROCESSENTRY32, for Toolhelp32
 
 # --- Read from a sibling package, which is a scan of its own ---
-build_genau_engine  # main_funestra.genau builds Genau's engine with it
-tell_origenerator_it_went  # main_funestra.genau hands Genau's engine it
+tell_origenerator_it_went  # main_funestra.library_flicks tells Origenerator where a trashed flick went
 format_pressed_command  # fun_time_vr.funestras stamps each headset press with it
-_._folders  # main_funestra.genau's Genau asks the headset's own for its flicks folders
-_.current_flick  # main_funestra.genau, off the engine
-_.playhead  # main_funestra.genau, off the engine
-_.time_on_screen  # main_funestra.genau, off the engine
-_.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
+_._folders  # main_funestra.library_flicks asks the headset's own for its flicks folders
 _.raise_it  # fun_time.session_ending's closing screen asks the headset's painter to start
 _.still_up  # fun_time.session_ending's closing screen waits while the headset can still paint
 _.take_it_down  # fun_time.session_ending's closing screen hands the headset's painter its end
@@ -47,10 +43,10 @@ _.stop_the_keys  # fun_time.session_ending stops the headset's hotkey script wit
 _.last_of_all  # fun_time.session_ending lets the headset release its runtime with it
 _.origenerator_stays_open  # fun_time.session_ending asks the headset whether Origenerator outlives it
 from_channel  # satellite.contract; fun_time_vr's Funestra and the sequencer
-from_manifest  # genau_config and main_funestra.contract; fun_time_vr's Funestras
+from_manifest  # main_funestra.contract; fun_time_vr's Funestras
 top_block  # main_funestra.kino; funestra's Funestra heads its HUD with it
-_._shaped  # main_funestra.genau's Genau narrows its flicks through the headset's own
-# fun_time.arrivals asks each of these of main_funestra.genau's flicks before it
+_._shaped  # main_funestra.library_flicks narrows its flicks through the headset's own
+# fun_time.arrivals asks each of these of main_funestra.library_flicks' lineup before it
 # hands them what arrived.
 _.in_latest
 _.plays_its_own_list
@@ -59,7 +55,15 @@ _.put_up_next
 to_argv  # main_funestra.contract; the session's Main Funestra launcher
 compositor_layers  # fun_time_vr/orchestrator.py
 process_running  # win32_process; fun_time_vr's shutdown asks it whether the VR runtime is up
-GalleryFlips  # main_funestra.genau hands it to Genau's engine as where an AI flick's flip is kept
+GalleryFlips  # main_funestra.library_flicks hands it to Genau as where an AI flick's flip is kept
+# funestra's Genau asks each of these of main_funestra.library_flicks, its FlickSource.
+_.keep_shapes
+_.flips
+_.opening
+_.listed
+_.name_of
+_.went
+_.up_next
 _.keeps  # funestra's FlickFlip asks GalleryFlips whether it keeps a flick's flip
 _.is_flipped  # funestra's FlickFlip asks GalleryFlips whether a flick it keeps is flipped
 

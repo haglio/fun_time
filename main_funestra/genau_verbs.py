@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Collection
+from dataclasses import dataclass
 from typing import Any
 
 from funestra.control_registry import Control, Verb, bind, look_up
-from funestra.inclusion_pair import BOTH, Included
+from funestra.genau import Narrow
+from funestra.inclusion_pair import BOTH, ORIENTATION, Included
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS, PORTRAIT
 
 SET_GENAU_FAVORITES = "SET_GENAU_FAVORITES"
@@ -32,30 +34,39 @@ def genau_orientations(included: Included) -> str:
     return " ".join((SET_GENAU_ORIENTATIONS, *orientation_words(included)))
 
 
-def _switched_by(keep: Callable[[Any], Callable[[bool], None]]) -> Callable[[Any, str], bool]:
-    def switch(genau: Any, value: str) -> bool:
-        keep(genau)(value != "0")
+@dataclass(frozen=True)
+class _Asked:
+    flicks: Any
+    narrow: Narrow
+
+
+def _switched_by(keep: Callable[[Any], Callable[[bool], None]]) -> Callable[[_Asked, str], bool]:
+    def switch(asked: _Asked, value: str) -> bool:
+        keep(asked.flicks)(value != "0")
+        asked.narrow("")
         return True
     return switch
 
 
-def _set_orientations(genau: Any, value: str) -> bool:
+def _set_orientations(asked: _Asked, value: str) -> bool:
     said = set(value.lower().split())
     if not said <= set(ORIENTATIONS):
         return False
-    genau.keep_orientations(orientations_from(said))
+    included = orientations_from(said)
+    asked.flicks.keep_orientations(included)
+    asked.narrow(ORIENTATION.flash(included))
     return True
 
 
 VERBS = bind((
     Control(name="favorites",
-            verbs=(Verb(SET_GENAU_FAVORITES, _switched_by(lambda genau: genau.keep_favorites), takes_a_value=True),)),
+            verbs=(Verb(SET_GENAU_FAVORITES, _switched_by(lambda flicks: flicks.keep_favorites), takes_a_value=True),)),
     Control(name="enhanced",
-            verbs=(Verb(SET_GENAU_ENHANCED, _switched_by(lambda genau: genau.keep_enhanced), takes_a_value=True),)),
+            verbs=(Verb(SET_GENAU_ENHANCED, _switched_by(lambda flicks: flicks.keep_enhanced), takes_a_value=True),)),
     Control(name="orientations",
             verbs=(Verb(SET_GENAU_ORIENTATIONS, _set_orientations, takes_a_value=True),)),
 ))
 
 
-def apply_command(command: str, genau: Any) -> bool:
-    return look_up(command, VERBS, genau)
+def apply_command(command: str, flicks: Any, narrow: Narrow) -> bool:
+    return look_up(command, VERBS, _Asked(flicks, narrow))

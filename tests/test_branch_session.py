@@ -14,11 +14,11 @@ import pytest
 from app_support.siblings import primary_checkout_of
 from app_support.win32 import Shortcut as ShortcutToWrite
 from app_support.win32 import mutex_name, write_shortcut
+from funestra.genau_settings import GenauSettings
 from shared_ui.preview import Preview
 
 from fun_time import branch_session, origenerator_launch_check, preview_marker
 from fun_time.config import ProjectConfig, load_config
-from fun_time.genau_config import GenauSettings
 from fun_time.project_paths import HOTKEY_SCRIPT_NAME
 from fun_time.shortcuts import Shortcut, read_shortcuts
 from fun_time.single_instance import MUTEX_ORCHESTRATOR

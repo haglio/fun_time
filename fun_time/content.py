@@ -9,7 +9,6 @@ from urllib.parse import urlparse
 
 from app_support import haglio_settings
 from app_support.overlay import backfilled
-from funestra.inclusion_pair import including_no_other
 
 from .project_paths import PROJECT_DIR
 
@@ -46,10 +45,6 @@ class Noun:
 def genau_flick_noun() -> Noun:
     words = haglio_settings.value("genau_flick_words")
     return Noun(one=words["one"], many=words["many"])
-
-
-def no_other_flicks() -> str:
-    return including_no_other(genau_flick_noun().many)
 
 
 @dataclass(frozen=True)

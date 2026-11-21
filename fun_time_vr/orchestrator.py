@@ -18,6 +18,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import process_started
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
+from funestra.genau_settings import GenauSettings
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.bridge_records import BridgeConfig
@@ -34,7 +35,6 @@ from fun_time.funestra_deaths import (
 )
 from fun_time.funestra_engine import engine_missing_abort
 from fun_time.funestra_status import read_main_funestra_status
-from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import put_the_headset_to_sleep
 from fun_time.hosted_origenerator import (
     HostedApp,

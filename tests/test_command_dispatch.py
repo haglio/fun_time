@@ -21,7 +21,7 @@ from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_value import parse_command, say_command
-from fun_time.content import Noun, load_content
+from fun_time.content import load_content
 from fun_time.crown import Crown
 from fun_time.device_arbiter import TCODE_OFF
 from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
@@ -54,6 +54,7 @@ from main_funestra.genau_verbs import genau_enhanced, genau_favorites, genau_ori
 from tests.bridge_configs import made_up_bridge_config
 from tests.hosted_shows import publish_the_show
 from tests.made_up_gallery import a_row
+from tests.made_up_genau import the_flicks_are_called_pips
 
 
 def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeConfig:
@@ -1890,7 +1891,7 @@ def test_an_orientation_press_in_genau_mode_tells_genau_on_the_main_funestras_ch
 
 
 def test_neither_orientation_holds_genaus_flick_as_neither_shape_does(tmp_path, monkeypatch):
-    monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
+    the_flicks_are_called_pips(monkeypatch, tmp_path)
     config = _make_config(tmp_path)
     only_portrait = _make_state(main_mode=MainMode.GENAU, genau_plays_landscape=False)
 
@@ -2013,7 +2014,7 @@ def test_putting_genaus_other_shape_back_asks_it_for_both(tmp_path):
 
 
 def test_neither_of_genaus_shapes_holds_its_flick(tmp_path, monkeypatch):
-    monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
+    the_flicks_are_called_pips(monkeypatch, tmp_path)
     config = _genau_vr_config(tmp_path)
     only_flat = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False)
 

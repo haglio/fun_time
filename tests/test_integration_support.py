@@ -20,12 +20,12 @@ from app_support import haglio_settings, osr2_device
 from app_support.threading_utils import wait_until
 from funestra.broker_feed import BrokerFeed, UdpListener, udp_reader
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
+from funestra.genau_settings import GenauSettings
 from funestra.playlist import read_playlist
 
 from fun_time import status_values, windows_bridge_orchestrator
 from fun_time.branch_session import build_branch_config
 from fun_time.funestra_status import MainFunestraStatus
-from fun_time.genau_config import GenauSettings
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.main_list import MainListSettings
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest

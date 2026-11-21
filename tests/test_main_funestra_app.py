@@ -69,11 +69,12 @@ class TestWhatTheFunestraIsHanded:
 class TestGenauRunsOnItToo:
     def test_it_is_built_from_the_flags_fun_time_passes(self):
         given = _keywords(_call(_function("_genau"), "Genau"))
-        flicks = _keywords(_call(_function("_genau"), "GenauFlicks"))
+        listed = _call(_function("_genau"), "LibraryFlicks")
+        flicks = _keywords(listed)
         outputs = _keywords(_call(_function("_genau"), "GenauOutputs"))
         channels = _keywords(_call(_function("_genau"), "GenauChannels"))
 
-        assert flicks["folder"] == "args.flicks_dir"
+        assert [_said(arg) for arg in listed.args] == ["args.flicks_dir"]
         assert given["settings"] == "GenauSettings.read(args.config)"
         assert outputs["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
         assert outputs["tcode_sink"] == "Osr2Sender(ROBOT_HAND, port=args.osr2_port)"
