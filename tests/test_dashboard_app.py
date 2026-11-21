@@ -13,7 +13,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from app_support import file_channel
 from app_support.threading_utils import wait_until
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QColor, QMouseEvent
@@ -117,7 +116,6 @@ from tests.integration.integration_support import (
     environment_with_this_checkouts_siblings,
 )
 from tests.made_up_osr2_parts import a_part, center_of, published
-from tests.sleeps import sleeps_in
 
 
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
@@ -421,8 +419,10 @@ def test_a_click_on_a_file_held_for_good_never_raises_into_the_dashboard(tmp_pat
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
     command_file.parent.mkdir(parents=True)
 
-    with held_by_another_program(command_file), sleeps_in(file_channel):
+    with held_by_another_program(command_file):
         write_dashboard_command(command_file, "quit")
+
+    wait_until(lambda: the_words_in(command_file) == ["quit"])
 
 
 def test_write_dashboard_command_queues_rather_than_clobbers(tmp_path: Path):
