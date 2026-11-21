@@ -3,15 +3,14 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes
 import logging
-import threading
 import time
-from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.win32_loader import load_dll, win_functype
 
+from fun_time.calls_in_turn import CallsInTurn
 from fun_time.dashboard_layout import Rect
 from fun_time.win32_process import list_child_pids
 from fun_time.window_waits import WindowWaits
@@ -228,39 +227,7 @@ def _without_hanging(call, hwnd, *args, what: str, waits: WindowWaits | None = N
     return False
 
 
-class _CallsPerWindow:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._waiting: dict[int, deque[tuple[Callable[[], object], threading.Event, str]]] = {}
-
-    def make(self, hwnd: int, call: Callable[[], object], *, what: str) -> threading.Event:
-        done = threading.Event()
-        with self._lock:
-            first = hwnd not in self._waiting
-            self._waiting.setdefault(hwnd, deque()).append((call, done, what))
-        if first:
-            threading.Thread(target=self._make_in_turn, args=(hwnd,), daemon=True,
-                             name=f"win32-calls-to-{hwnd}").start()
-        return done
-
-    def _make_in_turn(self, hwnd: int) -> None:
-        finished = False
-        while not finished:
-            with self._lock:
-                call, done, what = self._waiting[hwnd][0]
-            try:
-                call()
-            except Exception:
-                logger.exception("%s failed", what)
-            with self._lock:
-                self._waiting[hwnd].popleft()
-                finished = not self._waiting[hwnd]
-                if finished:
-                    del self._waiting[hwnd]
-            done.set()
-
-
-_ONE_CALL_AT_A_TIME = _CallsPerWindow()
+_ONE_CALL_AT_A_TIME = CallsInTurn(lambda hwnd: f"win32-calls-to-{hwnd}")
 
 
 def move_window(hwnd: int, rect: Rect, *, activate: bool = True) -> None:
