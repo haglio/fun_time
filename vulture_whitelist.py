@@ -62,6 +62,8 @@ _.flips
 _.opening
 _.listed
 _.name_of
+_.trash
+_.folder_for
 _.went
 _.up_next
 _.keeps  # funestra's FlickFlip asks GalleryFlips whether it keeps a flick's flip

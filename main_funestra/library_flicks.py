@@ -21,6 +21,15 @@ from .gallery_names import NO_GALLERY_NAMES, GalleryNames
 from .genau_verbs import apply_command as answer_genaus_verb
 
 
+@dataclass(frozen=True)
+class _TrashBesideTheFolder:
+    folder: Path
+    went: Callable[[Path, Path], None]
+
+    def folder_for(self, flick: Path) -> Path:
+        return trash_folder_for(flick, self.folder)
+
+
 class LibraryFlicks:
     keep_shapes = None
 
@@ -43,12 +52,13 @@ class LibraryFlicks:
         self._orientations = orientations
         self._gallery = Gallery([]) if gallery is None else gallery
         self._gallery_names = gallery_names
-        self._went = tell_origenerator_it_went(origenerator_commands)
         self._clock = clock
         self._next_look: float | None = None
         self._arrivals = Arrivals(lambda: videos_in(self._folders()))
         self.metadata_root = metadata_root
         self.flips = GalleryFlips(self._gallery)
+        self.trash = _TrashBesideTheFolder(self._folder,
+                                           tell_origenerator_it_went(origenerator_commands))
 
     def opening(self, *, recent: bool, shuffled: bool) -> Opening:
         browsed = self._browsed(recent, shuffled)
@@ -62,12 +72,6 @@ class LibraryFlicks:
 
     def name_of(self, flick: Path) -> str:
         return self._gallery_names.of(flick) or flick.stem
-
-    def trash_folder_for(self, flick: Path) -> Path:
-        return trash_folder_for(flick, self._folder)
-
-    def went(self, flick: Path, landed: Path) -> None:
-        self._went(flick, landed)
 
     def up_next(self, *, recent: bool, showing: bool) -> list[Path]:
         now = self._clock()
