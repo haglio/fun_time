@@ -10,6 +10,7 @@ import winsound
 from pathlib import Path
 
 import pytest
+from app_support.testing import no_session_live
 
 import tests.example_content_only  # noqa: F401
 from fun_time import (
@@ -64,6 +65,12 @@ def _never_change_a_window_of_his_live_fun_time(monkeypatch):
 
     for name in _USER32_CALLS_THAT_CHANGE_A_WINDOW:
         monkeypatch.setattr(win32._user32, name, _inert)
+
+
+@pytest.fixture(autouse=True)
+def _never_wait_for_a_funestra_he_is_playing():
+    with no_session_live():
+        yield
 
 
 @pytest.fixture(autouse=True)
