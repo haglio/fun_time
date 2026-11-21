@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from shared_ui.icons import icon_then_text
 from shared_ui.message_shape import (
@@ -24,11 +25,33 @@ from fun_time.message_overlay import MessageOverlay
 _A_SATELLITE = Rect(100, 50, 1000, 800)
 
 
+class _Stacking:
+    def __init__(self) -> None:
+        self.asked: list[int] = []
+
+    def __call__(self, _own: int, beneath: int) -> bool:
+        self.asked.append(beneath)
+        return True
+
+
 @pytest.fixture
-def overlay():
-    made = MessageOverlay()
+def stacking() -> _Stacking:
+    return _Stacking()
+
+
+@pytest.fixture
+def overlay(stacking):
+    made = MessageOverlay(stack=stacking)
     yield made
     made.shutdown()
+
+
+def test_a_message_sits_directly_on_its_funestra_so_a_window_over_the_funestra_covers_it(
+        overlay, stacking):
+    overlay.flash(_record("Videos only"), _A_SATELLITE, window=4242)
+
+    assert (stacking.asked, bool(overlay.windowFlags() & Qt.WindowType.WindowStaysOnTopHint)) == (
+        [4242], False)
 
 
 def _record(message: str, level: int = MESSAGE, mark: str = "") -> EventRecord:

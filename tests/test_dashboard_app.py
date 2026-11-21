@@ -1553,10 +1553,12 @@ def test_a_taskbar_that_refuses_the_sessions_identity_does_not_stop_the_dashboar
 class _FakeOverlay:
     def __init__(self) -> None:
         self.flashed: list[tuple[str, object]] = []
+        self.under: list[int | None] = []
         self.shut_down = False
 
-    def flash(self, record, target) -> None:
+    def flash(self, record, target, *, window=None) -> None:
         self.flashed.append((record.message, target))
+        self.under.append(window)
 
     def shutdown(self) -> None:
         self.shut_down = True
@@ -1640,6 +1642,25 @@ def test_a_main_funestra_message_lands_on_the_main_funestra_wherever_the_crown_h
         _monitors(), configured_primary_number=layout.primary_monitor,
         configured_secondary_number=layout.secondary_monitor)
     assert target == secondary_monitor_rects(secondary, layout, majority=Crown.MAIN).main
+
+
+def test_a_message_sits_on_the_window_it_is_about_so_a_window_over_that_covers_it(
+        dashboard_app_config):
+    state_dir = dashboard_app_config.state_dir
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "portrait_status.txt").write_text("window=4242" + chr(10), encoding="utf-8")
+    window = _message_window(dashboard_app_config, held=False)
+    try:
+        _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
+        with (state_dir / EVENT_LOG_FILENAME).open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(
+                {"ts": 2.0, "level": MESSAGE, "source": "portrait", "msg": "Videos only"}) + chr(10))
+
+        window._messages.poll()
+
+        assert window._messages.overlay.under == [int(window.winId()), 4242]
+    finally:
+        window.close()
 
 
 def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_either(
@@ -2042,7 +2063,7 @@ def test_a_message_flashes_before_the_log_panel_lists_it(dashboard_app_config, m
     order: list[str] = []
     try:
         monkeypatch.setattr(window._messages.overlay, "flash",
-                            lambda record, target: order.append("flashed"))
+                            lambda record, target, **_under: order.append("flashed"))
         monkeypatch.setattr(window._log_widget, "take_records",
                             lambda records: order.append("listed"))
         monkeypatch.setattr(window._messages, "_list_records", window._log_widget.take_records)
