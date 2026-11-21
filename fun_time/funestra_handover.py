@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app_support.written_file import ReadWhenChanged
+from app_support.written_file import ReadEachWhenChanged
 from funestra.hud_button import Button
 from funestra.satellite_hud import HudModel, parse_hud
 
@@ -26,14 +26,12 @@ def _parsed_hud(path: Path) -> HudModel | None:
     return parse_hud(text)
 
 
-_PUBLISHED_HUDS: dict[Path, ReadWhenChanged[HudModel | None]] = {}
+_PUBLISHED_HUDS: ReadEachWhenChanged[Path, HudModel | None] = ReadEachWhenChanged(
+    _parsed_hud, most=16)
 
 
 def published_hud(path: Path) -> HudModel | None:
-    reader = _PUBLISHED_HUDS.get(path)
-    if reader is None:
-        reader = _PUBLISHED_HUDS[path] = ReadWhenChanged(path, _parsed_hud)
-    return reader.latest()
+    return _PUBLISHED_HUDS.latest(path)
 
 
 def _slideshows_button(channel: SatelliteChannel, verb: str) -> Button | None:
