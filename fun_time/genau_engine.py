@@ -12,9 +12,10 @@ from funestra.broker_feed import BrokerFeed, UdpListener, udp_reader
 from funestra.flag import Flag
 from funestra.flick_advance import FlickAdvanceState
 from funestra.flick_cache import DecodeRequestState, FlickCacheStore
-from funestra.flick_decode import load_flick_frames
+from funestra.flick_decode import load_flick_frames, read_frames_per_second
 from funestra.flick_flip import FlickFlip, FlipsKeptElsewhere
 from funestra.flick_folder import move_to_trash
+from funestra.flick_frame_rates import FlickFrameRates
 from funestra.flick_loader import FlickLoadController, FlickLoadParts
 from funestra.flick_renderer import FlickRenderController
 from funestra.flick_selection import FlickSelectionController, FlickSelectionParts
@@ -118,6 +119,7 @@ class GenauHost:
 class EngineSeams:
     stop_event: threading.Event | None = None
     decode: Callable[[Path], list] = load_flick_frames
+    frame_rate: Callable[[Path], float] = read_frames_per_second
     start_thread: Callable = start_daemon_thread
     clock: Callable[[], float] = time.monotonic
     log: logging.Logger = logger
@@ -188,6 +190,7 @@ def build_genau_engine(
                 says=PROJECTION.flash((plays_flat, plays_vr)))),
         play_file=selection.play,
         flick_flip=FlickFlip(library.metadata_root, kept_elsewhere=library.flips),
+        flick_frame_rates=FlickFrameRates(read=seams.frame_rate),
     )
     controller = GenauRefreshController(
         controls,

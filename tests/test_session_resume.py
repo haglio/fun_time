@@ -434,13 +434,12 @@ class TestResumeGenau:
     _NO_SETTING = frozenset({
         "quit", "flick", "condemn", "play_file", "flip_ends", "pause", "tcode", "hud",
         "without_the_osr2"})
-    _ARRIVING_WITH_THE_NEXT_FUNESTRA = frozenset({"without_the_osr2"})
 
     def test_every_control_genau_has_comes_back_after_a_restart_or_is_no_setting(self):
         named = set(self._KEPT_IN_THE_APPS_STATE) | self._NO_SETTING
         controls = {control.name for control, _ in GENAU_VERBS.values()}
 
-        assert controls | self._ARRIVING_WITH_THE_NEXT_FUNESTRA == named, (
+        assert controls == named, (
             f"say how a restart brings back {sorted(controls - named)}; "
             f"Genau no longer has {sorted(named - controls)}")
 

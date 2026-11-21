@@ -156,6 +156,7 @@ class World:
                                  origenerator_commands=setup.origenerator_commands),
             seams=EngineSeams(
                 decode=lambda _path: _frames(),
+                frame_rate=lambda _flick: 30.0,
                 start_thread=setup.start_thread,
                 clock=self.clock,
                 log=logging.getLogger("test.genau"),

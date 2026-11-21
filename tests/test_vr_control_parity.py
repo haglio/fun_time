@@ -158,6 +158,7 @@ def _genau_in_the_headset(tmp_path: Path) -> GenauInTheHeadset:
         outputs=GenauOutputs(notifier=FakeNotifier(), tcode_sink=FakeSink()),
         seams=EngineSeams(
             decode=lambda _flick: [np.zeros((8, 16, 3), dtype=np.uint8)],
+            frame_rate=lambda _flick: 30.0,
             start_thread=every_thread_now_but_the_ones_that_run_for_good))
 
 
