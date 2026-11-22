@@ -121,7 +121,7 @@ def _start_again(refusals_path: Path, sessions: Sequence[dict], claude: str, she
             started_again.append(session["id"])
             refusals.pop(session["id"], None)
         elif refusals.get(session["id"]) != why:
-            _log.warning("could not start fix session %s again: %s", session["id"], why)
+            _log.info("could not start fix session %s again: %s", session["id"], why)
             refusals[session["id"]] = why
     if refusals != before:
         write_whole(refusals_path, json.dumps(refusals, indent=1))
