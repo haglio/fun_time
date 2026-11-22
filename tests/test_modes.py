@@ -59,6 +59,15 @@ def test_collect_video_files_passes_over_a_video_still_being_written(tmp_path: P
     assert collect_video_files(str(d)) == [str(d / "clip.mp4")]
 
 
+def test_collect_video_files_passes_over_a_copy_pcloud_kept_from_a_sync_conflict(tmp_path: Path):
+    d = tmp_path / "vids"
+    d.mkdir()
+    (d / "clip.mp4").write_text("x", encoding="utf-8")
+    (d / "clip [conflicted].mp4").write_text("x", encoding="utf-8")
+    (d / "clip [Conflicted 2].mp4").write_text("x", encoding="utf-8")
+    assert collect_video_files(str(d)) == [str(d / "clip.mp4")]
+
+
 def test_collect_video_files_deduplicates_across_source_parts(tmp_path: Path):
     d = tmp_path / "vids"
     d.mkdir()
