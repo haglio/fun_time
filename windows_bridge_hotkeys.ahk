@@ -19,7 +19,7 @@ Persistent
 ;   3  The orchestrator's pid — after a crossing this script outlives it.
 
 if (A_Args.Length < 3) {
-    MsgBox("Expected 3 arguments: manifest path, pids file path, orchestrator pid. Got " . A_Args.Length, "fun_time", "Iconx")
+    Tell("Expected 3 arguments: manifest path, pids file path, orchestrator pid. Got " . A_Args.Length)
     ExitApp 2
 }
 
@@ -530,12 +530,26 @@ ManifestValueOr(section, key) {
     return IniRead(WINDOWS_BRIDGE_MANIFEST_PATH, section, key, "")
 }
 
+Tell(message) {
+    command := EnvGet("HAGLIO_ALERT_COMMAND")
+    if (command != "") {
+        EnvSet("HAGLIO_ALERT_TITLE", "Fun Time")
+        EnvSet("HAGLIO_ALERT_MESSAGE", message)
+        EnvSet("HAGLIO_ALERT_ICON", "16")
+        try {
+            if (RunWait(command, , "Hide") = 0)
+                return
+        }
+    }
+    MsgBox(message, "Fun Time", "Iconx")
+}
+
 RequireManifestValue(section, key) {
     global WINDOWS_BRIDGE_MANIFEST_PATH
     missing := "__missing__"
     value := IniRead(WINDOWS_BRIDGE_MANIFEST_PATH, section, key, missing)
     if (value = missing) {
-        MsgBox("Missing windows bridge manifest value [" . section . "] " . key, "fun_time", "Iconx")
+        Tell("Missing windows bridge manifest value [" . section . "] " . key)
         ExitApp 2
     }
     return value

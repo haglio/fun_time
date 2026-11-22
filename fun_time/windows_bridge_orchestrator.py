@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
+from app_support import copyable_alert
 from app_support.subprocess_utils import tie_to_this_process
 from app_support.threading_utils import wait_until
 from app_support.win32 import process_started
@@ -377,11 +378,15 @@ def closing_screen_on_the_monitors(
 _CANCELLED_EXIT_CODE = 0
 
 
+COPYABLE_ALERT_COMMAND = "HAGLIO_ALERT_COMMAND"
+
+
 def launch_hotkey_script(*, ahk_exe: str | Path, script: str | Path, manifest_path: Path,
                          pids_file: Path, project_dir: Path) -> subprocess.Popen:
     command = [str(ahk_exe), str(script), str(manifest_path), str(pids_file), str(os.getpid())]
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
-    return subprocess.Popen(command, cwd=project_dir, **no_child_log(),
+    told = {**os.environ, COPYABLE_ALERT_COMMAND: subprocess.list2cmdline(copyable_alert.COMMAND)}
+    return subprocess.Popen(command, cwd=project_dir, env=told, **no_child_log(),
                             **no_console_window(creationflags=AHEAD_OF_BACKGROUND_WORK))
 
 
