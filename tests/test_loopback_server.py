@@ -201,3 +201,30 @@ def test_a_server_not_wired_to_a_session_reports_one_that_is_playing(tmp_path):
             assert json.loads(resp.read()) == {"omni_paused": False}
     finally:
         server.shutdown()
+
+
+@pytest.mark.parametrize("gone", [ConnectionAbortedError, ConnectionResetError, BrokenPipeError])
+def test_a_page_gone_before_its_answer_writes_nothing_to_the_log(tmp_path, capsys, gone):
+    server = make_server(port=0, script_path=tmp_path / USERSCRIPT_NAME)
+    try:
+        try:
+            raise gone()
+        except gone:
+            server.handle_error(None, ("127.0.0.1", 1))
+    finally:
+        server.server_close()
+
+    assert capsys.readouterr().err == ""
+
+
+def test_any_other_failure_answering_a_page_is_still_written_to_the_log(tmp_path, capsys):
+    server = make_server(port=0, script_path=tmp_path / USERSCRIPT_NAME)
+    try:
+        try:
+            raise ValueError("a real fault")
+        except ValueError:
+            server.handle_error(None, ("127.0.0.1", 1))
+    finally:
+        server.server_close()
+
+    assert "a real fault" in capsys.readouterr().err

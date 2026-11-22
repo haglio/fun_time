@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -93,6 +94,12 @@ def _make_handler(script_path: Path, watch: PauseWatch):
     return _Handler
 
 
+class _LoopbackServer(ThreadingHTTPServer):
+    def handle_error(self, request, client_address) -> None:
+        if not isinstance(sys.exception(), ConnectionError):
+            super().handle_error(request, client_address)
+
+
 def make_server(
     port: int = LOOPBACK_PORT,
     script_path: Path | None = None,
@@ -100,7 +107,7 @@ def make_server(
     *,
     watch: PauseWatch | None = None,
 ) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer(
+    return _LoopbackServer(
         ("127.0.0.1", port),
         _make_handler(script_path or userscript_path(), watch or PauseWatch(omni_paused)),
     )
