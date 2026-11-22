@@ -15,7 +15,12 @@ from PIL import Image, ImageDraw
 from shared_ui.icons_pil import pil_icon
 from shared_ui.lettering import load_font, wrap_text
 from shared_ui.palette import BG_BUTTON, BG_PRIMARY, TEXT_MUTED, TEXT_PRIMARY
-from shared_ui.spacing import BUTTON_FILLING_ICON, BUTTON_RADIUS, BUTTON_SIZE, MARGIN_DIALOG
+from shared_ui.spacing import (
+    BUTTON_ICON_INSET,
+    BUTTON_RADIUS_HUD,
+    BUTTON_SIZE_HUD,
+    MARGIN_DIALOG,
+)
 from shared_ui.type_scale import SIZE_SMALL, in_pixels
 
 from fun_time.dashboard_layout import Rect
@@ -53,6 +58,7 @@ PREV_PAGE = "reference_prev"
 NEXT_PAGE = "reference_next"
 
 _PAD = MARGIN_DIALOG
+_PAGE_MARK = BUTTON_SIZE_HUD - 2 * BUTTON_ICON_INSET
 _TALL_AS_IT_HAS_ALWAYS_HUNG_FOR_ITS_WIDTH = 1012 / 760
 _ROW_PX = in_pixels(SIZE_SMALL)
 _ROW_H = 17
@@ -105,10 +111,10 @@ def reference_size(pages: ReferencePages) -> tuple[int, int]:
 
 
 def reference_actions(pages: ReferencePages) -> dict[str, Rect]:
-    right = reference_size(pages)[0] - _PAD - BUTTON_SIZE
+    right = reference_size(pages)[0] - _PAD - BUTTON_SIZE_HUD
     return {
-        NEXT_PAGE: Rect(right, _PAD, BUTTON_SIZE, BUTTON_SIZE),
-        PREV_PAGE: Rect(right - BUTTON_SIZE - 6, _PAD, BUTTON_SIZE, BUTTON_SIZE),
+        NEXT_PAGE: Rect(right, _PAD, BUTTON_SIZE_HUD, BUTTON_SIZE_HUD),
+        PREV_PAGE: Rect(right - BUTTON_SIZE_HUD - 6, _PAD, BUTTON_SIZE_HUD, BUTTON_SIZE_HUD),
     }
 
 
@@ -131,7 +137,7 @@ def page_of(state: ReferenceState, pages: ReferencePages) -> int:
 
 
 def _head_height(page: ReferencePage) -> int:
-    return _PAD + max(BUTTON_SIZE, page.title_ends_at) + _PAD // 2
+    return _PAD + max(BUTTON_SIZE_HUD, page.title_ends_at) + _PAD // 2
 
 
 def _rows_shown(page: ReferencePage, pages: ReferencePages) -> tuple[int, int]:
@@ -152,7 +158,7 @@ def paint_reference(state: ReferenceState, pages: ReferencePages) -> Image.Image
     width = page.image.width
 
     title = page.image.crop((0, 0, width, page.title_ends_at))
-    title_top = _PAD + max(0, (BUTTON_SIZE - page.title_ends_at) // 2)
+    title_top = _PAD + max(0, (BUTTON_SIZE_HUD - page.title_ends_at) // 2)
     panel.alpha_composite(_as_the_panel(title), (_PAD, title_top))
     _paint_the_controls(panel, pages)
 
@@ -180,13 +186,13 @@ def _paint_the_controls(panel: Image.Image, pages: ReferencePages) -> None:
     for action, rect in reference_actions(pages).items():
         draw.rounded_rectangle(
             (rect.x, rect.y, rect.x + rect.width - 1, rect.y + rect.height - 1),
-            radius=BUTTON_RADIUS, fill=(*BG_BUTTON, 255),
+            radius=BUTTON_RADIUS_HUD, fill=(*BG_BUTTON, 255),
         )
         mark = "chevron_right" if action == NEXT_PAGE else "chevron_left"
         panel.alpha_composite(
-            pil_icon(mark, BUTTON_FILLING_ICON, TEXT_PRIMARY),
-            (rect.x + (rect.width - BUTTON_FILLING_ICON) // 2,
-             rect.y + (rect.height - BUTTON_FILLING_ICON) // 2),
+            pil_icon(mark, _PAGE_MARK, TEXT_PRIMARY),
+            (rect.x + (rect.width - _PAGE_MARK) // 2,
+             rect.y + (rect.height - _PAGE_MARK) // 2),
         )
 
 
