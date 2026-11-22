@@ -1555,11 +1555,9 @@ def _frame(painted):
     return SimpleNamespace(ready=True, has_frame=painted)
 
 
-def _room(*, main=True, portrait=True, landscape=True, main_hud_unit=True, main_hud_in_the_room=True):
+def _room(*, main=True, main_hud_unit=True, main_hud_in_the_room=True):
     return {
         "main_unit": SimpleNamespace(screen_name="main", texture_on_the_screen=_frame(main)),
-        "satellites": [SimpleNamespace(screen_name="portrait", target=_frame(portrait)),
-                    SimpleNamespace(screen_name="landscape", target=_frame(landscape))],
         "main_hud_unit": SimpleNamespace(texture=_frame(main_hud_unit), in_the_room=main_hud_in_the_room),
     }
 
@@ -1568,8 +1566,7 @@ class TestWhenTheRoomIsUp:
     def test_every_frame_present_leaves_nothing_blank(self):
         assert _still_blank(**_room()) == ()
 
-    @pytest.mark.parametrize(("blank", "screen"), [
-        ("main", MAIN), ("portrait", PORTRAIT), ("landscape", LANDSCAPE), ("main_hud_unit", MAIN_HUD)])
+    @pytest.mark.parametrize(("blank", "screen"), [("main", MAIN), ("main_hud_unit", MAIN_HUD)])
     def test_a_screen_with_no_frame_is_named(self, blank, screen):
         assert _still_blank(**_room(**{blank: False})) == (screen,)
 
