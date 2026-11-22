@@ -56,6 +56,9 @@ Sub Launch()
   ShowLoadingScreen
   CatchUp
   HoldGates
+  On Error Resume Next
+  shell.Environment("Process").Remove "PYTHONPATH"
+  On Error GoTo 0
   logPath = FreeLog(logPath)
   Note logPath, "===== " & Now & " launch: " & Command()
   If fso.FileExists(readyFile) Then fso.DeleteFile readyFile
