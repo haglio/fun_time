@@ -87,10 +87,10 @@ def engine_error(config, *, run: Runner = subprocess.run) -> str | None:
 
 def show_engine_alert(text: str) -> None:
     # Qt loads only for this: the check itself runs before any window.
-    from shared_ui.alert import Level, show_alert  # noqa: PLC0415
+    from shared_ui.alert import Level, show_error  # noqa: PLC0415
 
     shown = preview_marker.shown_as()
-    show_alert(preview_marker.app_title(shown), text, level=Level.ERROR,
+    show_error(preview_marker.app_title(shown), text, level=Level.ERROR,
                icon=preview_marker.icon_file(PROJECT_ICON, shown))
 
 

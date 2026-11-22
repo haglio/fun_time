@@ -131,6 +131,7 @@ class TestShowAlreadyRunningMessage:
 
         show_alert.assert_called_once_with(
             "Test Title", "Test text", level=Level.INFO, icon=PROJECT_ICON, copyable=False,
+            button_text="OK", links=(), dismissible=False,
         )
 
     def test_default_title(self):

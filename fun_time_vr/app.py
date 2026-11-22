@@ -40,9 +40,9 @@ logger = logging.getLogger(__name__)
 
 def _say_why_the_headset_never_lit_up(message: str) -> None:
     # Qt loads only for this: a headset session draws through OpenXR.
-    from shared_ui.alert import show_alert  # noqa: PLC0415
+    from shared_ui.alert import show_error  # noqa: PLC0415
 
-    show_alert(vr_runtime.APP_NAME, message,
+    show_error(vr_runtime.APP_NAME, message,
                icon=preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
 
 
