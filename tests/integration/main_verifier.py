@@ -43,7 +43,7 @@ from .session_lock import FOR_PRODUCTION_ENV, SingleInstanceLock
 REPO = "haglio/fun_time"
 ONE_COPY = r"Global\fun_time_main_verifier"
 POLL_S = 300
-UNREACHABLE_WARNING_S = 3600
+UNREACHABLE_NOTED_AFTER_S = 3600
 RESTART_REQUEST_NAME = "main_verifier.restart"
 VERIFIER_VENV = "main_verifier_venv"
 INSTALLED_FROM = "installed_from_pyproject.toml"
@@ -496,19 +496,19 @@ class _Reach:
     def __init__(self, clock: Callable[[], float]) -> None:
         self.clock = clock
         self.lost_since: float | None = None
-        self.warned = False
+        self.noted = False
 
     def regained(self) -> None:
-        self.lost_since, self.warned = None, False
+        self.lost_since, self.noted = None, False
 
     def lost(self, error: CommandFailed) -> None:
         now = self.clock()
         if self.lost_since is None:
             self.lost_since = now
         _log.info("could not check main: %s", error)
-        if not self.warned and now - self.lost_since >= UNREACHABLE_WARNING_S:
-            self.warned = True
-            _log.warning("main has not been reachable for %d minutes: %s",
+        if not self.noted and now - self.lost_since >= UNREACHABLE_NOTED_AFTER_S:
+            self.noted = True
+            _log.info("main has not been reachable for %d minutes: %s",
                          (now - self.lost_since) // 60, error)
 
 
