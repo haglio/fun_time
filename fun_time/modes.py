@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support import funscript
-from app_support.mirrored_tree import LIBRARY_DIR_NAME
+from app_support.mirrored_tree import LIBRARY_DIR_NAME, PCLOUDS_MARK_ON_A_CONFLICTED_COPY
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import PlaylistItem, write_playlist
 from funestra.video_groups import (
@@ -24,9 +24,13 @@ PLAYLIST_MAIN_FUNESTRA = "main_player_playlist"
 BEING_WRITTEN_MARK = ".partial."
 
 
+def could_be_a_finished_video(name: str) -> bool:
+    return BEING_WRITTEN_MARK not in name.lower() and PCLOUDS_MARK_ON_A_CONFLICTED_COPY not in name.lower()
+
+
 def is_supported_video_path(path: str) -> bool:
     name = Path(path).name
-    return Path(name).suffix.lower() in SUPPORTED_VIDEO_EXTS and BEING_WRITTEN_MARK not in name.lower()
+    return Path(name).suffix.lower() in SUPPORTED_VIDEO_EXTS and could_be_a_finished_video(name)
 
 
 def source_roots(source_spec: str) -> list[Path]:

@@ -217,6 +217,7 @@ def test_the_librarys_ai_videos_are_the_ones_in_kinos_and_genaus_ai_folders(gena
                 genaus_folder / "flicks" / "2D" / "non_AI" / "scene four.mp4",
                 genaus_folder / "flicks" / "VR" / "scene five.mp4",
                 genaus_folder / "flicks" / "2D" / "AI" / "scene six.partial.mp4",
+                genaus_folder / "flicks" / "2D" / "AI" / "scene two [conflicted 2].mp4",
                 genaus_folder / "flicks" / "2D" / "AI" / "notes.txt"]
     for video in (*wanted, *unwanted):
         video.parent.mkdir(parents=True, exist_ok=True)
