@@ -1552,10 +1552,8 @@ def _osr2_slot(commands, sender: str) -> _SaysWhenItFirstMoves:
     return _SaysWhenItFirstMoves(Osr2Sender(sender, port=int(commands.osr2_slot_port)), sender)
 
 
-def _still_blank(main_unit: _MainUnit, satellites: Sequence[_SatelliteUnit],
-                 main_hud_unit: _MainHudUnit) -> tuple[str, ...]:
+def _still_blank(main_unit: _MainUnit, main_hud_unit: _MainHudUnit) -> tuple[str, ...]:
     frames = [(main_unit.screen_name, main_unit.texture_on_the_screen)]
-    frames += [(satellite.screen_name, satellite.target) for satellite in satellites]
     if main_hud_unit.in_the_room:
         frames.append((MAIN_HUD, main_hud_unit.texture))
     return tuple(name for name, frame in frames if not frame.has_frame)
@@ -1622,7 +1620,7 @@ class TheRoom:
             unit.render_latest_frame()
 
     def still_blank(self) -> tuple[str, ...]:
-        return _still_blank(self.main_unit, self.satellites, self.main_hud_unit)
+        return _still_blank(self.main_unit, self.main_hud_unit)
 
     def route_audio(self) -> None:
         for unit in self.videos:
