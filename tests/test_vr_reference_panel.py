@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from shared_ui.spacing import BUTTON_SIZE_HUD
 
 from fun_time_vr.reference_panel import (
     _PAD,
@@ -303,3 +304,9 @@ class TestTheHelperThatDrawsThem:
 
     def test_closing_before_it_was_wanted_ends_nothing(self, tmp_path):
         self._host(tmp_path, []).close()
+
+
+def test_the_page_buttons_are_the_size_of_every_other_button_in_the_headset():
+    sizes = {(rect.width, rect.height) for rect in reference_actions(PAGES).values()}
+
+    assert sizes == {(BUTTON_SIZE_HUD, BUTTON_SIZE_HUD)}
