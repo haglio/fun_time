@@ -339,12 +339,13 @@ class VoiceController:
 
     def _report_a_miss(self, heard: Heard) -> None:
         recognition = heard.recognition
-        if not heard.words_formed or not self._listened_to_when(heard.spoken_at):
+        if not heard.words_formed or self._muted.is_set():
             return
         doubted = recognition.refused_phrase or recognition.unconfirmed_phrase
         if doubted:
-            with self._not_sure_of_lock:
-                self._not_sure_of = _NotSureOf(doubted, heard.spoken_at)
+            if self._listened_to_when(heard.spoken_at):
+                with self._not_sure_of_lock:
+                    self._not_sure_of = _NotSureOf(doubted, heard.spoken_at)
             self._report_words(_NOT_SURE_ENOUGH, friendly_voice(doubted), heard_text=doubted,
                                spoken_at=heard.spoken_at)
         elif recognition.unrecognized_text:

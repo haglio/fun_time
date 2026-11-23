@@ -223,6 +223,18 @@ class TestHandleHeard:
         written = (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line).command for line in written] == ["quit"]
 
+    def test_words_it_did_not_know_while_omnipaused_are_answered_as_when_playing(
+            self, tmp_path, monkeypatch):
+        vc = _controller(tmp_path)
+        vc.suspend()
+        posted = []
+        monkeypatch.setattr(unlogged_messages, "post_to_inbox",
+                            lambda _port, line: posted.append(parse_event_line(line)) or True)
+
+        vc.handle_heard(_formed(Recognition(unrecognized_text="put the kettle on")))
+
+        assert [record.message for record in posted] == ["unrecognized voice command: put the kettle on"]
+
     def test_a_muted_app_stays_silent_while_omnipaused_too(self, tmp_path, monkeypatch):
         vc = _controller(tmp_path)
         vc.suspend()
