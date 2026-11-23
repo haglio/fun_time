@@ -199,6 +199,14 @@ class TestSetAlwaysOnTop:
         assert flags & win32.SWP_NOACTIVATE
 
 
+class _WaitsWrittenDown:
+    def __init__(self) -> None:
+        self.written: list[tuple[str, float, bool, int]] = []
+
+    def waited(self, what, took, *, answered, hwnd) -> None:
+        self.written.append((what, took, answered, hwnd))
+
+
 class TestAWindowThatHasStoppedAnswering:
     WHAT_A_CALL_THAT_NEVER_GAVE_UP_WOULD_COST_S = 10
 
@@ -260,16 +268,23 @@ class TestAWindowThatHasStoppedAnswering:
     def test_each_wait_on_another_programs_window_is_written_down(self, monkeypatch):
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         clock = iter([10.0, 10.25])
-        written: list[tuple[str, float, bool, int]] = []
-
-        class Spy:
-            def waited(self, what, took, *, answered, hwnd):
-                written.append((what, took, answered, hwnd))
+        waits = _WaitsWrittenDown()
 
         win32._without_hanging(lambda *_a: None, 111, what="place_window(111)",
-                               waits=Spy(), clock=lambda: next(clock))
+                               waits=waits, clock=lambda: next(clock))
 
-        assert written == [("place_window(111)", 0.25, True, 111)]
+        assert waits.written == [("place_window(111)", 0.25, True, 111)]
+
+    def test_a_call_made_on_the_callers_own_thread_is_written_down_too(self):
+        clock = iter([10.0, 10.25])
+        waits = _WaitsWrittenDown()
+
+        made = win32.on_the_record(lambda hwnd: hwnd == 222, 222,
+                                   what="force_foreground_window(222)", waits=waits,
+                                   clock=lambda: next(clock))
+
+        assert (made, waits.written) == (
+            True, [("force_foreground_window(222)", 0.25, True, 222)])
 
     def test_it_says_which_window_stopped_answering(self, monkeypatch, caplog):
         with (

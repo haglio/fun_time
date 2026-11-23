@@ -231,6 +231,16 @@ def _without_hanging(call, hwnd, *args, what: str, waits: WindowWaits | None = N
     return False
 
 
+def on_the_record[T](call: Callable[[int], T], hwnd: int, *, what: str,
+                     waits: WindowWaits | None = None,
+                     clock: Callable[[], float] = time.perf_counter) -> T:
+    asked_at = clock()
+    try:
+        return call(hwnd)
+    finally:
+        (waits or _WINDOW_WAITS).waited(what, clock() - asked_at, answered=True, hwnd=hwnd)
+
+
 _ONE_CALL_AT_A_TIME = CallsInTurn(lambda hwnd: f"win32-calls-to-{hwnd}")
 
 

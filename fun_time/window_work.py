@@ -14,6 +14,7 @@ from .rfb_modes import RfbMode
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import BridgeState
 from .shortcuts import Shortcut
+from .win32 import on_the_record
 from .window_names import visible_windows
 from .windows_bridge_random_faves_browser import open_rfb_tab
 
@@ -66,7 +67,9 @@ class WindowWork:
             logger.warning(
                 "%d RFB tab(s) skipped: no Random Faves Browser window to open into", len(urls))
             return
-        if not force_foreground_window(self.windows.rfb_hwnd):
+        rfb_hwnd = self.windows.rfb_hwnd
+        if not on_the_record(force_foreground_window, rfb_hwnd,
+                             what=f"force_foreground_window({rfb_hwnd})"):
             logger.info("RFB window did not take the foreground before the tab handoff")
         open_rfb_tab(urls=urls, shortcut=self.rfb_shortcut)
         logger.info("Opened %d RFB tab(s)", len(urls))
