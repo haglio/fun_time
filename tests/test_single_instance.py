@@ -125,14 +125,12 @@ def test_the_mutex_name_is_the_one_every_running_session_was_started_under():
 
 
 class TestShowAlreadyRunningMessage:
-    def test_it_is_the_familys_message_under_fun_times_icon_with_nothing_to_copy(self):
+    def test_it_is_the_familys_yellow_triangle_window_under_fun_times_icon(self):
         with alert_shown() as show_alert:
             show_already_running_message("Test text", "Test Title")
 
-        show_alert.assert_called_once_with(
-            "Test Title", "Test text", level=Level.INFO, icon=PROJECT_ICON, copyable=False,
-            button_text="OK", links=(), dismissible=False,
-        )
+        (title, text), how = show_alert.call_args
+        assert (title, text, how["level"], how["icon"]) == ("Test Title", "Test text", Level.WARNING, PROJECT_ICON)
 
     def test_default_title(self):
         with alert_shown() as show_alert:

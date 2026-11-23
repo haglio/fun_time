@@ -376,7 +376,7 @@ def last_lines_of(path: Path, count: int = 15) -> str:
 
 
 def report_a_failed_crossing(reason: str, log_file: Path) -> None:
-    from shared_ui.alert import Level, show_error  # noqa: PLC0415
+    from shared_ui.alert import show_error  # noqa: PLC0415
 
     message = f"{reason}\n\nSee the full log at:\n{log_file}"
     tail = last_lines_of(log_file)
@@ -384,7 +384,7 @@ def report_a_failed_crossing(reason: str, log_file: Path) -> None:
         message = f"{message}\n\nLast lines of the log:\n{tail}"
     logger.error("%s", reason)
     shown = preview_marker.shown_as()
-    show_error(preview_marker.app_title(shown), message, level=Level.ERROR,
+    show_error(preview_marker.app_title(shown), message,
                icon=preview_marker.icon_file(PROJECT_ICON, shown))
 
 

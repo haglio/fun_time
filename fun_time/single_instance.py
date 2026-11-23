@@ -52,8 +52,8 @@ def let_the_session_go(handle: int | None) -> None:
 
 def show_already_running_message(text: str, title: str | None = None) -> None:
     # Qt loads only for this: asking whether we may run draws nothing.
-    from shared_ui.alert import Level, show_warning  # noqa: PLC0415
+    from shared_ui.alert import show_warning  # noqa: PLC0415
 
     shown = preview_marker.shown_as()
-    show_warning(title or preview_marker.app_title(shown), text, level=Level.INFO,
+    show_warning(title or preview_marker.app_title(shown), text,
                 icon=preview_marker.icon_file(PROJECT_ICON, shown))
