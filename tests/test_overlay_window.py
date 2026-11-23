@@ -160,8 +160,7 @@ class TestTheOnlyTwoWaysDownFromOverEveryMonitor:
 
 
 def test_the_two_wordmarks_take_their_tone_from_one_place():
-    assert overlay_window.opening_panel("Starting...").ink == preview_marker.wordmark_ink(None)
-    assert preview_marker.wordmark_ink(None) == LOADING_ACCENT
+    assert overlay_window.opening_panel("Starting...").ink == LOADING_ACCENT
     assert overlay_window.opening_panel("Starting...").wordmark == preview_marker.APP_TITLE
 
 

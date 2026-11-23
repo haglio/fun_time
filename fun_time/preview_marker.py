@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 from app_support.win32 import described_taskbar_app, dress_window
-from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK, Rgb
 from shared_ui.preview import Preview, preview_of, taskbar_identity, window_title
 from shared_ui.preview_icon_pil import icon_file as inked_icon_file
 
@@ -47,6 +46,3 @@ def dress_the_window(hwnd: int) -> None:
     except OSError:
         logger.info("The taskbar keeps its own idea of window %s", hwnd, exc_info=True)
 
-
-def wordmark_ink(shown: Preview | None) -> Rgb:
-    return LOADING_ACCENT if shown is None else PREVIEW_INK
