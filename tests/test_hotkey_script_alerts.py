@@ -24,7 +24,7 @@ def test_the_hotkey_script_is_handed_the_family_window_that_offers_its_message_t
 
 
 def test_the_hotkey_script_tells_that_window_what_to_say_under_the_family_names():
-    for name in (COPYABLE_ALERT_COMMAND, copyable_alert.TITLE, copyable_alert.MESSAGE, copyable_alert.ICON):
+    for name in (COPYABLE_ALERT_COMMAND, copyable_alert.TITLE, copyable_alert.MESSAGE):
         assert f'"{name}"' in SCRIPT
 
 

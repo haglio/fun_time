@@ -535,7 +535,6 @@ Tell(message) {
     if (command != "") {
         EnvSet("HAGLIO_ALERT_TITLE", "Fun Time")
         EnvSet("HAGLIO_ALERT_MESSAGE", message)
-        EnvSet("HAGLIO_ALERT_ICON", "16")
         try {
             if (RunWait(command, , "Hide") = 0)
                 return
