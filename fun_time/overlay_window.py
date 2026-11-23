@@ -13,6 +13,7 @@ from PIL import ImageTk
 from shared_ui.loading_handover import TakingOver
 from shared_ui.loading_panel import LoadingPanel, icon_image, render, size
 from shared_ui.palette import LOADING_GROUND, as_hex
+from shared_ui.wordmark import wordmark_ink
 
 from . import preview_marker
 from .overlay_progress import (
@@ -41,7 +42,7 @@ def opening_panel(status: str) -> LoadingPanel:
     return LoadingPanel(
         wordmark=preview_marker.APP_TITLE,
         status=status,
-        ink=preview_marker.wordmark_ink(shown),
+        ink=wordmark_ink(shown),
         icon=icon_image(preview_marker.icon_file(PROJECT_ICON, shown)),
     )
 

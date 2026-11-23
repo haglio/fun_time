@@ -39,7 +39,7 @@ from shared_ui.colors import (
     dress_application,
     hovered,
 )
-from shared_ui.fonts import FONT_UI, SIZE_BODY
+from shared_ui.fonts import wordmark_font
 from shared_ui.foreground import bring_to_front
 from shared_ui.hard_to_miss import sure
 from shared_ui.icon_geometry import tooltip_for
@@ -49,6 +49,7 @@ from shared_ui.preview import Preview
 from shared_ui.preview_icon import app_icon
 from shared_ui.reference import REFERENCE_WINDOW_TITLE
 from shared_ui.spacing import BUTTON_RADIUS_HUD
+from shared_ui.wordmark import wordmark_ink
 
 from fun_time import preview_marker
 from fun_time.command_bell import ring as ring_the_bell
@@ -255,16 +256,9 @@ def build_dashboard_scene(
         return DashboardRectItem(control.rect, outline=outline, fill=fill)
 
     rects = tuple(_rect(control) for control in controls)
-    # The app-name lockup, styled like the loading screen: bold italic, wordmark tone.
-    # Built fresh (not via the cached make_font) so setItalic cannot leak into
-    # every other user of a shared QFont.
-    _font_app = QFont(FONT_UI, SIZE_BODY)
-    _font_app.setBold(True)
-    _font_app.setItalic(True)
-
     texts = (
         DashboardTextItem(preview_marker.APP_TITLE, layout.app_title,
-                          color=QColor(*preview_marker.wordmark_ink(shown_as)), font=_font_app),
+                          color=QColor(*wordmark_ink(shown_as)), font=wordmark_font()),
     )
     images = (
         DashboardImageItem(icons.icon(preview_marker.icon_file(PROJECT_ICON, shown_as),

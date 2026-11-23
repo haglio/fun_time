@@ -13,6 +13,7 @@ from shared_ui.loading_panel import LoadingPanel, Metrics, icon_image, render
 from shared_ui.palette import LOADING_GROUND
 from shared_ui.spacing import GAP_DIALOG
 from shared_ui.type_scale import SIZES, in_pixels
+from shared_ui.wordmark import wordmark_ink
 
 from fun_time import preview_marker
 from fun_time.overlay_progress import (
@@ -303,7 +304,7 @@ def paint_loading_screen(loading_screen: LoadingScreen) -> Image.Image:
         status=loading_screen.status,
         fraction=loading_screen.fraction,
         hint=loading_screen.hint,
-        ink=preview_marker.wordmark_ink(preview_marker.shown_as()),
+        ink=wordmark_ink(preview_marker.shown_as()),
         icon=icon_image(preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as())),
     ), HEADSET)
     width, height = LOADING_SCREEN_SIZE_PX

@@ -33,6 +33,7 @@ from shared_ui.spacing import (
     GAP_SMALL,
 )
 from shared_ui.type_scale import SIZE_SMALL, SIZE_TINY, in_pixels
+from shared_ui.wordmark import wordmark_ink
 
 from fun_time import preview_marker
 from fun_time.dashboard_actions import QUIT_BUTTON, QUIT_QUESTION
@@ -270,7 +271,7 @@ def paint_dash(state: DashState, records,
     if icon is not None:
         panel.alpha_composite(icon, (bar.app_icon.x, bar.app_icon.y))
     draw.text((bar.app_title.x, bar.app_title.y + 4), preview_marker.APP_TITLE,
-              font=wordmark, fill=preview_marker.wordmark_ink(shown_as))
+              font=wordmark, fill=wordmark_ink(shown_as))
     for control in state.controls():
         rect = control.rect
         button(draw, rect, control.lit or BG_BUTTON, lit=not control.dim and _on(rect, hover))
