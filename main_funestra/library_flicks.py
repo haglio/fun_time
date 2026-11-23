@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from funestra.flick_folder import flat_flicks_in, scan_flicks, trash_folder_for
-from funestra.genau import Narrow, Opening
+from funestra.genau import NarrowSaying, Opening
 from funestra.inclusion_pair import BOTH, Included
 from shared_ui.orientation import PORTRAIT
 
@@ -89,7 +89,7 @@ class LibraryFlicks:
         self._arrivals.hand_to(lineup)
         return lineup.picked
 
-    def apply_command(self, command: str, narrow: Narrow) -> bool:
+    def apply_command(self, command: str, narrow: NarrowSaying) -> bool:
         return answer_genaus_verb(command, self, narrow)
 
     def keep_favorites(self, on: bool) -> None:

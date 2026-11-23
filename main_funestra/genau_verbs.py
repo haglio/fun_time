@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from funestra.control_registry import Control, Verb, bind, look_up
-from funestra.genau import Narrow
+from funestra.genau import NarrowSaying
 from funestra.inclusion_pair import BOTH, ORIENTATION, Included
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS, PORTRAIT
 
@@ -37,7 +37,7 @@ def genau_orientations(included: Included) -> str:
 @dataclass(frozen=True)
 class _Asked:
     flicks: Any
-    narrow: Narrow
+    narrow: NarrowSaying
 
 
 def _switched_by(keep: Callable[[Any], Callable[[bool], None]]) -> Callable[[_Asked, str], bool]:
@@ -68,5 +68,5 @@ VERBS = bind((
 ))
 
 
-def apply_command(command: str, flicks: Any, narrow: Narrow) -> bool:
+def apply_command(command: str, flicks: Any, narrow: NarrowSaying) -> bool:
     return look_up(command, VERBS, _Asked(flicks, narrow))
