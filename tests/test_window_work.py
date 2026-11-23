@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from fun_time import win32
 from fun_time.bridge_records import Op, WindowOp
 from fun_time.rfb_modes import RfbMode
 from fun_time.session_environment import SessionEnvironment
@@ -88,6 +89,24 @@ class TestTheTabsWaitingForTheBrowser:
         assert waiting == []
         assert opened == [["https://example.com/one"]]
         assert work.pending_rfb_urls == []
+
+    def test_bringing_the_browser_to_the_front_is_written_down_with_the_other_window_calls(
+            self, tmp_path, monkeypatch):
+        opened: list = []
+        work, (exists, foreground, open_tab) = self._work(tmp_path, opened)
+        written: list[tuple[str, bool, int]] = []
+
+        class Spy:
+            def waited(self, what, _took, *, answered, hwnd):
+                written.append((what, answered, hwnd))
+
+        monkeypatch.setattr(win32, "_WINDOW_WAITS", Spy())
+        work.pending_rfb_urls = ["https://example.com/one"]
+
+        with exists, foreground, open_tab:
+            work.flush_rfb_tabs(BridgeState())
+
+        assert written == [(f"force_foreground_window({RFB_HWND})", True, RFB_HWND)]
 
     def test_the_tabs_of_one_tick_open_in_one_chrome_launch(self, tmp_path):
         opened: list = []
