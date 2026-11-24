@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from app_support.video_names import normalize_title
+from app_support.video_names import is_named_by_its_id, normalize_title
 from funestra.playlist import PlaylistItem
 
 from fun_time.media_metadata import NUMBER_IN_A_DOWNLOADED_SET, downloaded_set_number_of
@@ -36,6 +36,8 @@ def _title_tokens(stem: str) -> tuple[str, ...]:
 
 def _begins_the_same_scene(shorter: tuple[str, ...], longer: tuple[str, ...]) -> bool:
     if len(shorter) > len(longer) or longer[: len(shorter)] != shorter:
+        return False
+    if shorter != longer and is_named_by_its_id(" ".join(longer)):
         return False
     extra = longer[len(shorter):]
     return not (extra and NUMBER_IN_A_DOWNLOADED_SET.fullmatch(extra[0]))
