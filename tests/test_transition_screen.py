@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import inspect
 import os
-import sys
 import tempfile
 import threading
 import time
-from unittest.mock import patch
 
 from fun_time import orchestrator as desktop_orchestrator
 from fun_time import session_handoff, transition_screen
@@ -89,11 +87,3 @@ def test_a_crossing_file_older_than_its_screen_would_stand_is_not_a_return():
             stop()
         assert not returning_from_a_crossing(state_dir)
 
-
-def test_the_transition_screen_is_only_its_panel(tmp_path, monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["transition_screen", str(tmp_path / "crossing_progress.txt")])
-
-    with patch.object(transition_screen, "OverlayWindow") as window:
-        transition_screen.main()
-
-    assert window.opened.call_args.kwargs["covers_every_monitor"] is False

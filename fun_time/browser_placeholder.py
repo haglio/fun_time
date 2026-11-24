@@ -1,77 +1,67 @@
 from __future__ import annotations
 
-import contextlib
 import logging
-import threading
-from collections.abc import Callable, Iterator
-from typing import Protocol
+import subprocess
+import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 
+from app_support.subprocess_utils import tie_to_this_process
+
+from .checkout_overrides import sibling_checkouts_kwargs
+from .child_launch import no_child_log, no_console_window
+from .process_identity import NAMER
+from .win32 import find_window_by_title, wait_for_window
 from .window_layout import WindowRect
 
 logger = logging.getLogger(__name__)
 
 TITLE = "Fun Time browser placeholder"
-UP_WITHIN_S = 2.0
-LOOKS_FOR_ITS_END_EVERY_MS = 16
+UP_WITHIN_S = 5.0
 
 
-class Placeholder(Protocol):
-    def stand(self, rect: WindowRect, *, up: threading.Event, done: threading.Event) -> None: ...
+@dataclass
+class BrowserPlaceholder:
+    process: subprocess.Popen | None
+    hwnd: int
+
+    def take_it_down(self) -> None:
+        if self.process is not None and self.process.poll() is None:
+            self.process.kill()
 
 
-class _BlankTkWindow:
-    def stand(self, rect: WindowRect, *, up: threading.Event, done: threading.Event) -> None:
-        import tkinter as tk  # noqa: PLC0415
-
-        from shared_ui.palette import LOADING_GROUND, as_hex  # noqa: PLC0415
-
-        root = tk.Tk()
-        root.title(TITLE)
-        root.overrideredirect(True)
-        root.attributes("-topmost", True)
-        root.configure(bg=as_hex(LOADING_GROUND))
-        root.geometry(f"{rect.width}x{rect.height}+{rect.x}+{rect.y}")
-        root.update()
-        up.set()
-
-        def until_done() -> None:
-            if done.is_set():
-                root.destroy()
-            else:
-                root.after(LOOKS_FOR_ITS_END_EVERY_MS, until_done)
-
-        until_done()
-        root.mainloop()
-
-
-@contextlib.contextmanager
-def holding_the_browsers_place(rect: WindowRect, *,
-                               placeholder: Placeholder | None = None,
-                               start: Callable[[Callable[[], None]], threading.Thread] | None = None,
-                               up_within_s: float = UP_WITHIN_S) -> Iterator[None]:
-    up, done = threading.Event(), threading.Event()
-    standing = (placeholder or _BlankTkWindow()).stand
-    thread = (start or _a_thread_of_its_own)(lambda: _stand_or_say_why_not(standing, rect, up, done))
-    if not up.wait(up_within_s):
-        logger.warning("The browser placeholder was not up within %.0fs; opening the browser anyway",
+def stand_unseen_over(rect: WindowRect, *, sibling_checkouts: str,
+                      start: Callable[..., subprocess.Popen] = subprocess.Popen,
+                      up_within_s: float = UP_WITHIN_S) -> BrowserPlaceholder:
+    process = start(
+        [NAMER.named_exe(sys.executable, "BrowserPlaceholder"), "-m", "fun_time.browser_placeholder",
+         str(rect.x), str(rect.y), str(rect.width), str(rect.height)],
+        **no_child_log(), **no_console_window(), **sibling_checkouts_kwargs(sibling_checkouts))
+    tie_to_this_process(process)
+    hwnd = wait_for_window(lambda: find_window_by_title(TITLE, exact=True, include_hidden=True),
+                           up_within_s)
+    if not hwnd:
+        logger.warning("The browser placeholder was not up within %.0fs; the browser opens without it",
                        up_within_s)
-    try:
-        yield
-    finally:
-        done.set()
-        thread.join(up_within_s)
+    return BrowserPlaceholder(process, hwnd)
 
 
-def _stand_or_say_why_not(standing, rect: WindowRect, up: threading.Event,
-                          done: threading.Event) -> None:
-    try:
-        standing(rect, up=up, done=done)
-    except Exception:
-        logger.exception("The browser placeholder could not stand")
-        up.set()
+def main(argv: list[str] | None = None) -> None:
+    import tkinter as tk  # noqa: PLC0415
+
+    from shared_ui.palette import LOADING_GROUND, as_hex  # noqa: PLC0415
+
+    x, y, width, height = (int(word) for word in (argv or sys.argv[1:])[:4])
+    root = tk.Tk()
+    root.withdraw()
+    root.title(TITLE)
+    root.overrideredirect(True)
+    root.attributes("-topmost", True)
+    root.configure(bg=as_hex(LOADING_GROUND))
+    root.geometry(f"{width}x{height}+{x}+{y}")
+    root.update()
+    root.mainloop()
 
 
-def _a_thread_of_its_own(target: Callable[[], None]) -> threading.Thread:
-    thread = threading.Thread(target=target, name="browser-placeholder", daemon=True)
-    thread.start()
-    return thread
+if __name__ == "__main__":
+    main()

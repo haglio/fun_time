@@ -12,7 +12,6 @@ def main() -> None:
     progress_file = progress_file_argument("fun_time.closing_screen")
     OverlayWindow.opened(
         progress_file,
-        covers_every_monitor=True,
         title=WINDOW_TITLE,
         status="Closing...",
         stale_timeout_s=STALE_TIMEOUT_S,

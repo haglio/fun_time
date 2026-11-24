@@ -121,7 +121,6 @@ WAITING_FOR_FUNESTRAS: Phase = Phase("funestras", "Waiting for Funestras...", se
 
 APP_PHASES: tuple[Phase, ...] = (
     PREPARING_SERVICES,
-    Phase("browser", "Launching browser...", seconds=0.4),
     LAUNCHING_COMPANIONS,
     WAITING_FOR_FUNESTRAS,
     Phase("windows", "Positioning windows...", seconds=0.5),
@@ -139,7 +138,6 @@ CLOSING_COMPANIONS: Phase = Phase("companions", "Closing companions...", seconds
 
 SHUTDOWN_PHASES: tuple[Phase, ...] = (
     CLOSING_CONTROLS,
-    Phase("browser", "Closing browser...", seconds=A_CLOSING_STEP),
     CLOSING_FUNESTRAS,
     CLOSING_COMPANIONS,
 )

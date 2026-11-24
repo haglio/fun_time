@@ -114,11 +114,11 @@ class TestThePhases:
                 == STARTUP_PHASES[the_helpers_steps_then_the_last_line]
                 == (*ANNOUNCED_BY_THE_DESKTOPS_OWN_HELPERS, VR_STARTUP_PHASES[-1]))
 
-    def test_a_launch_that_opens_no_browser_or_windows_has_no_phase_for_them(self):
+    def test_a_launch_that_places_no_windows_has_no_phase_for_them(self):
         the_desktops_alone = {phase.key for phase in STARTUP_PHASES} - {
             phase.key for phase in VR_STARTUP_PHASES}
 
-        assert {"browser", "windows"} <= the_desktops_alone
+        assert {"windows"} <= the_desktops_alone
 
     def test_only_the_last_phase_claims_no_time(self):
         seconds = [phase.seconds for phase in VR_STARTUP_PHASES]

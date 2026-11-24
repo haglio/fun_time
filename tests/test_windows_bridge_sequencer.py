@@ -64,7 +64,7 @@ from fun_time.windows_bridge_sequencer import (
     _wait_for_main_funestra_loaded,
     release_the_funestras,
     run_startup_sequence,
-    show_the_satellites_as_they_draw,
+    wait_for_the_satellites_drawing,
 )
 from fun_time.windows_bridge_startup import GenauStart, HandedFunestra
 from tests.git_checkouts import a_worktree_of
@@ -184,7 +184,6 @@ def _sequencer_stubs(**overrides):
         "place_window": {},
         "restore_window": {},
         "find_window_by_title": {"return_value": LOADING_SCREEN},
-        "holding_the_browsers_place": {"side_effect": lambda _rect: contextlib.nullcontext()},
         "set_always_on_top": {},
         "is_process_alive": {"return_value": True},
         "launch_origenerator": {"side_effect": _fake_origenerator},
@@ -764,7 +763,7 @@ class TestRunStartupSequenceCancellation:
         ):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path,
-                progress=_CancelOnAdvance(cancel_on=5), hide_windows=True,
+                progress=_CancelOnAdvance(cancel_on=2),
             )
 
         stubs.close_tabs_it_did_not_open_while_it_starts.return_value.stop.assert_called_once_with()
@@ -777,7 +776,7 @@ class TestRunStartupSequenceCancellation:
 
         stubs.close_tabs_it_did_not_open_while_it_starts.assert_not_called()
 
-    def test_cancel_after_companions_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
+    def test_a_cancel_once_the_browser_is_open_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with (
@@ -786,11 +785,11 @@ class TestRunStartupSequenceCancellation:
         ):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path,
-                progress=_CancelOnAdvance(cancel_on=5), hide_windows=True,
+                progress=_CancelOnAdvance(cancel_on=2),
             )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID, ORIGENERATOR_PID, 50, 70}
+        assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID, ORIGENERATOR_PID}
         assert exc.rfb_hwnd == 7777
 
 
@@ -1016,17 +1015,27 @@ class TestPhase4Reveal:
         assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "0"
         sound.close()
 
-    def test_only_the_main_funestra_shows_while_startup_runs_and_it_shows_under_the_loading_screen(
-            self, cfg_factory, tmp_path):
+    def test_nothing_shows_while_startup_runs(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         topmost_calls: list[tuple] = []
-        self._run_hidden(
-            manifest_path, tmp_path, topmost_calls=topmost_calls,
-        )
+        with patch.object(windows_bridge_sequencer, "restore_window") as shown:
+            self._run_hidden(
+                manifest_path, tmp_path, topmost_calls=topmost_calls,
+            )
 
-        assert topmost_calls == [(2525, True, LOADING_SCREEN)], (
-            "the Satellites show once Origenerator has them drawing, after these phases end")
+        assert topmost_calls == []
+        shown.assert_not_called(), "every window shows at once as the loading screen goes"
+
+    def test_the_browser_waits_to_open_until_the_rest_of_fun_time_is_up(self, cfg_factory, tmp_path):
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        with _sequencer_stubs(_maybe_launch_random_faves_browser={"return_value": 7777}) as stubs:
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
+                                          hide_windows=True)
+
+        stubs._maybe_launch_random_faves_browser.assert_not_called()
+        assert result.rfb_hwnd == 0
 
 class TestMainFunestraGatesTheReveal:
     def test_the_funestras_phase_covers_the_wait_for_main_funestra(self, cfg_factory, tmp_path):
@@ -1047,7 +1056,6 @@ class TestMainFunestraGatesTheReveal:
 
         assert events == [
             "services",
-            "browser",
             "companions",
             "funestras",
             f"wait-for-main_player:{cfg.main_funestra.status_file}",
@@ -1091,7 +1099,7 @@ class TestMainFunestraGatesTheReveal:
             raise AssertionError(
                 "a Satellite opens on an empty list, so this wait can only run out")
 
-        with _sequencer_stubs(show_the_satellites_as_they_draw={"side_effect": wait}):
+        with _sequencer_stubs(wait_for_the_satellites_drawing={"side_effect": wait}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
 
     def test_every_wait_for_the_funestras_and_their_windows_keeps_the_loading_screen_up(
@@ -1242,32 +1250,6 @@ class TestMaybeLaunchRandomFavesBrowser:
         assert set(launch_kwargs) == {"shortcut"}
         assert launch_kwargs["shortcut"] == Shortcut("chrome.exe")
 
-    def test_a_placeholder_holds_the_browsers_place_until_chrome_is_placed_beneath_it(self):
-        m = self._browser_settings()
-        plan = self._fake_plan()
-        events: list = []
-
-        @contextlib.contextmanager
-        def holding(rect):
-            events.append(("placeholder up over", rect))
-            yield
-            events.append("placeholder down")
-
-        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut",
-                   return_value=Shortcut("chrome.exe")), \
-             patch("fun_time.windows_bridge_sequencer.find_windows_by_class", return_value=set()), \
-             patch("fun_time.windows_bridge_sequencer.launch_random_faves_browser",
-                   side_effect=lambda *_a, **_kw: events.append("Chrome opens") or MagicMock(should_launch=True)), \
-             patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
-             patch("fun_time.windows_bridge_sequencer.move_window",
-                   side_effect=lambda *_a, **_kw: events.append("Chrome placed")), \
-             patch("fun_time.windows_bridge_sequencer.dress_as_one_of_the_sessions_windows"), \
-             patch("fun_time.windows_bridge_sequencer.holding_the_browsers_place", side_effect=holding):
-            _maybe_launch_random_faves_browser(m, plan, env=SessionEnvironment(), hold_its_place=True)
-
-        assert events == [("placeholder up over", plan.random_faves_browser), "Chrome opens",
-                          "Chrome placed", "placeholder down"]
-
 
 class TestResolveSatelliteHwnds:
     def test_no_satellite_is_taken_for_the_other_by_its_title(self):
@@ -1286,58 +1268,36 @@ class TestResolveSatelliteHwnds:
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
 
 
-class TestEachSatelliteShowsOnceItDraws:
-    def _shown(self, tmp_path, *, landscape_draws_after_polls: int | None, sleep_limit: int | None = None):
-        portrait = tmp_path / "portrait_status.txt"
-        landscape = tmp_path / "landscape_status.txt"
-        portrait.write_text("position_ms=250\n", encoding="utf-8")
-        landscape.write_text("position_ms=0\n", encoding="utf-8")
-        shown: list[int] = []
+class TestWaitForTheSatellitesDrawing:
+    def test_the_wait_ends_under_a_clock_that_never_moves(self, tmp_path):
+        status_file = tmp_path / "portrait_status.txt"
+        status_file.write_text("position_ms=0\n", encoding="utf-8")
+        polls = int(SATELLITE_PLAY_TIMEOUT_S / _PLAY_POLL_S)
         slept: list[float] = []
 
         def sleep(seconds):
             slept.append(seconds)
-            if sleep_limit is not None:
-                assert len(slept) <= sleep_limit, "still polling under a clock that never moves"
-            if landscape_draws_after_polls is not None and len(slept) == landscape_draws_after_polls:
-                landscape.write_text("position_ms=250\n", encoding="utf-8")
+            assert len(slept) <= polls, "still polling under a clock that never moves"
 
-        with (
-            patch.object(windows_bridge_sequencer, "time",
-                         SimpleNamespace(monotonic=lambda: 0.0, sleep=sleep)),
-            patch.object(windows_bridge_sequencer, "show_once_ready", side_effect=shown.append),
-        ):
-            drew = show_the_satellites_as_they_draw({portrait: 22, landscape: 33}, SATELLITE_PLAY_TIMEOUT_S)
-        return drew, shown, slept
+        with patch.object(windows_bridge_sequencer, "time",
+                          SimpleNamespace(monotonic=lambda: 0.0, sleep=sleep)):
+            assert wait_for_the_satellites_drawing(
+                [status_file], SATELLITE_PLAY_TIMEOUT_S) is False
 
-    def test_a_satellite_already_drawing_shows_before_one_still_waiting(self, tmp_path):
-        drew, shown, _slept = self._shown(tmp_path, landscape_draws_after_polls=3)
-
-        assert drew is True
-        assert shown == [22, 33]
-
-    def test_a_satellite_that_never_draws_shows_once_the_wait_is_up(self, tmp_path):
-        polls = int(SATELLITE_PLAY_TIMEOUT_S / _PLAY_POLL_S)
-
-        drew, shown, slept = self._shown(tmp_path, landscape_draws_after_polls=None, sleep_limit=polls)
-
-        assert drew is False
-        assert shown == [22, 33]
         assert len(slept) == polls
 
-    def test_a_satellite_showing_an_image_is_drawing_though_an_image_has_no_position(self, tmp_path):
+    def test_a_satellite_showing_an_image_is_drawing_though_an_image_has_no_position(
+            self, tmp_path):
         status_file = tmp_path / "portrait_status.txt"
         status_file.write_text("position_ms=0\npicture=1\n", encoding="utf-8")
 
         def sleep(_seconds):
             raise AssertionError("waited for an image to play on, which it never does")
 
-        with (
-            patch.object(windows_bridge_sequencer, "time",
-                         SimpleNamespace(monotonic=lambda: 0.0, sleep=sleep)),
-            patch.object(windows_bridge_sequencer, "show_once_ready"),
-        ):
-            assert show_the_satellites_as_they_draw({status_file: 22}, SATELLITE_PLAY_TIMEOUT_S) is True
+        with patch.object(windows_bridge_sequencer, "time",
+                          SimpleNamespace(monotonic=lambda: 0.0, sleep=sleep)):
+            assert wait_for_the_satellites_drawing(
+                [status_file], SATELLITE_PLAY_TIMEOUT_S) is True
 
 
 class TestWaitForMainFunestraLoaded:

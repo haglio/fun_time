@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import configparser
-import contextlib
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,7 +11,6 @@ from pathlib import Path
 from funestra.modes import MainMode
 
 from . import preview_marker
-from .browser_placeholder import holding_the_browsers_place
 from .chrome_tabs import StartupTabCloser
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_deaths import (
@@ -463,15 +461,13 @@ def _settle_the_app_under_the_loading_screen(
             funestras=launched.funestras)
 
         progress.advance("windows")
-        hwnds_by_window = _place_the_windows_under_the_loading_screen(
+        return _place_the_windows_under_the_loading_screen(
             plan=plan,
             portrait_hwnd=portrait_hwnd,
             landscape_hwnd=landscape_hwnd,
             rfb_hwnd=launched.rfb_hwnd,
             dashboard_pid=launched.dashboard_pid,
         )
-        show_once_ready(hwnds_by_window["main_funestra"])
-        return hwnds_by_window
 
 
 def _run_startup_phases(
@@ -497,15 +493,12 @@ def _run_startup_phases(
         with timed_step(logger, "placing the windows"):
             hwnds_by_window = _position_windows_now(plan, env=env)
 
-    progress.advance("browser")
-    with timed_step(logger, "opening the Random Faves Browser"):
-        writing_the_browsers_pages.result()
-        rfb_hwnd = _maybe_launch_random_faves_browser(m.random_faves_browser, plan, env=env,
-                                                      hold_its_place=hide_windows)
+    writing_the_browsers_pages.result()
+    rfb_hwnd = 0
+    the_browser_opens_once_the_rest_is_up = hide_windows
+    if not the_browser_opens_once_the_rest_is_up:
+        rfb_hwnd, launched.rfb_tab_closer = open_the_browser(m, plan, env=env)
     launched.rfb_hwnd = rfb_hwnd
-    if rfb_hwnd:
-        launched.rfb_tab_closer = close_tabs_it_did_not_open_while_it_starts(
-            rfb_hwnd, m.random_faves_browser.manifest_file)
 
     progress.advance("companions")
     with timed_step(logger, "launching the dashboard and the sound companion"):
@@ -583,17 +576,23 @@ SATELLITE_PLAY_TIMEOUT_S = 25.0
 _PLAY_POLL_S = 0.1
 
 
-def show_the_satellites_as_they_draw(windows_by_status_file: Mapping[Path, int], timeout_s: float) -> bool:
-    waiting = dict(windows_by_status_file)
+def wait_for_the_satellites_drawing(status_files: Sequence[Path], timeout_s: float) -> bool:
+    files = [Path(path) for path in status_files]
     for _ in _polls_counted_rather_than_clocked(timeout_s):
-        for status_file in [path for path in waiting if _is_drawing(read_satellite_status(Path(path)))]:
-            show_once_ready(waiting.pop(status_file))
-        if not waiting:
+        if all(_is_drawing(read_satellite_status(path)) for path in files):
             return True
         time.sleep(_PLAY_POLL_S)
-    for hwnd in waiting.values():
-        show_once_ready(hwnd)
     return False
+
+
+def open_the_browser(m: LaunchManifest, plan: WindowLayoutPlan, *,
+                     env: SessionEnvironment) -> tuple[int, StartupTabCloser | None]:
+    with timed_step(logger, "opening the Random Faves Browser"):
+        rfb_hwnd = _maybe_launch_random_faves_browser(m.random_faves_browser, plan, env=env)
+    if not rfb_hwnd:
+        return 0, None
+    return rfb_hwnd, close_tabs_it_did_not_open_while_it_starts(
+        rfb_hwnd, m.random_faves_browser.manifest_file)
 
 
 def _is_drawing(status: SatelliteStatus) -> bool:
@@ -631,7 +630,6 @@ def _maybe_launch_random_faves_browser(
     plan: WindowLayoutPlan,
     *,
     env: SessionEnvironment,
-    hold_its_place: bool = False,
 ) -> int:
     if not settings.enabled:
         return 0
@@ -644,22 +642,20 @@ def _maybe_launch_random_faves_browser(
         logger.warning("Random Faves Browser skipped: could not resolve shortcut %s", shortcut_path)
         return 0
 
-    rect = plan.random_faves_browser
-    with holding_the_browsers_place(rect) if hold_its_place else contextlib.nullcontext():
-        before_hwnds = find_windows_by_class(CHROME_WINDOW_CLASS)
+    before_hwnds = find_windows_by_class(CHROME_WINDOW_CLASS)
 
-        result = launch_random_faves_browser(manifest_file, shortcut=shortcut)
-        if not result.should_launch:
-            logger.info("Random Faves Browser skipped: launch plan was empty")
-            return 0
+    result = launch_random_faves_browser(manifest_file, shortcut=shortcut)
+    if not result.should_launch:
+        logger.info("Random Faves Browser skipped: launch plan was empty")
+        return 0
 
-        new_hwnd = _wait_for_new_chrome_window(before_hwnds, timeout_ms=8000)
-        if not new_hwnd:
-            logger.warning("Random Faves Browser skipped: no new Chrome window appeared")
-            return 0
+    new_hwnd = _wait_for_new_chrome_window(before_hwnds, timeout_ms=8000)
+    if not new_hwnd:
+        logger.warning("Random Faves Browser skipped: no new Chrome window appeared")
+        return 0
 
-        move_window(new_hwnd, rect, activate=not env.integration)
-        dress_as_one_of_the_sessions_windows(new_hwnd)
+    move_window(new_hwnd, plan.random_faves_browser, activate=not env.integration)
+    dress_as_one_of_the_sessions_windows(new_hwnd)
     logger.info("Random Faves Browser positioned")
     return new_hwnd
 

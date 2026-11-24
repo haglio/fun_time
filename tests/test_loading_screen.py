@@ -19,16 +19,6 @@ class TestWhatTheScreenOpensOn:
         assert window.opened.call_args.kwargs["status"] == STARTUP_PHASES[0].message
 
 
-class TestWhereTheScreenSits:
-    def test_it_is_only_its_panel_leaving_every_window_that_is_ready_in_view(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["loading_screen", str(tmp_path / "progress.txt")])
-
-        with patch("fun_time.overlay_window.OverlayWindow") as window:
-            main()
-
-        assert window.opened.call_args.kwargs["covers_every_monitor"] is False
-
-
 class TestTheLaunchersLoadingScreen:
     def test_the_startup_loading_screen_takes_over_from_the_one_its_launcher_showed(self, tmp_path, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["loading_screen", str(tmp_path / "progress.txt")])

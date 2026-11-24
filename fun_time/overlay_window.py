@@ -12,7 +12,6 @@ from app_support.loading_screen import (
     Placement,
     Screens,
     on_the_apps_monitor,
-    over_every_monitor,
     screens,
 )
 from PIL import ImageTk
@@ -91,7 +90,6 @@ class OverlayWindow:
         panel: LoadingPanel,
         stale_timeout_s: float,
         taking_over: TakingOver,
-        covers_every_monitor: bool,
     ) -> None:
         self._progress_file = progress_file
         self._root = surface.root
@@ -105,7 +103,6 @@ class OverlayWindow:
         self._offering = False
         self._hwnd = 0
         self._placement: Placement | None = None
-        self._covers_every_monitor = covers_every_monitor
         self._placed_for_monitors: tuple | None = None
 
     @property
@@ -115,7 +112,7 @@ class OverlayWindow:
     @classmethod
     def opened(
         cls, progress_file: Path, *, title: str, status: str, stale_timeout_s: float,
-        covers_every_monitor: bool, taking_over: TakingOver | None = None,
+        taking_over: TakingOver | None = None,
     ) -> OverlayWindow:
         _lay_a_topmost_floor_under_the_screen()
 
@@ -134,7 +131,6 @@ class OverlayWindow:
         window = cls(
             progress_file, OverlaySurface(root, canvas, title), panel=opening_panel(status),
             stale_timeout_s=stale_timeout_s, taking_over=taking_over or TakingOver(None),
-            covers_every_monitor=covers_every_monitor,
         )
         canvas.show(window.panel)
         window._take_its_place()
@@ -183,8 +179,6 @@ class OverlayWindow:
         self._canvas.place_at(*placement.panel)
 
     def _placement_on(self, measured: Screens, *, first: bool) -> Placement:
-        if self._covers_every_monitor:
-            return over_every_monitor(size(), measured)
         if first and (launchers := self._taking_over.panel_for(size())) is not None:
             return Placement((*launchers, *size()), (0, 0))
         return on_the_apps_monitor(size(), measured, None)
@@ -243,7 +237,7 @@ class OverlayWindow:
         if not (progress := self._read_progress()).malformed and not progress.done:
             self._show(progress)
         self._root.update()
-        self._taking_over.done(self._panel, covers_every_monitor=self._covers_every_monitor)
+        self._taking_over.done(self._panel, covers_every_monitor=False)
         if on_shown is not None:
             on_shown()
         self._root.mainloop()
