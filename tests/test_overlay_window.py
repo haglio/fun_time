@@ -86,13 +86,15 @@ class _FakeCanvas:
 
 
 def _loading_screen(tmp_path: Path, *, stale_timeout_s: float = 5.0,
-           title: str = "Fun Time loading", taking_over: TakingOver | None = None) -> OverlayWindow:
+           title: str = "Fun Time loading", taking_over: TakingOver | None = None,
+           covers_every_monitor: bool = True) -> OverlayWindow:
     return OverlayWindow(
         tmp_path / "progress.txt",
         OverlaySurface(_TheOffscreenRootTkLacks(), _FakeCanvas(), title),
         panel=LoadingPanel(wordmark="Fun Time", status="Starting..."),
         stale_timeout_s=stale_timeout_s,
         taking_over=taking_over or TakingOver(None),
+        covers_every_monitor=covers_every_monitor,
     )
 
 
@@ -407,6 +409,58 @@ class TestTheLoadingScreenFollowsTheMonitorsItCovers:
         loading_screen = self._covering(tmp_path, [None])
 
         assert loading_screen._root.geometries == ["2560x1440+0+0"]
+
+
+class TestAPanelOnlyScreenSitsWhereTheOtherAppsPanelsDo:
+    SCREENS = Screens(virtual=(-1920, 0, 4480, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1400))
+
+    def _placed(self, tmp_path: Path, measured, taking_over: TakingOver | None = None):
+        loading_screen = _loading_screen(tmp_path, covers_every_monitor=False, taking_over=taking_over)
+        (tmp_path / "progress.txt").write_text("1/5|Starting...", encoding="utf-8")
+        with patch("fun_time.overlay_window.screens", side_effect=measured):
+            for _ in measured:
+                loading_screen._poll()
+        return loading_screen
+
+    def test_it_is_only_as_big_as_its_panel_in_the_middle_of_the_pointers_monitor(self, tmp_path: Path):
+        width, height = size()
+
+        loading_screen = self._placed(tmp_path, [self.SCREENS])
+
+        assert loading_screen._root.geometries == [f"{width}x{height}+{(2560 - width) // 2}+{(1400 - height) // 2}"]
+        assert loading_screen._canvas.placed == [(0, 0)]
+
+    def test_it_stays_put_when_the_pointer_moves_to_another_monitor(self, tmp_path: Path):
+        pointer_moved = replace(self.SCREENS, pointer_work_area=(-1920, 0, 1920, 1040))
+
+        loading_screen = self._placed(tmp_path, [self.SCREENS, pointer_moved])
+
+        assert len(loading_screen._root.geometries) == 1
+
+    def test_it_comes_back_to_the_pointers_monitor_when_the_monitors_change(self, tmp_path: Path):
+        width, height = size()
+        rearranged = Screens(virtual=(0, 0, 1920, 1080), primary=(1920, 1080), pointer_work_area=(0, 0, 1920, 1040))
+
+        loading_screen = self._placed(tmp_path, [self.SCREENS, rearranged])
+
+        assert loading_screen._root.geometries[-1] == f"{width}x{height}+{(1920 - width) // 2}+{(1040 - height) // 2}"
+
+    def test_it_stands_where_the_launchers_panel_stood(self, tmp_path: Path):
+        place = shared_loading_screen.MeetingPlace(tmp_path / "screen", ("Updating Fun Time...",))
+        place.stand(shared_loading_screen.Shown(left=300, top=200, fraction=0.5))
+        width, height = size()
+
+        loading_screen = self._placed(tmp_path, [self.SCREENS], taking_over=TakingOver(place))
+
+        assert loading_screen._root.geometries == [f"{width}x{height}+300+200"]
+
+    def test_once_up_it_tells_the_launcher_it_covers_only_its_panel(self, tmp_path: Path):
+        place = shared_loading_screen.MeetingPlace(tmp_path / "screen", ("Updating Fun Time...",))
+        loading_screen = _loading_screen(tmp_path, covers_every_monitor=False, taking_over=TakingOver(place))
+
+        loading_screen.run()
+
+        assert not place.snapshots().covers_every_monitor
 
 
 class TestTakingOverFromTheLaunchersLoadingScreen:

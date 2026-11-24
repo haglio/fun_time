@@ -10,8 +10,9 @@ STALE_TIMEOUT_S = LOADING_SCREEN_STALE_S
 
 def main() -> None:
     progress_file = progress_file_argument("fun_time.transition_screen")
-    OverlayWindow.over_every_monitor(
+    OverlayWindow.opened(
         progress_file,
+        covers_every_monitor=False,
         title=WINDOW_TITLE,
         status="Changing over...",
         stale_timeout_s=STALE_TIMEOUT_S,

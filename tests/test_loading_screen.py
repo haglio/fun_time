@@ -16,7 +16,17 @@ class TestWhatTheScreenOpensOn:
         with patch("fun_time.overlay_window.OverlayWindow") as window:
             main()
 
-        assert window.over_every_monitor.call_args.kwargs["status"] == STARTUP_PHASES[0].message
+        assert window.opened.call_args.kwargs["status"] == STARTUP_PHASES[0].message
+
+
+class TestWhereTheScreenSits:
+    def test_it_is_only_its_panel_leaving_every_window_that_is_ready_in_view(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["loading_screen", str(tmp_path / "progress.txt")])
+
+        with patch("fun_time.overlay_window.OverlayWindow") as window:
+            main()
+
+        assert window.opened.call_args.kwargs["covers_every_monitor"] is False
 
 
 class TestTheLaunchersLoadingScreen:
@@ -26,7 +36,7 @@ class TestTheLaunchersLoadingScreen:
         with patch("fun_time.overlay_window.OverlayWindow") as window,              taking_over_stand_in() as taking_over:
             main()
 
-        assert window.over_every_monitor.call_args.kwargs["taking_over"] is (
+        assert window.opened.call_args.kwargs["taking_over"] is (
             taking_over.from_the_launcher.return_value)
 
 
