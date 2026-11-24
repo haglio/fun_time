@@ -15,8 +15,13 @@ from funestra.program.placement import WindowPlacement
 
 from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
+from fun_time.win32 import find_window_by_title
 from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
+from fun_time.windows_bridge_sequencer import (
+    SATELLITE_PLAY_TIMEOUT_S,
+    show_the_satellites_as_they_draw,
+)
 from fun_time.windows_bridge_startup import ChildProgram, launch_satellite
 from satellite.contract import SatelliteChannels
 
@@ -28,6 +33,7 @@ from .integration_support import (
     published_ago,
     published_status,
     sample_library_videos,
+    seen_within,
     state_dir_of,
     the_runs_own_pythonw,
     this_checkouts_siblings,
@@ -119,11 +125,18 @@ class LoneSatellite:
         )
         self.process = identify_child(pid)
         try:
+            self._shown_once_drawing_as_fun_time_shows_it()
             yield self
         finally:
             self.send(QUIT)
             let_seconds_pass(1.0)
             end_satellite(self.process, self.log)
+
+
+    def _shown_once_drawing_as_fun_time_shows_it(self) -> None:
+        hwnd = seen_within(lambda: find_window_by_title("Portrait AI Funestra", exact=True,
+                                                        include_hidden=True), seconds=30.0)
+        show_the_satellites_as_they_draw({self.status: hwnd}, SATELLITE_PLAY_TIMEOUT_S)
 
 
 def a_lone_satellite() -> LoneSatellite:
