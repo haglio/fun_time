@@ -30,6 +30,7 @@ from .audio_volume import publish_audio_level
 from .broker_control import write_broker_command
 from .checkout_overrides import is_a_worktree, sibling_checkouts_kwargs
 from .child_launch import no_child_log, open_child_log
+from .ending_with_fun_time import tie_to_fun_time
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_settings import reports_published_in
 from .funestra_status import read_main_funestra_status
@@ -307,7 +308,7 @@ def _start_a_funestra(cmd: list[str], *, log_file: str | Path, sibling_checkouts
         proc = subprocess.Popen(
             cmd, stdout=the_launchers_handle_closed_at_once, stderr=the_launchers_handle_closed_at_once,
             **sibling_checkouts_kwargs(sibling_checkouts), **hidden_subprocess_kwargs())
-    return proc.pid
+    return tie_to_fun_time(proc)
 
 
 @dataclass(frozen=True)
@@ -428,8 +429,7 @@ def launch_origenerator(
         python_exe=python_exe, origenerator_dir=origenerator_dir, session=session)
     kwargs = origenerator_launch_kwargs(
         origenerator_dir=origenerator_dir, sibling_checkouts=sibling_checkouts)
-    proc = subprocess.Popen(cmd, **no_child_log(), **kwargs)
-    return proc.pid
+    return tie_to_fun_time(subprocess.Popen(cmd, **no_child_log(), **kwargs))
 
 
 def launch_main_funestra(
@@ -509,9 +509,11 @@ def launch_audio_companion(m: LaunchManifest, *, audio_device: str | None = None
     ]
     if audio_device:
         cmd.extend(["--audio-device", audio_device])
-    return subprocess.Popen(cmd, **no_child_log(),
+    proc = subprocess.Popen(cmd, **no_child_log(),
                             **sibling_checkouts_kwargs(program.sibling_checkouts),
                             **hidden_subprocess_kwargs(creationflags=AHEAD_OF_BACKGROUND_WORK))
+    tie_to_fun_time(proc)
+    return proc
 
 
 def _launch_the_dashboard(
@@ -529,9 +531,9 @@ def _launch_the_dashboard(
     kwargs = {**sibling_checkouts_kwargs(m.runtime.sibling_checkouts),
               **hidden_subprocess_kwargs(creationflags=AHEAD_OF_BACKGROUND_WORK)}
     if log_file is None:
-        return subprocess.Popen(cmd, **no_child_log(), **kwargs).pid
+        return tie_to_fun_time(subprocess.Popen(cmd, **no_child_log(), **kwargs))
     with open_child_log(log_file, cmd) as log:
-        return subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, **kwargs).pid
+        return tie_to_fun_time(subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, **kwargs))
 
 
 def launch_ui_companions(

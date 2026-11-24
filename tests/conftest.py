@@ -16,6 +16,7 @@ import tests.example_content_only  # noqa: F401
 from fun_time import (
     chrome_accessibility,
     closing_screen,
+    ending_with_fun_time,
     loading_screen,
     orchestrator,
     raising_the_loading_screen,
@@ -157,6 +158,18 @@ def _no_heartbeat_outlives_its_test_reading_its_tmp_path(monkeypatch):
 def _a_session_run_in_a_test_stays_behind_his_session(monkeypatch):
     for orchestrates in (orchestrator, vr_orchestrator):
         monkeypatch.setattr(orchestrates, "put_this_session_ahead_of_background_work", lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def tied_to_fun_time(monkeypatch) -> list:
+    tied: list = []
+
+    def recorded(part):
+        tied.append(part)
+
+    monkeypatch.setattr(ending_with_fun_time, "tie_to_this_process", recorded)
+    monkeypatch.setattr(ending_with_fun_time, "_TIES", {})
+    return tied
 
 
 @pytest.fixture(autouse=True)

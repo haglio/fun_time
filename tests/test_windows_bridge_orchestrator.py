@@ -25,7 +25,12 @@ from funestra.modes import MainMode
 from shared_ui.preview import Preview, window_title
 from shared_ui.testing import alert_shown
 
-from fun_time import closing_screen, session_ending, windows_bridge_orchestrator
+from fun_time import (
+    closing_screen,
+    ending_with_fun_time,
+    session_ending,
+    windows_bridge_orchestrator,
+)
 from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
 from fun_time.crown import Crown
@@ -3730,3 +3735,40 @@ def test_the_desktop_rooms_loop_is_handed_the_secondary_monitor_to_arrange(
 
     rects = runner.call_args.args[3].secondary_rects(majority=Crown.MAIN)
     assert (rects.portrait.height, rects.main.height) == (940, 2500)
+
+
+class _AJobThatRemembersBeingFreed:
+    freed = False
+
+    def let_its_processes_outlive_it(self) -> None:
+        self.freed = True
+
+
+def _origenerator_tied_to_fun_time(monkeypatch, pid: int) -> _AJobThatRemembersBeingFreed:
+    job = _AJobThatRemembersBeingFreed()
+    monkeypatch.setattr(ending_with_fun_time, "tie_to_this_process", lambda part: job)
+    ending_with_fun_time.tie_to_fun_time(SimpleNamespace(pid=pid))
+    return job
+
+
+def test_an_origenerator_parked_for_the_next_start_is_freed_to_outlive_fun_time(tmp_path, monkeypatch):
+    job = _origenerator_tied_to_fun_time(monkeypatch, 6060)
+
+    with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window", return_value=1), \
+         patch("fun_time.windows_bridge_orchestrator.hide_window"):
+        windows_bridge_orchestrator.see_the_hosted_app_out(
+            tmp_path, windows_bridge_orchestrator.ChildProcess(pid=6060, created_at=1),
+            tmp_path / "origenerator_cmd.txt", keep=True, taken_over=False)
+
+    assert job.freed
+
+
+def test_an_origenerator_closed_with_fun_time_stays_tied_to_it(tmp_path, monkeypatch):
+    job = _origenerator_tied_to_fun_time(monkeypatch, 6060)
+
+    with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window", return_value=0):
+        windows_bridge_orchestrator.see_the_hosted_app_out(
+            tmp_path, windows_bridge_orchestrator.ChildProcess(pid=6060, created_at=1),
+            tmp_path / "origenerator_cmd.txt", keep=False, taken_over=False)
+
+    assert not job.freed

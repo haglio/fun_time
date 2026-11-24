@@ -483,6 +483,17 @@ class TestLaunchVrFunestras:
         assert kept["creationflags"] & subprocess.CREATE_NO_WINDOW
 
 
+    def test_the_funestra_ends_with_fun_time(self, tmp_path, tied_to_fun_time):
+        with patch("fun_time_vr.orchestrator.subprocess.Popen") as popen:
+            launch_vr_funestras(
+                python_exe=tmp_path / "python.exe",
+                manifest_path=tmp_path / "windows_bridge_launch.ini",
+                log_file=tmp_path / "vr_funestras.log",
+            )
+
+        assert tied_to_fun_time == [popen.return_value]
+
+
 class TestWaitForFunestra:
     class _Alive:
         returncode = None

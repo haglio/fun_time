@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image
 from shared_ui.spacing import BUTTON_SIZE_HUD
 
+from fun_time_vr.helper_processes import start_helper
 from fun_time_vr.reference_panel import (
     _PAD,
     NEXT_PAGE,
@@ -225,6 +227,8 @@ class TestThePagesOnDisk:
 
 
 class _FakeProcess:
+    pid = 31
+
     def __init__(self, command, *, exits_with=None, **kwargs) -> None:
         self.command = command
         self.exits_with = exits_with
@@ -310,3 +314,11 @@ def test_the_page_buttons_are_the_size_of_every_other_button_in_the_headset():
     sizes = {(rect.width, rect.height) for rect in reference_actions(PAGES).values()}
 
     assert sizes == {(BUTTON_SIZE_HUD, BUTTON_SIZE_HUD)}
+
+
+def test_a_helper_the_headset_starts_ends_with_fun_time(tied_to_fun_time):
+    started = SimpleNamespace(pid=31)
+
+    assert start_helper("Reference", "a.module", [], python_exe="python.exe",
+                        launch=lambda *args, **kwargs: started) is started
+    assert tied_to_fun_time == [started]

@@ -45,6 +45,7 @@ from .desktop_session import (
     StartupEnd,
     taken_over_origenerator,
 )
+from .ending_with_fun_time import free_from_fun_time
 from .event_log import (
     EVERYTHING_THE_DIAL_CAN_SHOW,
     LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME,
@@ -258,6 +259,7 @@ def _park_it_sparing_the_next_startup_its_boot(
         return False
     append_command(command_file, CLOSE_SLIDESHOWS)
     _take_it_out_of_alt_tab(window_to_adopt)
+    free_from_fun_time(child.pid)
     keep_the_origenerator(state_dir, pid=child.pid, created_at=child.created_at,
                           taken_over=taken_over)
     logger.info("Leaving the hosted Origenerator running (pid=%d)", child.pid)
