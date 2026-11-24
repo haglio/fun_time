@@ -25,7 +25,7 @@
     "tests/integration/main_verifier.py": 6,
     "tests/integration/run_clock.py": 5,
     "tests/integration/session_lock.py": 1,
-    "tests/integration/test_a_part_closing_ends_the_app_integration.py": 2,
+    "tests/integration/test_a_part_closing_ends_the_app_integration.py": 1,
     "tests/integration/test_abandoned_screen_integration.py": 3,
     "tests/integration/test_fun_time_integration.py": 1,
     "tests/integration/test_genau_trash_integration.py": 3,
