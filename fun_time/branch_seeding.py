@@ -3,10 +3,9 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-PRIVATE_OVERLAYS = (
-    Path("content.local.json"),
-    Path("fun_time") / "static" / "regen_autofill.user.js",
-)
+from app_support.site_pages import FILL_SCRIPT
+
+PRIVATE_OVERLAYS = (Path("content.local.json"), FILL_SCRIPT)
 
 WATCH_STATS_NAME = "watch_stats.json"
 

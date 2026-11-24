@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
+from app_support.site_pages import page_address
 from app_support.state_files import OSR2_SERIAL_RX
 from app_support.threading_utils import wait_until
 from funestra.file_channel import publish_whole
@@ -65,7 +66,6 @@ from fun_time.media_metadata import (
 from fun_time.mode_switches import PLAY_IN_KINO
 from fun_time.modes import scripted_item
 from fun_time.origenerator_opening import OrigeneratorNeverCameUp
-from fun_time.regen import build_regen_url
 from fun_time.rfb_modes import RfbMode
 from fun_time.rfb_slideshow import RfbSlideshow
 from fun_time.session_environment import SessionEnvironment
@@ -114,9 +114,9 @@ from tests.made_up_state import remembered_values, shifted_state
 BROWSE_PID = 424242
 BROWSE_HWND = 909090
 
-LINK_CARRYING_A_PROMPT = build_regen_url(
+LINK_CARRYING_A_PROMPT = page_address(
     {"video": {"prompt": "a made-up prompt"}},
-    video_url="https://example.com/video", image_url="https://example.com/create",
+    video_page="https://example.com/video", image_page="https://example.com/create",
 )
 
 

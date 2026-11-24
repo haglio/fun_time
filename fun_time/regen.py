@@ -1,72 +1,13 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from urllib.parse import quote
 
 from app_support.kino_folder import is_ai_video
-from app_support.local_time import when_words
+from app_support.site_pages import page_address
 
 from .content import WebProvider, provider_that_made
 from .gallery import Gallery
 from .media_metadata import recorded_for
-
-_IMAGE_SETTINGS = [
-    ("Model", "model"),
-    ("Resolution", "resolution"),
-    ("Aspect ratio", "aspect_ratio"),
-    ("Quality", "quality"),
-    ("Style", "style"),
-    ("Creativity", "creativity"),
-    ("Seed", "seed"),
-    ("Created", "created"),
-]
-_VIDEO_SETTINGS = [
-    ("Model", "model"),
-    ("Action", "action"),
-    ("Resolution", "resolution"),
-    ("Aspect ratio", "aspect_ratio"),
-    ("Quality", "quality"),
-    ("Seed", "seed"),
-    ("Created", "created"),
-]
-
-
-def _settings_pairs(block: dict, keys: list[tuple[str, str]]) -> list[list[str]]:
-    return [[label, _shown(key, str(block[key]))] for label, key in keys if block.get(key)]
-
-
-def _shown(key: str, value: str) -> str:
-    return when_words(value) if key == "created" else value
-
-
-def build_payload(metadata: dict) -> dict:
-    video = metadata.get("video") or {}
-    source = metadata.get("source_image") or None
-    if source:
-        return {
-            "kind": "image",
-            "positive": source.get("positive_prompt", ""),
-            "negative": source.get("negative_prompt", ""),
-            "settings": _settings_pairs(source, _IMAGE_SETTINGS),
-            "video_prompt": video.get("prompt", ""),
-            "video_settings": _settings_pairs(video, _VIDEO_SETTINGS),
-        }
-    return {
-        "kind": "video",
-        "positive": video.get("prompt", ""),
-        "negative": "",
-        "settings": _settings_pairs(video, _VIDEO_SETTINGS),
-        "video_prompt": "",
-        "video_settings": [],
-    }
-
-
-def build_regen_url(metadata: dict, *, video_url: str, image_url: str) -> str:
-    payload = build_payload(metadata)
-    base = image_url if payload["kind"] == "image" else video_url
-    encoded = quote(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
-    return f"{base}#ft={encoded}"
 
 
 def _records_a_prompt(metadata: dict) -> bool:
@@ -90,7 +31,7 @@ def regen_url_for_video(
     metadata = _what_made(video_path, metadata_root, gallery)
     if not _records_a_prompt(metadata):
         return ""
-    url = build_regen_url(metadata, video_url=video_url, image_url=image_url)
+    url = page_address(metadata, video_page=video_url, image_page=image_url)
     return url if maker.serves(url) else ""
 
 
