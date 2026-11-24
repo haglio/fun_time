@@ -25,6 +25,7 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.checkout_overrides import apply_this_checkouts_overrides, sibling_checkouts_kwargs
 from fun_time.child_launch import open_child_log
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
+from fun_time.ending_with_fun_time import tie_to_fun_time
 from fun_time.event_log import open_event_log
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
@@ -202,9 +203,11 @@ def launch_vr_funestras(
 ) -> subprocess.Popen:
     command = [str(python_exe), "-m", VR_FUNESTRAS_MODULE, "--manifest", str(manifest_path)]
     with open_child_log(log_file, command) as log:
-        return subprocess.Popen(command, stdout=log, stderr=log,
-                                **sibling_checkouts_kwargs(sibling_checkouts),
-                                **hidden_subprocess_kwargs())
+        funestras = subprocess.Popen(command, stdout=log, stderr=log,
+                                     **sibling_checkouts_kwargs(sibling_checkouts),
+                                     **hidden_subprocess_kwargs())
+    tie_to_fun_time(funestras)
+    return funestras
 
 
 def _wait_for_funestra(

@@ -1751,7 +1751,7 @@ def test_a_satellites_launch_command_passes_no_config_flag():
     assert "--config" not in cmd
 
 
-def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: Path):
+def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: Path, tied_to_fun_time):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1769,6 +1769,7 @@ def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: 
         )
 
     assert pid == 51
+    assert [part.pid for part in tied_to_fun_time] == [51]
     assert popen.call_args.kwargs["creationflags"] == 1
     assert popen.call_args.args[0][:3] == ["python.exe", "-m", "satellite"]
     argv = popen.call_args.args[0]
@@ -1950,7 +1951,7 @@ def _handed_funestras() -> dict[str, HandedFunestra]:
     }
 
 
-def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
+def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path, tied_to_fun_time):
     class FakeProc:
         pid = 77
 
@@ -1978,6 +1979,7 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
         )
 
     assert pid == 77
+    assert [part.pid for part in tied_to_fun_time] == [77]
     command = popen.call_args.args[0]
     assert command[:3] == ["C:/py/python.exe", "-m", "origenerator"]
     assert "--fun-time" in command
@@ -2206,3 +2208,33 @@ def test_a_satellite_opens_where_nobody_sees_it_until_it_draws(tmp_path: Path):
         )
 
     assert "--hidden" in popen.call_args.args[0]
+
+
+def test_the_main_funestra_ends_with_fun_time(tmp_path: Path, tied_to_fun_time):
+    class FakeProc:
+        pid = 7
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()), patch(
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
+    ):
+        launch_main_funestra(**_a_main_funestra_launch(tmp_path))
+
+    assert [part.pid for part in tied_to_fun_time] == [7]
+
+
+def test_the_dashboard_and_the_audio_companion_end_with_fun_time(tmp_path: Path, tied_to_fun_time):
+    class FakeProc:
+        pid = 8
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()), patch(
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
+    ):
+        launch_ui_companions(
+            _a_companions_manifest(tmp_path, dashboard_enabled=True),
+            plan=_A_UI_PLAN,
+            manifest_path=tmp_path / "manifest.ini",
+            dashboard_log_file=None,
+            result_file=tmp_path / "result.ini",
+        )
+
+    assert len(tied_to_fun_time) == 2
