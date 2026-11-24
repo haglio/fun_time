@@ -11,7 +11,7 @@ from app_support.subprocess_utils import tie_to_this_process
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
 from .process_identity import NAMER
-from .win32 import find_window_by_title, wait_for_window
+from .win32 import wait_for_window_by_title
 from .window_layout import WindowRect
 
 logger = logging.getLogger(__name__)
@@ -38,8 +38,7 @@ def stand_unseen_over(rect: WindowRect, *, sibling_checkouts: str,
          str(rect.x), str(rect.y), str(rect.width), str(rect.height)],
         **no_child_log(), **no_console_window(), **sibling_checkouts_kwargs(sibling_checkouts))
     tie_to_this_process(process)
-    hwnd = wait_for_window(lambda: find_window_by_title(TITLE, exact=True, include_hidden=True),
-                           up_within_s)
+    hwnd = wait_for_window_by_title(TITLE, timeout_s=up_within_s, exact=True, include_hidden=True)
     if not hwnd:
         logger.warning("The browser placeholder was not up within %.0fs; the browser opens without it",
                        up_within_s)
