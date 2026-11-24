@@ -17,8 +17,8 @@ RECT = WindowRect(x=10, y=20, width=300, height=400)
 def _stood(*, found: int = 777, **kwargs):
     start = MagicMock(return_value=MagicMock(pid=5))
     with patch.object(browser_placeholder, "tie_to_this_process"), \
-            patch.object(browser_placeholder, "wait_for_window",
-                         side_effect=lambda look, _seconds: found):
+            patch.object(browser_placeholder, "wait_for_window_by_title",
+                         side_effect=lambda _title, **_kw: found):
         placeholder = stand_unseen_over(RECT, sibling_checkouts="", start=start, **kwargs)
     return placeholder, start
 
@@ -56,7 +56,7 @@ def test_standing_the_placeholder_loads_no_tk_into_the_process_that_stands_it():
          "from fun_time import browser_placeholder as b\n"
          "from fun_time.window_layout import WindowRect\n"
          "b.tie_to_this_process = lambda _p: None\n"
-         "b.wait_for_window = lambda _look, _s: 0\n"
+         "b.wait_for_window_by_title = lambda _t, **_kw: 0\n"
          "b.stand_unseen_over(WindowRect(0, 0, 1, 1), sibling_checkouts='', start=MagicMock())\n"
          "print('tkinter' in sys.modules)\n"],
         capture_output=True, text=True, cwd=str(Path(__file__).resolve().parent.parent),
