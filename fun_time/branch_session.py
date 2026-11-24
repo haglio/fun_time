@@ -34,6 +34,7 @@ from .config import (
     ProjectConfig,
     load_config,
 )
+from .process_identity import NAMER
 from .project_paths import (
     PROJECT_ICON,
     SIBLING_CHECKOUTS_OVERRIDE_NAME,
@@ -231,7 +232,8 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
         return _refuse(worktree, stopped.for_him, str(stopped))
     config_path = build_branch_config(
         worktree, primary=primary, primary_config_path=primary_config_path)
-    command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
+    command = [NAMER.named_exe(sys.executable, "Orchestrator"), "-m", ORCHESTRATOR_MODULES[vr],
+               "--config", str(config_path)]
     print(f"Running {subprocess.list2cmdline(command)}\n  in {worktree}", flush=True)
     session = subprocess.Popen(
         command, cwd=str(worktree), env={**os.environ, preview_marker.FLAG: "1"},
