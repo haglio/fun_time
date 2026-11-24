@@ -8,7 +8,13 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
-from app_support.loading_screen import Placement, Screens, over_every_monitor, screens
+from app_support.loading_screen import (
+    Placement,
+    Screens,
+    on_the_apps_monitor,
+    over_every_monitor,
+    screens,
+)
 from PIL import ImageTk
 from shared_ui.loading_handover import TakingOver
 from shared_ui.loading_panel import LoadingPanel, icon_image, render, size
@@ -85,6 +91,7 @@ class OverlayWindow:
         panel: LoadingPanel,
         stale_timeout_s: float,
         taking_over: TakingOver,
+        covers_every_monitor: bool,
     ) -> None:
         self._progress_file = progress_file
         self._root = surface.root
@@ -98,15 +105,17 @@ class OverlayWindow:
         self._offering = False
         self._hwnd = 0
         self._placement: Placement | None = None
+        self._covers_every_monitor = covers_every_monitor
+        self._placed_for_monitors: tuple | None = None
 
     @property
     def panel(self) -> LoadingPanel:
         return self._panel
 
     @classmethod
-    def over_every_monitor(
+    def opened(
         cls, progress_file: Path, *, title: str, status: str, stale_timeout_s: float,
-        taking_over: TakingOver | None = None,
+        covers_every_monitor: bool, taking_over: TakingOver | None = None,
     ) -> OverlayWindow:
         _lay_a_topmost_floor_under_the_screen()
 
@@ -125,9 +134,10 @@ class OverlayWindow:
         window = cls(
             progress_file, OverlaySurface(root, canvas, title), panel=opening_panel(status),
             stale_timeout_s=stale_timeout_s, taking_over=taking_over or TakingOver(None),
+            covers_every_monitor=covers_every_monitor,
         )
         canvas.show(window.panel)
-        window._cover_every_monitor()
+        window._take_its_place()
 
         window._have_esc_land_on_this_screen()
 
@@ -158,8 +168,13 @@ class OverlayWindow:
         self._canceling_holds_against_later_phases = True
         self._redraw(status=CANCELING, hint="")
 
-    def _cover_every_monitor(self) -> None:
-        placement = over_every_monitor(size(), screens() or self._screens_as_tk_sees_them())
+    def _take_its_place(self) -> None:
+        measured = screens() or self._screens_as_tk_sees_them()
+        monitors = (measured.virtual, measured.primary)
+        if monitors == self._placed_for_monitors:
+            return
+        placement = self._placement_on(measured, first=self._placed_for_monitors is None)
+        self._placed_for_monitors = monitors
         if placement == self._placement:
             return
         self._placement = placement
@@ -167,12 +182,19 @@ class OverlayWindow:
         self._root.geometry(f"{width}x{height}+{x}+{y}")
         self._canvas.place_at(*placement.panel)
 
+    def _placement_on(self, measured: Screens, *, first: bool) -> Placement:
+        if self._covers_every_monitor:
+            return over_every_monitor(size(), measured)
+        if first and (launchers := self._taking_over.panel_for(size())) is not None:
+            return Placement((*launchers, *size()), (0, 0))
+        return on_the_apps_monitor(size(), measured, None)
+
     def _screens_as_tk_sees_them(self) -> Screens:
         whole = (self._root.winfo_screenwidth(), self._root.winfo_screenheight())
         return Screens(virtual=(0, 0, *whole), primary=whole, pointer_work_area=(0, 0, *whole))
 
     def _poll(self) -> None:
-        self._cover_every_monitor()
+        self._take_its_place()
         progress = self._read_progress()
         try:
             if self._one_of_its_two_ways_down_is_open(progress):
@@ -221,7 +243,7 @@ class OverlayWindow:
         if not (progress := self._read_progress()).malformed and not progress.done:
             self._show(progress)
         self._root.update()
-        self._taking_over.done(self._panel, covers_every_monitor=True)
+        self._taking_over.done(self._panel, covers_every_monitor=self._covers_every_monitor)
         if on_shown is not None:
             on_shown()
         self._root.mainloop()
