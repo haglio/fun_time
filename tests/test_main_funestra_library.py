@@ -76,6 +76,22 @@ class TestGroupVersions:
         assert groups[0].canonical is upscale
         assert groups[0].alternates == [original]
 
+    def test_videos_a_site_named_by_id_alone_each_keep_only_their_own_versions(self):
+        plain_word = _entry("video_topaz.mp4", size=50)
+        first = _entry("video-3f9a1c7e.mp4", size=10)
+        first_upscale = _entry("video-3f9a1c7e_topaz.mp4", size=400)
+        second = _entry("video-8b2d4e60.mp4", size=20)
+        all_digits = _entry("video-30917452_topaz.mp4", size=30)
+
+        groups = group_versions([plain_word, first, first_upscale, second, all_digits])
+
+        assert sorted(sorted(e.video.name for e in g.entries) for g in groups) == [
+            ["video-30917452_topaz.mp4"],
+            ["video-3f9a1c7e.mp4", "video-3f9a1c7e_topaz.mp4"],
+            ["video-8b2d4e60.mp4"],
+            ["video_topaz.mp4"],
+        ]
+
     def test_numbered_scenes_with_shared_prefix_stay_separate(self):
         one = _entry("Mary-Roe-1_1080-wxyzabcd.mp4", size=1043)
         two = _entry("Mary-Roe-2_720-mnpq12rs.mp4", size=347)
