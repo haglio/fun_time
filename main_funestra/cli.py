@@ -54,6 +54,7 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--height", type=int, default=900)
     p.add_argument("--x", type=int, default=None)
     p.add_argument("--y", type=int, default=None)
+    p.add_argument("--hidden", action="store_true", default=False)
     p.add_argument("--origenerator-command-file", type=Path, default=None,
                    help="Where Genau tells the Origenerator this session hosts of each "
                         "flick it sent to Trash; left off, the flick waits there alone")

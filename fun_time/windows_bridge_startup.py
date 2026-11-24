@@ -17,7 +17,7 @@ from app_support.win32 import process_started, take_the_overlay_icon_off
 from funestra import broker
 from funestra.file_channel import append_command
 from funestra.inclusion_pair import BOTH, Included
-from funestra.program.launch import launch_command
+from funestra.program.launch import Asked, launch_command
 from funestra.program.placement import WindowPlacement
 from funestra.robot_hand import FULL_INTENSITY
 
@@ -460,6 +460,7 @@ def launch_main_funestra(
         str(rect.height),
         "--icon",
         _the_session_icon(),
+        "--hidden",
         *the_taskbar_identity_a_child_must_be_told(),
         "--genau-command-file",
         str(commands.genau_cmd_file),
@@ -593,6 +594,9 @@ def launch_core_apps(
     )
 
 
+UNTIL_FUN_TIME_SHOWS_IT = Asked(hidden=True)
+
+
 def launch_satellite(
     program: ChildProgram,
     *,
@@ -602,5 +606,5 @@ def launch_satellite(
     log_file: str | Path,
 ) -> int:
     cmd = launch_command(NAMER.named_exe(program.python_exe, role), channels, placement,
-                         module=program.module)
+                         UNTIL_FUN_TIME_SHOWS_IT, module=program.module)
     return _start_a_funestra(cmd, log_file=log_file, sibling_checkouts=program.sibling_checkouts)

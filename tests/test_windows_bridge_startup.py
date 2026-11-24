@@ -1491,6 +1491,7 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
         "400",
         "--icon",
         str(PROJECT_ICON),
+        "--hidden",
         *the_taskbar_identity_a_child_must_be_told(),
         "--genau-command-file",
         "a-state-dir/genau_cmd.txt",
@@ -2181,3 +2182,27 @@ def test_a_slow_start_says_how_long_each_satellite_took_to_launch(tmp_path: Path
 
     assert _steps_timed_in(caplog) == [
         "launching the Portrait satellite", "launching the Landscape satellite"]
+
+
+def test_the_main_funestra_opens_where_nobody_sees_it_until_its_video_is_up(tmp_path: Path):
+    command = _launched_main_funestra(tmp_path)
+
+    assert main_funestra_parser({}).parse_args(command[command.index("-m") + 2:]).hidden is True
+
+
+def test_a_satellite_opens_where_nobody_sees_it_until_it_draws(tmp_path: Path):
+    class FakeProc:
+        pid = 51
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
+    ):
+        launch_satellite(
+            ChildProgram("python.exe", "satellite"),
+            channels=_a_satellite_channels(),
+            placement=WindowPlacement(title="Portrait AI Funestra"),
+            role="Portrait",
+            log_file=tmp_path / "portrait_satellite.log",
+        )
+
+    assert "--hidden" in popen.call_args.args[0]

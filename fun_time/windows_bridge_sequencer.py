@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import configparser
+import contextlib
 import logging
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 from funestra.modes import MainMode
 
 from . import preview_marker
+from .browser_placeholder import holding_the_browsers_place
 from .chrome_tabs import StartupTabCloser
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_deaths import (
@@ -24,6 +26,7 @@ from .funestra_status import (
     read_main_funestra_status,
 )
 from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
+from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .manifest import LaunchManifest, RandomFavesBrowserSettings
 from .mode_plan import STARTUP_MAIN_MODE, kino_shows
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
@@ -39,8 +42,11 @@ from .shortcuts import resolve_shortcut
 from .sound_wake import tell_the_sound
 from .startup_steps import timed_step
 from .win32 import (
+    find_window_by_title,
     find_windows_by_class,
     move_window,
+    place_window,
+    restore_window,
     set_always_on_top,
     wait_for_window_by_title,
 )
@@ -376,8 +382,9 @@ def _position_windows_now(plan: WindowLayoutPlan, *, env: SessionEnvironment) ->
     hwnds_by_window = apply_startup_window_state(StartupWindows(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True),
+        main_funestra_hwnd=_the_main_funestras_window(),
     ))
+    show_once_ready(hwnds_by_window.get("main_funestra", 0))
     logger.info("Startup window state applied")
     return hwnds_by_window
 
@@ -426,15 +433,15 @@ def _place_the_windows_under_the_loading_screen(
     rfb_hwnd: int,
     dashboard_pid: int,
 ) -> dict[str, int]:
-    _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
-    _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
-    logger.info("Core windows positioned (deferred reveal)")
+    _place_unseen(portrait_hwnd, plan.portrait, "portrait satellite")
+    _place_unseen(landscape_hwnd, plan.landscape, "landscape satellite")
+    logger.info("Core windows positioned, each to show once it draws")
 
     hwnds_by_window = StartupWindows(
         rfb_hwnd=rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True),
+        main_funestra_hwnd=_the_main_funestras_window(),
         dashboard_hwnd=_the_dashboard_hidden_under_the_loading_screen(dashboard_pid),
     ).by_name()
     logger.info("Startup windows resolved (bands deferred past the overlay)")
@@ -456,13 +463,15 @@ def _settle_the_app_under_the_loading_screen(
             funestras=launched.funestras)
 
         progress.advance("windows")
-        return _place_the_windows_under_the_loading_screen(
+        hwnds_by_window = _place_the_windows_under_the_loading_screen(
             plan=plan,
             portrait_hwnd=portrait_hwnd,
             landscape_hwnd=landscape_hwnd,
             rfb_hwnd=launched.rfb_hwnd,
             dashboard_pid=launched.dashboard_pid,
         )
+        show_once_ready(hwnds_by_window["main_funestra"])
+        return hwnds_by_window
 
 
 def _run_startup_phases(
@@ -491,7 +500,8 @@ def _run_startup_phases(
     progress.advance("browser")
     with timed_step(logger, "opening the Random Faves Browser"):
         writing_the_browsers_pages.result()
-        rfb_hwnd = _maybe_launch_random_faves_browser(m.random_faves_browser, plan, env=env)
+        rfb_hwnd = _maybe_launch_random_faves_browser(m.random_faves_browser, plan, env=env,
+                                                      hold_its_place=hide_windows)
     launched.rfb_hwnd = rfb_hwnd
     if rfb_hwnd:
         launched.rfb_tab_closer = close_tabs_it_did_not_open_while_it_starts(
@@ -540,23 +550,49 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
         logger.warning("Could not find window for %s", label)
 
 
+def _place_unseen(hwnd: int, rect: WindowRect, label: str) -> None:
+    if hwnd:
+        place_window(hwnd, *rect)
+        logger.info("Placed %s (hwnd=%d) at %d,%d %dx%d", label, hwnd, *rect)
+    else:
+        logger.warning("Could not find window for %s", label)
+
+
+def show_once_ready(hwnd: int) -> None:
+    if not hwnd:
+        return
+    set_always_on_top(hwnd, True, under=find_window_by_title(LOADING_SCREEN_TITLE, exact=True))
+    restore_window(hwnd, activate=False)
+
+
+def _a_window_not_yet_shown(title: str) -> int:
+    return wait_for_window_by_title(title, timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True,
+                                    include_hidden=True)
+
+
+def _the_main_funestras_window() -> int:
+    return _a_window_not_yet_shown("Main Funestra")
+
+
 def _resolve_satellite_hwnds() -> tuple[int, int]:
-    return (
-        wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True),
-        wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True),
-    )
+    return (_a_window_not_yet_shown(SATELLITE_PORTRAIT_TITLE),
+            _a_window_not_yet_shown(SATELLITE_LANDSCAPE_TITLE))
 
 
 SATELLITE_PLAY_TIMEOUT_S = 25.0
 _PLAY_POLL_S = 0.1
 
 
-def wait_for_the_satellites_drawing(status_files: Sequence[Path], timeout_s: float) -> bool:
-    files = [Path(path) for path in status_files]
+def show_the_satellites_as_they_draw(windows_by_status_file: Mapping[Path, int], timeout_s: float) -> bool:
+    waiting = dict(windows_by_status_file)
     for _ in _polls_counted_rather_than_clocked(timeout_s):
-        if all(_is_drawing(read_satellite_status(path)) for path in files):
+        for status_file in [path for path in waiting if _is_drawing(read_satellite_status(Path(path)))]:
+            show_once_ready(waiting.pop(status_file))
+        if not waiting:
             return True
         time.sleep(_PLAY_POLL_S)
+    for hwnd in waiting.values():
+        show_once_ready(hwnd)
     return False
 
 
@@ -595,6 +631,7 @@ def _maybe_launch_random_faves_browser(
     plan: WindowLayoutPlan,
     *,
     env: SessionEnvironment,
+    hold_its_place: bool = False,
 ) -> int:
     if not settings.enabled:
         return 0
@@ -607,21 +644,22 @@ def _maybe_launch_random_faves_browser(
         logger.warning("Random Faves Browser skipped: could not resolve shortcut %s", shortcut_path)
         return 0
 
-    before_hwnds = find_windows_by_class(CHROME_WINDOW_CLASS)
-
-    result = launch_random_faves_browser(manifest_file, shortcut=shortcut)
-    if not result.should_launch:
-        logger.info("Random Faves Browser skipped: launch plan was empty")
-        return 0
-
-    new_hwnd = _wait_for_new_chrome_window(before_hwnds, timeout_ms=8000)
-    if not new_hwnd:
-        logger.warning("Random Faves Browser skipped: no new Chrome window appeared")
-        return 0
-
     rect = plan.random_faves_browser
-    move_window(new_hwnd, rect, activate=not env.integration)
-    dress_as_one_of_the_sessions_windows(new_hwnd)
+    with holding_the_browsers_place(rect) if hold_its_place else contextlib.nullcontext():
+        before_hwnds = find_windows_by_class(CHROME_WINDOW_CLASS)
+
+        result = launch_random_faves_browser(manifest_file, shortcut=shortcut)
+        if not result.should_launch:
+            logger.info("Random Faves Browser skipped: launch plan was empty")
+            return 0
+
+        new_hwnd = _wait_for_new_chrome_window(before_hwnds, timeout_ms=8000)
+        if not new_hwnd:
+            logger.warning("Random Faves Browser skipped: no new Chrome window appeared")
+            return 0
+
+        move_window(new_hwnd, rect, activate=not env.integration)
+        dress_as_one_of_the_sessions_windows(new_hwnd)
     logger.info("Random Faves Browser positioned")
     return new_hwnd
 

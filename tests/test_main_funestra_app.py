@@ -115,6 +115,31 @@ class TestAWindowFunTimeResizes:
         assert _said(_call(_function("_open_window"), "take_outside_resizes").args[0]) == "pygame"
 
 
+class TestAWindowFunTimeShows:
+    def _flags_it_opens_with(self, monkeypatch, *, hidden: bool) -> int:
+        opened = []
+        stand_in = SimpleNamespace(
+            init=lambda: None, NOFRAME=0x20, HIDDEN=0x80,
+            display=SimpleNamespace(
+                set_mode=lambda size, flags: opened.append(flags),
+                set_caption=lambda _title: None,
+                get_wm_info=lambda: {"window": 7}))
+        monkeypatch.setattr(app, "pygame", stand_in)
+        for name in ("before_the_window_exists", "replace_pygames_logo_with",
+                     "take_outside_resizes", "wear_the_sessions_taskbar_button"):
+            monkeypatch.setattr(app, name, lambda *_args, **_kwargs: None)
+
+        app._open_window(SimpleNamespace(x=None, y=None, width=10, height=10, icon=None,
+                                         taskbar_identity="", hidden=hidden))
+        return opened[0]
+
+    def test_a_window_fun_time_will_show_opens_where_nobody_sees_it(self, monkeypatch):
+        assert self._flags_it_opens_with(monkeypatch, hidden=True) == 0x20 | 0x80
+
+    def test_a_window_nobody_will_show_opens_in_view(self, monkeypatch):
+        assert self._flags_it_opens_with(monkeypatch, hidden=False) == 0x20
+
+
 class TestTheWindowsIcon:
     def test_the_icon_is_worn_before_sdl_makes_the_window(self):
         opening = _function("_open_window")

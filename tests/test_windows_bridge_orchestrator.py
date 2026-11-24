@@ -3188,25 +3188,28 @@ class TestTheSatellitesAreWaitedForOnceOrigeneratorHasThem:
                     status_file=tmp_path / "origenerator_status.txt"))),
             window_work=SimpleNamespace(windows=SimpleNamespace(
                 pids=SimpleNamespace(origenerator=0))),
-            satellites_status_files=lambda: [
-                tmp_path / "portrait_status.txt", tmp_path / "landscape_status.txt"],
+            satellites_status_files=lambda: {
+                "portrait": tmp_path / "portrait_status.txt",
+                "landscape": tmp_path / "landscape_status.txt"},
         )
 
-        def wait(status_files, _timeout_s):
-            events.append(("waited for", sorted(Path(file).name for file in status_files)))
+        def wait(windows_by_status_file, _timeout_s):
+            events.append(("showed as they drew", sorted(
+                (Path(file).name, hwnd) for file, hwnd in windows_by_status_file.items())))
             return drawing
 
-        with patch.object(windows_bridge_orchestrator, "wait_for_the_satellites_drawing",
-                          side_effect=wait, create=True):
+        with patch.object(windows_bridge_orchestrator, "show_the_satellites_as_they_draw",
+                          side_effect=wait):
             windows_bridge_orchestrator.finish_under_the_loading_screen(
-                runner, None, progress=NullProgress())
+                runner, None, progress=NullProgress(),
+                windows_by_satellite={"portrait": 22, "landscape": 33})
         return events
 
     def test_the_loading_screen_stays_up_until_the_satellites_origenerator_took_are_drawing(
             self, tmp_path):
         assert self._finish(tmp_path, drawing=True) == [
             "Origenerator took the Satellites",
-            ("waited for", ["landscape_status.txt", "portrait_status.txt"]),
+            ("showed as they drew", [("landscape_status.txt", 33), ("portrait_status.txt", 22)]),
         ], "a Satellite has nothing to draw until Origenerator hands it a list"
 
     @pytest.mark.real_startup_waits
