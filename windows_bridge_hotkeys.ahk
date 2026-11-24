@@ -140,29 +140,27 @@ w::QueueCommand("landscape_trash")
 s::QueueCommand("landscape_lock")
 ; Landscape's half of the loop cycle above.
 e::QueueCommand("landscape_loop")
-; The shifted step keys walk the versions of the clip on screen -- the upscale
-; the library plays and the original it was made from -- as they do on the Main
-; Funestra's own side (+m / +SC034 below).  The map's own row, which they used to walk,
-; is still reachable by clicking a thumbnail.
-+Left::QueueCommand("portrait_cycle_version_back")
-+Right::QueueCommand("portrait_cycle_version")
-+a::QueueCommand("landscape_cycle_version_back")
-+d::QueueCommand("landscape_cycle_version")
-; Alt with the step keys steps the image on screen through its fixes, the whole
-; image counting as one of them, as Alt does in Standalone Origenerator.
-!Left::QueueCommand("portrait_prev_fix")
-!Right::QueueCommand("portrait_next_fix")
-!a::QueueCommand("landscape_prev_fix")
-!d::QueueCommand("landscape_next_fix")
-; HUD map keyboard navigation: Shift + up/down moves a selection down the
-; portrait map's action column and Shift + W/S down the landscape map's, each
-; switching the satellite to the selected clip (like a thumbnail click).  These
-; are distinct from the unshifted nav keys above, and are suspended under
-; OmniPause like the rest.
-+Up::QueueCommand("portrait_nav_up")
-+Down::QueueCommand("portrait_nav_down")
-+w::QueueCommand("landscape_nav_up")
-+s::QueueCommand("landscape_nav_down")
+; Shift with up and down walks the enhancements of the item on screen, as Shift with
+; K and the comma does on the Main Funestra's side below; Shift with left and right
+; steps the image on screen through its fixes, the whole image counting as one.
++Up::QueueCommand("portrait_cycle_version")
++Down::QueueCommand("portrait_cycle_version_back")
++w::QueueCommand("landscape_cycle_version")
++s::QueueCommand("landscape_cycle_version_back")
++Left::QueueCommand("portrait_prev_fix")
++Right::QueueCommand("portrait_next_fix")
++a::QueueCommand("landscape_prev_fix")
++d::QueueCommand("landscape_next_fix")
+; Alt with the step keys moves round the Nav Map, switching the Satellite to the item
+; it lands on: left and right along the row of seeds, up and down the column of actions.
+!Left::QueueCommand("portrait_nav_left")
+!Right::QueueCommand("portrait_nav_right")
+!Up::QueueCommand("portrait_nav_up")
+!Down::QueueCommand("portrait_nav_down")
+!a::QueueCommand("landscape_nav_left")
+!d::QueueCommand("landscape_nav_right")
+!w::QueueCommand("landscape_nav_up")
+!s::QueueCommand("landscape_nav_down")
 ; Where each Funestra's HUD sits.  Ctrl and the Funestra's own step keys move its
 ; HUD a step toward that side: round the four corners of its picture on the
 ; desktop, against a side of its Funestra in the headset.  The Main Funestra
@@ -203,8 +201,8 @@ r up:: {
 ; The Main Funestra's shifted step keys (M and the period) walk the other
 ; versions of the current video either way, as the shifted step keys on each
 ; Satellite do.
-+m::QueueCommand("main_funestra_cycle_version_back")
-+SC034::QueueCommand("main_funestra_cycle_version")
++k::QueueCommand("main_funestra_cycle_version")
++SC033::QueueCommand("main_funestra_cycle_version_back")
 
 ; Robot Hand hotkeys.  Each pair reads left-down / right-up: 7/9 sit
 ; above u/o for amplitude, the way u/o and j/l already work for center and speed.
