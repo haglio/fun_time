@@ -424,8 +424,8 @@ def test_one_row_steps_every_funestra_through_its_enhancements():
     assert versions.description == "cycle enhancement"
     assert versions.detail == "the Evolved version, the original it was made from, or an enhancement"
     assert versions.voice == ("version", "change version", "cycle version", "next version")
-    assert versions.key_columns == (("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D"),
-                                    ("Shift+M", "Shift+."))
+    assert versions.key_columns == (("Shift+Down", "Shift+Up"), ("Shift+S", "Shift+W"),
+                                    ("Shift+,", "Shift+K"))
     assert not [row for row in _all_rows() if row.description.startswith("step through")]
 
 
@@ -679,16 +679,16 @@ def test_the_main_funestras_step_and_hold_keys_reach_whatever_is_on_it():
     assert _keys(_the_row_of("main_nudge_next")) == ("+",)
 
 
-def test_the_shifted_and_ctrl_pairs_followed_m_and_the_period():
-    assert _ahk_bindings_for("main_funestra_cycle_version_back") == ["+m"]
-    assert _ahk_bindings_for("main_funestra_cycle_version") == ["+SC034"]
+def test_the_shifted_pair_follows_k_and_the_comma_and_the_ctrl_pairs_all_four():
+    assert _ahk_bindings_for("main_funestra_cycle_version_back") == ["+SC033"]
+    assert _ahk_bindings_for("main_funestra_cycle_version") == ["+k"]
     assert _ahk_bindings_for("main_hud_left") == ["^m"]
     assert _ahk_bindings_for("main_hud_right") == ["^SC034"]
     assert _ahk_bindings_for("main_hud_up") == ["^k"]
     assert _ahk_bindings_for("main_hud_down") == ["^SC033"]
     assert not re.search(r"^[+^]?(\[|\]|SC01A|SC01B)::", script_text(), re.MULTILINE)
     assert "clockwise" not in script_text()
-    assert _the_row_of("main_funestra_cycle_version_back").key_columns[2] == ("Shift+M", "Shift+.")
+    assert _the_row_of("main_funestra_cycle_version_back").key_columns[2] == ("Shift+,", "Shift+K")
     assert [_the_row_of(f"main_hud_{direction}").key_columns[2] for direction in
             ("left", "right", "up", "down")] == [("Ctrl+M",), ("Ctrl+.",), ("Ctrl+K",), ("Ctrl+,",)]
 
@@ -1217,10 +1217,11 @@ def test_both_ways_into_omnipause_show_on_the_space_row():
     assert "pause" in space_row.voice
 
 
-def test_the_nav_map_columns_line_up_each_running_up_then_down():
+def test_the_nav_map_columns_line_up_each_running_left_right_up_then_down():
     row = _the_row_of("portrait_nav_up")
 
-    assert row.key_columns == (("Shift+Up", "Shift+Down"), ("Shift+W", "Shift+S"), ())
+    assert row.key_columns == (("Alt+Left", "Alt+Right", "Alt+Up", "Alt+Down"),
+                               ("Alt+A", "Alt+D", "Alt+W", "Alt+S"), ())
 
 
 def test_relief_omnipause_row_shows_shift_esc_and_the_single_word_name():

@@ -325,11 +325,14 @@ _SECTIONS: tuple[_Section, ...] = (
             )),
             _Group("Nav map", (
                 _Row(
-                    "navigate the map — move the lit cell up or down its column of "
-                    "actions, switching to that one",
-                    commands=("portrait_nav_up", "portrait_nav_down",
+                    "navigate the map — move the lit cell left or right along its row "
+                    "of seeds, or up or down its column of actions, switching to that one",
+                    commands=("portrait_nav_left", "portrait_nav_right",
+                              "portrait_nav_up", "portrait_nav_down",
+                              "landscape_nav_left", "landscape_nav_right",
                               "landscape_nav_up", "landscape_nav_down"),
-                    columns=(("Shift+Up", "Shift+Down"), ("Shift+W", "Shift+S")),
+                    columns=(("Alt+Left", "Alt+Right", "Alt+Up", "Alt+Down"),
+                             ("Alt+A", "Alt+D", "Alt+W", "Alt+S")),
                 ),
                 _Row(
                     "cycle action — same seed or initial image, another action",
@@ -474,15 +477,15 @@ _SECTIONS: tuple[_Section, ...] = (
                               "landscape_cycle_version_back", "landscape_cycle_version",
                               "satellites_cycle_version",
                               "main_funestra_cycle_version_back", "main_funestra_cycle_version"),
-                    columns=(("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D"),
-                             ("Shift+M", "Shift+.")),
+                    columns=(("Shift+Down", "Shift+Up"), ("Shift+S", "Shift+W"),
+                             ("Shift+,", "Shift+K")),
                 ),
                 _Row(
                     "cycle fix — the close-up on each fix found in the image, then the "
                     "whole image",
                     commands=("portrait_prev_fix", "portrait_next_fix",
                               "landscape_prev_fix", "landscape_next_fix"),
-                    columns=(("Alt+Left", "Alt+Right"), ("Alt+A", "Alt+D")),
+                    columns=(("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D")),
                 ),
                 _Row(
                     "crown the Main Funestra or the Portrait Funestra — the crowned "
