@@ -9,9 +9,9 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import Future
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 
@@ -25,9 +25,11 @@ from voice_core.whisper_reader import WhisperReader
 
 from . import preview_marker
 from .append_only import append_line
+from .browser_placeholder import BrowserPlaceholder, stand_unseen_over
 from .calls_in_turn import AtOnce
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
+from .chrome_tabs import StartupTabCloser
 from .command_bell import ring as ring_the_bell
 from .config import load_config
 from .crown import majority_now
@@ -132,6 +134,7 @@ from .win32 import (
     find_window_by_pid,
     hide_window,
     iter_zorder,
+    restore_window,
     set_always_on_top,
     wait_for_window_by_title,
     windows_obscuring,
@@ -139,6 +142,7 @@ from .win32 import (
 from .win32_events import PressAndCaretWatch
 from .win32_process import is_process_alive
 from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
+from .window_names import window_is_topmost
 from .window_waits import THE_LOOPS_THREAD
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -153,9 +157,10 @@ from .windows_bridge_sequencer import (
     StartupWindows,
     apply_startup_window_state,
     apply_topmost_bands,
+    open_the_browser,
     release_the_funestras,
     run_startup_sequence,
-    show_the_satellites_as_they_draw,
+    wait_for_the_satellites_drawing,
 )
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -294,15 +299,12 @@ def let_go_of_a_kept_origenerator(state_dir: Path, command_file: Path) -> None:
 
 
 def _shutdown_children(
-    rfb_hwnd: int,
     children: dict[str, ChildProcess],
     progress: ProgressReporter,
     *,
     state_dir: Path,
     farewell: HostedAppFarewell = NO_FAREWELL,
 ) -> None:
-    progress.advance("browser")
-    close_window(rfb_hwnd)
     spared = see_the_hosted_app_out(
         state_dir, children.get("origenerator_pid"), farewell.command_file,
         keep=farewell.keep, taken_over=farewell.taken_over)
@@ -496,8 +498,29 @@ def _log_window_obstruction(name: str, hwnd: int, *, covers_it_by_design: int = 
         logger.info("%s (hwnd=%d) is frontmost over its rect at startup", name, hwnd)
 
 
+def _a_funestra_not_yet_shown(pid: int, title: str) -> int:
+    return find_window_by_pid(pid, include_hidden=True) or wait_for_window_by_title(
+        title, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True)
+
+
+def _show_them_at_once(hwnds: Sequence[int]) -> None:
+    for hwnd in hwnds:
+        if hwnd:
+            restore_window(hwnd, activate=False)
+
+
+def hide_them_at_once(hwnds: Sequence[int]) -> None:
+    for hwnd in hwnds:
+        if hwnd:
+            hide_window(hwnd)
+
+
+_NO_PLACEHOLDER = BrowserPlaceholder(None, 0)
+
+
 def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
-                              rfb_mode: RfbMode = RfbMode.RFB) -> dict[str, int]:
+                              rfb_mode: RfbMode = RfbMode.RFB,
+                              placeholder: BrowserPlaceholder = _NO_PLACEHOLDER) -> dict[str, int]:
     dash_hwnd = 0
     if result.dashboard_pid:
         dash_hwnd = find_window_by_pid(result.dashboard_pid)
@@ -506,15 +529,9 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
                 preview_marker.app_title(preview_marker.shown_as()),
                 timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True)
 
-    main_funestra_hwnd = find_window_by_pid(result.main_funestra_pid) or wait_for_window_by_title(
-        "Main Funestra", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
-    )
-    portrait_hwnd = find_window_by_pid(result.portrait_pid) or wait_for_window_by_title(
-        SATELLITE_PORTRAIT_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
-    )
-    landscape_hwnd = find_window_by_pid(result.landscape_pid) or wait_for_window_by_title(
-        SATELLITE_LANDSCAPE_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
-    )
+    main_funestra_hwnd = _a_funestra_not_yet_shown(result.main_funestra_pid, "Main Funestra")
+    portrait_hwnd = _a_funestra_not_yet_shown(result.portrait_pid, SATELLITE_PORTRAIT_TITLE)
+    landscape_hwnd = _a_funestra_not_yet_shown(result.landscape_pid, SATELLITE_LANDSCAPE_TITLE)
     hwnds_by_window = apply_startup_window_state(
         StartupWindows(
             rfb_hwnd=result.rfb_hwnd,
@@ -526,6 +543,7 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
         rfb_mode=rfb_mode,
     )
     logger.info("Post-loading window state corrected")
+    _show_them_at_once((main_funestra_hwnd, portrait_hwnd, landscape_hwnd, placeholder.hwnd))
     _settle_the_funestras(
         _funestras_to_settle(
             portrait_hwnd=portrait_hwnd, landscape_hwnd=landscape_hwnd,
@@ -610,18 +628,30 @@ def seat_the_secondary_monitor(manifest: LaunchManifest, hwnds_by_window: dict[s
                    calls=AtOnce()).seat(rects(majority=most))
 
 
+@dataclass(frozen=True)
+class OpenedBrowser:
+    hwnd: int = 0
+    tab_closer: StartupTabCloser | None = None
+
+
 def _reveal_the_app(
     result: StartupResult,
     *,
     manifest: LaunchManifest,
     loading_screen: RaisedLoadingScreen,
     before_the_loading_screen_goes: Callable[[], RfbMode] = lambda: RfbMode.RFB,
-) -> None:
+    env: SessionEnvironment = ORDINARY_SESSION,
+) -> OpenedBrowser:
     rfb_mode = before_the_loading_screen_goes()
+    plan = screen_layout(manifest.layout).plan
+    placeholder = (stand_unseen_over(plan.random_faves_browser,
+                                     sibling_checkouts=manifest.runtime.sibling_checkouts)
+                   if manifest.random_faves_browser.enabled else _NO_PLACEHOLDER)
     loading_screen.progress.advance("finalizing")
 
     hwnds_by_window = _fix_post_loading_windows(
-        result, overlay_hwnd=loading_screen.visible_window(), rfb_mode=rfb_mode)
+        result, overlay_hwnd=loading_screen.visible_window(), rfb_mode=rfb_mode,
+        placeholder=placeholder)
     seat_the_secondary_monitor(manifest, hwnds_by_window)
 
     loading_screen.take_it_down()
@@ -629,6 +659,13 @@ def _reveal_the_app(
     release_the_funestras(manifest, result.main_mode)
     release_the_headset(loading_screen.progress_file.parent)
     _band_again_after_the_overlay_hands_activation_on(hwnds_by_window, rfb_mode)
+    try:
+        rfb_hwnd, tab_closer = open_the_browser(manifest, plan, env=env)
+        if rfb_hwnd:
+            set_always_on_top(rfb_hwnd, window_is_topmost("rfb", rfb_mode), under=placeholder.hwnd)
+    finally:
+        placeholder.take_it_down()
+    return OpenedBrowser(rfb_hwnd, tab_closer)
 
 
 def _band_again_after_the_overlay_hands_activation_on(
@@ -805,24 +842,19 @@ def finish_under_the_loading_screen(
     voice_controller: VoiceController | None,
     *,
     progress: ProgressReporter,
-    windows_by_satellite: Mapping[str, int],
 ) -> RfbMode:
     rfb_mode = activate_origenerator_under_the_loading_screen(runner, progress=progress)
-    wait_for_the_satellites_origenerator_took(runner, progress=progress,
-                                              windows_by_satellite=windows_by_satellite)
+    wait_for_the_satellites_origenerator_took(runner, progress=progress)
     wait_for_voice_under_the_loading_screen(voice_controller, progress=progress)
     return rfb_mode
 
 
 def wait_for_the_satellites_origenerator_took(
     runner: DispatchLoopRunner, *, progress: ProgressReporter,
-    windows_by_satellite: Mapping[str, int],
 ) -> None:
     with progress.loading_screen_kept_up():
-        if not show_the_satellites_as_they_draw(
-                {status_file: windows_by_satellite.get(label, 0)
-                 for label, status_file in runner.satellites_status_files().items()},
-                SATELLITE_PLAY_TIMEOUT_S):
+        if not wait_for_the_satellites_drawing(
+                runner.satellites_status_files(), SATELLITE_PLAY_TIMEOUT_S):
             logger.warning("A Satellite drew nothing within %.0fs of Origenerator taking it; "
                            "opening Fun Time anyway", SATELLITE_PLAY_TIMEOUT_S)
 
@@ -950,13 +982,37 @@ class _TheDesktopsEnding:
     def _sibling_checkouts(self) -> str:
         return self.launch.manifest.runtime.sibling_checkouts
 
+    @contextlib.contextmanager
     def closing_screen(self, crossing: HandoffTarget | None, hint: str,
-                       ) -> contextlib.AbstractContextManager[ProgressReporter]:
-        if not self.show_overlays:
-            return contextlib.nullcontext(NullProgress())
-        return closing_screen_on_the_monitors(
-            self._state_dir, sibling_checkouts=self._sibling_checkouts,
-            crossing=crossing, esc_cancels=hint)
+                       ) -> Iterator[ProgressReporter]:
+        placeholder = self._the_browser_goes_first()
+        try:
+            if not self.show_overlays:
+                yield NullProgress()
+                return
+            with closing_screen_on_the_monitors(
+                    self._state_dir, sibling_checkouts=self._sibling_checkouts,
+                    crossing=crossing, esc_cancels=hint) as shutdown:
+                hide_them_at_once(
+                    (*self._the_windows_shown_together(), placeholder.hwnd))
+                yield shutdown
+        finally:
+            placeholder.take_it_down()
+
+    def _the_browser_goes_first(self) -> BrowserPlaceholder:
+        rfb_hwnd = self.result.rfb_hwnd
+        if not rfb_hwnd:
+            return _NO_PLACEHOLDER
+        placeholder = (stand_unseen_over(
+            screen_layout(self.launch.manifest.layout).plan.random_faves_browser,
+            sibling_checkouts=self._sibling_checkouts) if self.show_overlays else _NO_PLACEHOLDER)
+        _show_them_at_once((placeholder.hwnd,))
+        close_window(rfb_hwnd)
+        return placeholder
+
+    def _the_windows_shown_together(self) -> tuple[int, ...]:
+        hwnds = self.result.hwnds_by_window
+        return tuple(hwnds.get(name, 0) for name in ("main_funestra", "portrait", "landscape", "dashboard"))
 
     def end_the_children(self, shutdown: ProgressReporter, crossing: HandoffTarget | None,
                          hint: str) -> None:
@@ -964,7 +1020,7 @@ class _TheDesktopsEnding:
         parking = crossing is not None or esc_called_the_quit_off(self._state_dir, crossing, hint)
         taken_over = self.result.origenerator_taken_over
         _shutdown_children(
-            self.result.rfb_hwnd, self.children, shutdown, state_dir=self._state_dir,
+            self.children, shutdown, state_dir=self._state_dir,
             farewell=HostedAppFarewell(
                 command_file=(self.launch.bridge_config.origenerator.cmd_file
                               if parking or taken_over else None),
@@ -996,7 +1052,7 @@ def _open_the_session(
     ahk_cmd_file: Path,
     pids_file: Path,
     env: SessionEnvironment,
-) -> RunningSession:
+) -> tuple[StartupResult, RunningSession]:
     manifest = launch.manifest
     dispatch_runner = _build_the_dispatch_loop(
         result, launch, ahk_cmd_file=ahk_cmd_file, hud_publisher=hud_publisher, env=env)
@@ -1004,11 +1060,15 @@ def _open_the_session(
         preparing_voice.result(), dispatch_runner=dispatch_runner)
 
     finish = partial(finish_under_the_loading_screen, dispatch_runner, voice_controller,
-                     progress=loading_screen.progress, windows_by_satellite=result.hwnds_by_window)
+                     progress=loading_screen.progress)
 
     if env.show_overlays:
-        _reveal_the_app(result, manifest=manifest, loading_screen=loading_screen,
-                        before_the_loading_screen_goes=finish)
+        browser = _reveal_the_app(result, manifest=manifest, loading_screen=loading_screen,
+                                  before_the_loading_screen_goes=finish, env=env)
+        if browser.hwnd:
+            dispatch_runner.the_browser_opened(
+                browser.hwnd, slideshow=rfb_slideshow_on(browser.hwnd), tab_closer=browser.tab_closer)
+            result = replace(result, rfb_hwnd=browser.hwnd)
     else:
         finish()
 
@@ -1017,7 +1077,7 @@ def _open_the_session(
 
     dispatch_thread = _start_the_dispatch_loop(dispatch_runner)
     loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
-    return RunningSession(children, TheControls(
+    return result, RunningSession(children, TheControls(
         dispatch_runner, dispatch_thread, voice_controller, voice_thread, loopback_server))
 
 
@@ -1116,7 +1176,7 @@ def run_session(
     )
 
     try:
-        running = _open_the_session(
+        result, running = _open_the_session(
             result, launch, loading_screen, hud_publisher, preparing_voice,
             ahk_cmd_file=ahk_cmd_file, pids_file=pids_file, env=env)
     except OrigeneratorNeverCameUp as never:

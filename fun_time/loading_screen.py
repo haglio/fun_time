@@ -17,7 +17,6 @@ def main() -> None:
 
     OverlayWindow.opened(
         progress_file,
-        covers_every_monitor=False,
         title=WINDOW_TITLE,
         status=WORDS_THE_LAUNCH_WROTE_BEFORE_THIS_SCREEN_EXISTED,
         stale_timeout_s=STALE_TIMEOUT_S,

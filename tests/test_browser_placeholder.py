@@ -1,61 +1,66 @@
 from __future__ import annotations
 
 import logging
-import threading
+import subprocess
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-from fun_time.browser_placeholder import holding_the_browsers_place
+from fun_time import browser_placeholder
+from fun_time.browser_placeholder import stand_unseen_over
 from fun_time.window_layout import WindowRect
+from tests.integration.integration_support import environment_with_this_checkouts_siblings
 
 RECT = WindowRect(x=10, y=20, width=300, height=400)
 
 
-class _StandsUntilDone:
-    def __init__(self) -> None:
-        self.events: list[str] = []
-
-    def stand(self, rect, *, up, done):
-        self.events.append(f"up over {tuple(rect)}")
-        up.set()
-        done.wait()
-        self.events.append("down")
+def _stood(*, found: int = 777, **kwargs):
+    start = MagicMock(return_value=MagicMock(pid=5))
+    with patch.object(browser_placeholder, "tie_to_this_process"), \
+            patch.object(browser_placeholder, "wait_for_window",
+                         side_effect=lambda look, _seconds: found):
+        placeholder = stand_unseen_over(RECT, sibling_checkouts="", start=start, **kwargs)
+    return placeholder, start
 
 
-def test_the_place_is_covered_while_the_browser_opens_and_uncovered_after():
-    placeholder = _StandsUntilDone()
+def test_the_placeholder_is_a_process_of_its_own_over_the_browsers_place():
+    placeholder, start = _stood()
 
-    with holding_the_browsers_place(RECT, placeholder=placeholder):
-        placeholder.events.append("the browser opens and is placed")
-
-    assert placeholder.events == [
-        "up over (10, 20, 300, 400)", "the browser opens and is placed", "down"]
+    argv = start.call_args.args[0]
+    assert argv[1:] == ["-m", "fun_time.browser_placeholder", "10", "20", "300", "400"]
+    assert placeholder.hwnd == 777
 
 
-def test_a_placeholder_that_cannot_stand_is_said_and_the_browser_opens_anyway(caplog):
-    class Breaks:
-        def stand(self, rect, *, up, done):
-            raise RuntimeError("no display")
+def test_taking_it_down_ends_its_process():
+    placeholder, _start = _stood()
+    placeholder.process.poll.return_value = None
 
-    opened = []
-    with caplog.at_level(logging.ERROR, logger="fun_time.browser_placeholder"), \
-            holding_the_browsers_place(RECT, placeholder=Breaks()):
-        opened.append(True)
+    placeholder.take_it_down()
 
-    assert opened == [True]
-    assert "could not stand" in caplog.text
+    placeholder.process.kill.assert_called_once()
 
 
-def test_a_placeholder_slow_to_stand_holds_the_browser_back_only_so_long(caplog):
-    released = threading.Event()
+def test_a_placeholder_that_never_comes_up_is_said_and_the_browser_opens_without_it(caplog):
+    with caplog.at_level(logging.WARNING, logger="fun_time.browser_placeholder"):
+        placeholder, _start = _stood(found=0)
 
-    class NeverUp:
-        def stand(self, rect, *, up, done):
-            released.wait()
-
-    opened = []
-    with caplog.at_level(logging.WARNING, logger="fun_time.browser_placeholder"), \
-            holding_the_browsers_place(RECT, placeholder=NeverUp(), up_within_s=0):
-        opened.append(True)
-    released.set()
-
-    assert opened == [True]
+    assert placeholder.hwnd == 0
     assert "was not up within" in caplog.text
+
+
+def test_standing_the_placeholder_loads_no_tk_into_the_process_that_stands_it():
+    loaded = subprocess.run(
+        [sys.executable, "-c",
+         "import sys\n"
+         "from unittest.mock import MagicMock\n"
+         "from fun_time import browser_placeholder as b\n"
+         "from fun_time.window_layout import WindowRect\n"
+         "b.tie_to_this_process = lambda _p: None\n"
+         "b.wait_for_window = lambda _look, _s: 0\n"
+         "b.stand_unseen_over(WindowRect(0, 0, 1, 1), sibling_checkouts='', start=MagicMock())\n"
+         "print('tkinter' in sys.modules)\n"],
+        capture_output=True, text=True, cwd=str(Path(__file__).resolve().parent.parent),
+        env=environment_with_this_checkouts_siblings(), check=False,
+    )
+
+    assert loaded.stdout.strip().splitlines()[-1:] == ["False"], loaded.stdout + loaded.stderr

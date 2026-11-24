@@ -10,6 +10,7 @@ from app_support.threading_utils import start_daemon_thread
 
 from .arrivals import keep_looking
 from .bridge_records import BridgeConfig
+from .chrome_tabs import StartupTabCloser
 from .command_answering import CommandAnswering
 from .command_bell import Bell, CommandBell, wait_out_the_tick
 from .config import FunestraChannel
@@ -24,6 +25,7 @@ from .loop_followers import (
     DashboardCommands,
     Follower,
     LoopParts,
+    TheBrowsersSlideshow,
     give_core_the_browsers_place_if_owed,
     the_followers,
 )
@@ -34,6 +36,7 @@ from .origenerator_opening import (
     OrigeneratorOpening,
 )
 from .rfb_mode import with_the_browser_in_its_place
+from .rfb_slideshow import RfbSlideshow
 from .runtime_flow import hand_the_satellite_to_the_app
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import BridgeState, read_shared_state
@@ -106,9 +109,14 @@ class DispatchLoopRunner:
         if not wait_for_the_app(self.the_app_has_every_satellite):
             raise OrigeneratorNeverCameUp
 
-    def satellites_status_files(self) -> dict[str, Path]:
-        return {funestra.label: satellite.status_file
-                for funestra, satellite in self.answering.config.satellites.items()}
+    def the_browser_opened(self, hwnd: int, *, slideshow: RfbSlideshow,
+                           tab_closer: StartupTabCloser | None) -> None:
+        self.window_work.the_browser_opened(hwnd, slideshow=slideshow, tab_closer=tab_closer)
+        self.followers = (*self.followers, TheBrowsersSlideshow(slideshow))
+
+    def satellites_status_files(self) -> list[Path]:
+        return [satellite.status_file
+                for satellite in self.answering.config.satellites.values()]
 
     def the_app_has_every_satellite(self) -> bool:
         if self.hand_overs.taken(self.answering.config):

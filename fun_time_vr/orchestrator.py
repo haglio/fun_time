@@ -165,8 +165,6 @@ SCENE_READY_TIMEOUT_S = 35.0
 
 logger = logging.getLogger("fun_time_vr.orchestrator")
 
-NO_WINDOWS_ON_THE_MONITORS: dict[str, int] = {}
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Launch the Fun Time VR session.")
@@ -542,8 +540,7 @@ def _open_the_room(
     )
     voice_controller, voice_thread = start_voice_control(
         launch.preparing_voice.result(), dispatch_runner=dispatch_runner)
-    finish_under_the_loading_screen(dispatch_runner, voice_controller, progress=progress,
-                                    windows_by_satellite=NO_WINDOWS_ON_THE_MONITORS)
+    finish_under_the_loading_screen(dispatch_runner, voice_controller, progress=progress)
     progress.advance("finalizing")
 
     progress.finish()

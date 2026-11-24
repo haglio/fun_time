@@ -86,15 +86,13 @@ class _FakeCanvas:
 
 
 def _loading_screen(tmp_path: Path, *, stale_timeout_s: float = 5.0,
-           title: str = "Fun Time loading", taking_over: TakingOver | None = None,
-           covers_every_monitor: bool = True) -> OverlayWindow:
+           title: str = "Fun Time loading", taking_over: TakingOver | None = None) -> OverlayWindow:
     return OverlayWindow(
         tmp_path / "progress.txt",
         OverlaySurface(_TheOffscreenRootTkLacks(), _FakeCanvas(), title),
         panel=LoadingPanel(wordmark="Fun Time", status="Starting..."),
         stale_timeout_s=stale_timeout_s,
         taking_over=taking_over or TakingOver(None),
-        covers_every_monitor=covers_every_monitor,
     )
 
 
@@ -373,49 +371,11 @@ class TestALineTheLoadingScreenCannotRead:
         assert parse_progress("DONE").done is True
         assert parse_progress("nonsense").malformed is True
         assert parse_progress("").malformed is True
-class TestTheLoadingScreenFollowsTheMonitorsItCovers:
-    AS_FOUND_AT_STARTUP = Screens(virtual=(0, 0, 2560, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1410))
-    AS_THE_HEADSETS_RUNTIME_LEFT_THEM = Screens(virtual=(-1920, 0, 4480, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1410))
-
-    def _covering(self, tmp_path: Path, measured):
-        loading_screen = _loading_screen(tmp_path)
-        (tmp_path / "progress.txt").write_text("1/5|Starting...", encoding="utf-8")
-        with patch("fun_time.overlay_window.screens", side_effect=measured):
-            for _ in measured:
-                loading_screen._poll()
-        return loading_screen
-
-    def test_displays_the_headsets_runtime_rearranges_are_covered_again(self, tmp_path: Path):
-        loading_screen = self._covering(tmp_path, [self.AS_FOUND_AT_STARTUP, self.AS_THE_HEADSETS_RUNTIME_LEFT_THEM])
-
-        assert loading_screen._root.geometries == ["2560x1440+0+0", "4480x1440+-1920+0"]
-
-    def test_a_display_set_that_has_not_moved_is_left_alone(self, tmp_path: Path):
-        moved_the_pointer = replace(self.AS_FOUND_AT_STARTUP, pointer_work_area=(2560, 0, 1440, 3410))
-
-        loading_screen = self._covering(tmp_path, [self.AS_FOUND_AT_STARTUP, moved_the_pointer, self.AS_FOUND_AT_STARTUP])
-
-        assert loading_screen._root.geometries == ["2560x1440+0+0"]
-
-    def test_the_panel_is_centered_again_on_the_main_monitor_of_the_new_set(self, tmp_path: Path):
-        width, height = size()
-
-        loading_screen = self._covering(tmp_path, [self.AS_FOUND_AT_STARTUP, self.AS_THE_HEADSETS_RUNTIME_LEFT_THEM])
-
-        on_its_middle = (1280 - width // 2, 720 - height // 2)
-        assert loading_screen._canvas.placed == [on_its_middle, (on_its_middle[0] + 1920, on_its_middle[1])]
-
-    def test_screens_windows_cannot_measure_are_covered_as_far_as_tk_sees(self, tmp_path: Path):
-        loading_screen = self._covering(tmp_path, [None])
-
-        assert loading_screen._root.geometries == ["2560x1440+0+0"]
-
-
-class TestAPanelOnlyScreenSitsWhereTheOtherAppsPanelsDo:
+class TestTheScreenSitsWhereTheOtherAppsPanelsDo:
     SCREENS = Screens(virtual=(-1920, 0, 4480, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1400))
 
     def _placed(self, tmp_path: Path, measured, taking_over: TakingOver | None = None):
-        loading_screen = _loading_screen(tmp_path, covers_every_monitor=False, taking_over=taking_over)
+        loading_screen = _loading_screen(tmp_path, taking_over=taking_over)
         (tmp_path / "progress.txt").write_text("1/5|Starting...", encoding="utf-8")
         with patch("fun_time.overlay_window.screens", side_effect=measured):
             for _ in measured:
@@ -456,7 +416,7 @@ class TestAPanelOnlyScreenSitsWhereTheOtherAppsPanelsDo:
 
     def test_once_up_it_tells_the_launcher_it_covers_only_its_panel(self, tmp_path: Path):
         place = shared_loading_screen.MeetingPlace(tmp_path / "screen", ("Updating Fun Time...",))
-        loading_screen = _loading_screen(tmp_path, covers_every_monitor=False, taking_over=TakingOver(place))
+        loading_screen = _loading_screen(tmp_path, taking_over=TakingOver(place))
 
         loading_screen.run()
 
@@ -502,4 +462,4 @@ class TestTakingOverFromTheLaunchersLoadingScreen:
         loading_screen.run()
 
         assert place.taken
-        assert place.snapshots().covers_every_monitor
+        assert place.snapshots() is not None

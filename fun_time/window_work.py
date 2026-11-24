@@ -9,8 +9,10 @@ from types import MappingProxyType
 from app_support.win32 import force_foreground_window, window_exists
 
 from .bridge_records import BridgeConfig, Op, WindowOp
+from .chrome_tabs import StartupTabCloser
 from .dispatch_loop_setup import SessionFiles, SessionStart
 from .rfb_modes import RfbMode
+from .rfb_slideshow import RfbSlideshow
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import BridgeState
 from .shortcuts import Shortcut
@@ -30,6 +32,7 @@ class WindowWork:
         self._config = config
         self._ahk_cmd_file = files.ahk_cmd
         self._rfb_slideshow = start.rfb_slideshow
+        self._tab_closer: StartupTabCloser | None = None
         self.env = env
         self._a_tick_holds_its_tabs_for_one_chrome_launch = False
 
@@ -86,9 +89,17 @@ class WindowWork:
         self.windows.in_turn("log_topmost_state", lambda: logger.info(
             "Topmost [%s] mode=%s: %s", label, state.main_mode, self.windows.topmost_report()))
 
+    def the_browser_opened(self, hwnd: int, *, slideshow: RfbSlideshow,
+                           tab_closer: StartupTabCloser | None) -> None:
+        self.windows.rfb_hwnd = hwnd
+        self._rfb_slideshow = slideshow
+        self._tab_closer = tab_closer
+
     def close(self) -> None:
         if self._rfb_slideshow is not None:
             self._rfb_slideshow.stop()
+        if self._tab_closer is not None:
+            self._tab_closer.stop()
 
 
 def _show(work: WindowWork, op: WindowOp, _state: BridgeState) -> None:

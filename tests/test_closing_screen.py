@@ -31,7 +31,7 @@ def test_it_waits_for_news_far_less_long_than_startups_loading_screen():
 
 
 class TestMain:
-    def _panels_main_builds_over_every_monitor(self, tmp_path, monkeypatch) -> tuple[Path, list[FakeOverlay]]:
+    def _panels_main_builds(self, tmp_path, monkeypatch) -> tuple[Path, list[FakeOverlay]]:
         progress_file = tmp_path / "shutdown_progress.txt"
         built: list[FakeOverlay] = []
 
@@ -46,11 +46,11 @@ class TestMain:
         return progress_file, built
 
     def _run_main(self, tmp_path, monkeypatch) -> tuple[Path, FakeOverlay]:
-        progress_file, built = self._panels_main_builds_over_every_monitor(tmp_path, monkeypatch)
+        progress_file, built = self._panels_main_builds(tmp_path, monkeypatch)
         return progress_file, built[-1]
 
-    def test_the_session_ends_under_one_panel_over_every_monitor(self, tmp_path, monkeypatch):
-        _progress_file, built = self._panels_main_builds_over_every_monitor(tmp_path, monkeypatch)
+    def test_the_session_ends_under_one_panel(self, tmp_path, monkeypatch):
+        _progress_file, built = self._panels_main_builds(tmp_path, monkeypatch)
 
         assert len(built) == 1
 

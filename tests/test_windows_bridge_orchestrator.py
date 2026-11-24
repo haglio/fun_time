@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import contextlib
 import inspect
 import logging
 import os
@@ -14,6 +15,7 @@ from functools import partial
 from itertools import count
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -476,20 +478,61 @@ def _recorded_children(**overrides: ChildProcess) -> dict[str, ChildProcess]:
     return children
 
 
+class TestClosingIsOpeningInReverse:
+    HWNDS: ClassVar[dict] = {"main_funestra": 11, "portrait": 22, "landscape": 33, "dashboard": 44}
+
+    def _close(self, tmp_path, *, rfb_hwnd: int, show_overlays: bool = True) -> list:
+        events: list = []
+
+        @contextlib.contextmanager
+        def closing_screen(*_args, **_kwargs):
+            events.append("closing screen up")
+            yield NullProgress()
+
+        ending = windows_bridge_orchestrator._TheDesktopsEnding(
+            launch=SimpleNamespace(
+                state_dir=tmp_path,
+                manifest=SimpleNamespace(layout=None, runtime=SimpleNamespace(sibling_checkouts=""))),
+            hotkeys=None,
+            result=SimpleNamespace(rfb_hwnd=rfb_hwnd, hwnds_by_window=dict(self.HWNDS)),
+            children={}, show_overlays=show_overlays)
+        placeholder = MagicMock(hwnd=55)
+        placeholder.take_it_down.side_effect = lambda: events.append("placeholder down")
+        with patch.object(windows_bridge_orchestrator, "screen_layout",
+                          return_value=SimpleNamespace(plan=SimpleNamespace(random_faves_browser="rect"))), \
+             patch.object(windows_bridge_orchestrator, "stand_unseen_over", return_value=placeholder), \
+             patch.object(windows_bridge_orchestrator, "restore_window",
+                          side_effect=lambda hwnd, **_kw: events.append(("shown", hwnd))), \
+             patch.object(windows_bridge_orchestrator, "close_window",
+                          side_effect=lambda hwnd: events.append(("browser closed", hwnd))), \
+             patch.object(windows_bridge_orchestrator, "hide_window",
+                          side_effect=lambda hwnd: events.append(("hidden", hwnd))), \
+             patch.object(windows_bridge_orchestrator, "closing_screen_on_the_monitors",
+                          side_effect=closing_screen), \
+             ending.closing_screen(None, ""):
+            events.append("the children end")
+        return events
+
+    def test_the_browser_closes_under_its_placeholder_then_everything_else_goes_at_once(self, tmp_path):
+        assert self._close(tmp_path, rfb_hwnd=88888) == [
+            ("shown", 55), ("browser closed", 88888), "closing screen up",
+            ("hidden", 11), ("hidden", 22), ("hidden", 33), ("hidden", 44), ("hidden", 55),
+            "the children end", "placeholder down"]
+
+    def test_a_session_with_no_browser_puts_up_no_placeholder(self, tmp_path):
+        events = self._close(tmp_path, rfb_hwnd=0)
+
+        assert ("shown", 55) not in events
+        assert not any(event[0] == "browser closed" for event in events if isinstance(event, tuple))
+
+    def test_with_no_closing_screen_the_browser_still_closes(self, tmp_path):
+        events = self._close(tmp_path, rfb_hwnd=88888, show_overlays=False)
+
+        assert ("browser closed", 88888) in events
+        assert "closing screen up" not in events
+
+
 class TestShutdownChildren:
-    def test_closes_rfb_window(self, tmp_path):
-        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
-             patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
-            _shutdown_children(88888, _recorded_children(), NullProgress(), state_dir=tmp_path)
-
-        mock_close.assert_called_once_with(88888)
-
-    def test_skips_rfb_close_when_no_hwnd(self, tmp_path):
-        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
-             patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
-            _shutdown_children(0, _recorded_children(), NullProgress(), state_dir=tmp_path)
-
-        mock_close.assert_called_once_with(0)
 
     def test_kills_the_recorded_children_but_never_a_recycled_pid(self, tmp_path):
         children = _recorded_children(
@@ -502,7 +545,7 @@ class TestShutdownChildren:
             side_effect=live_creation_times.get,
         ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill, \
              patch("fun_time.windows_bridge_orchestrator.close_window"):
-            _shutdown_children(0, children, NullProgress(), state_dir=tmp_path)
+            _shutdown_children(children, NullProgress(), state_dir=tmp_path)
 
         mock_kill.assert_called_once_with(200)
 
@@ -515,7 +558,7 @@ class TestShutdownChildren:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                    side_effect=killed.append):
             children = identify_children(_fake_startup_result())
-            _shutdown_children(0, children, NullProgress(), state_dir=tmp_path)
+            _shutdown_children(children, NullProgress(), state_dir=tmp_path)
 
         assert sorted(killed) == sorted(child.pid for child in children.values())
 
@@ -1156,8 +1199,7 @@ class TestKeepingTheHostedApp:
             children = _recorded_children(
                 origenerator_pid=ChildProcess(pid=7071, created_at=90),
             )
-            _shutdown_children(
-                0, children, NullProgress(), state_dir=tmp_path,
+            _shutdown_children(children, NullProgress(), state_dir=tmp_path,
                 farewell=HostedAppFarewell(tmp_path / "origenerator_cmd.txt", keep=True))
 
         parked.assert_called_once_with(4242)
@@ -1223,7 +1265,7 @@ class TestKeepingTheHostedApp:
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed:
-            _shutdown_children(0, _recorded_children(), NullProgress(), state_dir=tmp_path)
+            _shutdown_children(_recorded_children(), NullProgress(), state_dir=tmp_path)
 
         closed.assert_called_once()
         assert kept_origenerator(tmp_path) is None
@@ -1236,8 +1278,7 @@ class TestKeepingTheHostedApp:
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed:
-            _shutdown_children(
-                0, _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
+            _shutdown_children(_recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
                 NullProgress(), state_dir=tmp_path,
                 farewell=HostedAppFarewell(channel, taken_over=True))
 
@@ -1252,8 +1293,7 @@ class TestKeepingTheHostedApp:
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child",
                    side_effect=lambda child: killed.append(child.pid)),              patch("fun_time.windows_bridge_orchestrator.close_window"),              patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed:
-            _shutdown_children(
-                0, _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
+            _shutdown_children(_recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
                 NullProgress(), state_dir=tmp_path,
                 farewell=HostedAppFarewell(channel, taken_over=True))
 
@@ -1299,8 +1339,7 @@ class TestKeepingTheHostedApp:
              patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window"):
-            _shutdown_children(
-                0, _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
+            _shutdown_children(_recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
                 NullProgress(), state_dir=tmp_path,
                 farewell=HostedAppFarewell(channel, keep=True, taken_over=True))
 
@@ -1313,8 +1352,7 @@ class TestKeepingTheHostedApp:
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.fun_time_windows.find_window_for_process", side_effect=the_preview), \
              patch("fun_time.windows_bridge_orchestrator.hide_window") as parked:
-            _shutdown_children(
-                0, _recorded_children(
+            _shutdown_children(_recorded_children(
                     origenerator_pid=ChildProcess(pid=HOSTED_PID, created_at=90)),
                 NullProgress(), state_dir=tmp_path,
                 farewell=HostedAppFarewell(
@@ -1331,7 +1369,6 @@ class TestKeepingTheHostedApp:
              patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed:
             _shutdown_children(
-                0,
                 _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
                 NullProgress(), state_dir=tmp_path,
                 farewell=HostedAppFarewell(tmp_path / "origenerator_cmd.txt", keep=True),
@@ -1478,7 +1515,7 @@ def _run_a_session(cfg_factory, tmp_path, run: SessionRun | None = None):
 
 
 _WHAT_A_QUIT_TAKES_DOWN = {
-    "close_browser", "kill:200", "kill:300", "kill:400", "kill:500", "kill:700", "kill:800",
+    "kill:200", "kill:300", "kill:400", "kill:500", "kill:700", "kill:800",
 }
 
 
@@ -1696,7 +1733,6 @@ class TestClosingScreenLifecycle:
             state_dir = _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
 
         assert events[-1] == "done"
-        assert events.index("advance:browser") < events.index("close_browser")
         assert events.index("advance:funestras") < events.index("kill:300")
         assert events.index("advance:companions") < events.index("kill:500")
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
@@ -2619,7 +2655,7 @@ class TestPostLoadingWindowState:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=result_with_hwnds), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
+             patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=lambda pid, **_kw: pid_to_hwnd.get(pid, 0)), \
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
@@ -3188,28 +3224,25 @@ class TestTheSatellitesAreWaitedForOnceOrigeneratorHasThem:
                     status_file=tmp_path / "origenerator_status.txt"))),
             window_work=SimpleNamespace(windows=SimpleNamespace(
                 pids=SimpleNamespace(origenerator=0))),
-            satellites_status_files=lambda: {
-                "portrait": tmp_path / "portrait_status.txt",
-                "landscape": tmp_path / "landscape_status.txt"},
+            satellites_status_files=lambda: [
+                tmp_path / "portrait_status.txt", tmp_path / "landscape_status.txt"],
         )
 
-        def wait(windows_by_status_file, _timeout_s):
-            events.append(("showed as they drew", sorted(
-                (Path(file).name, hwnd) for file, hwnd in windows_by_status_file.items())))
+        def wait(status_files, _timeout_s):
+            events.append(("waited for", sorted(Path(file).name for file in status_files)))
             return drawing
 
-        with patch.object(windows_bridge_orchestrator, "show_the_satellites_as_they_draw",
-                          side_effect=wait):
+        with patch.object(windows_bridge_orchestrator, "wait_for_the_satellites_drawing",
+                          side_effect=wait, create=True):
             windows_bridge_orchestrator.finish_under_the_loading_screen(
-                runner, None, progress=NullProgress(),
-                windows_by_satellite={"portrait": 22, "landscape": 33})
+                runner, None, progress=NullProgress())
         return events
 
     def test_the_loading_screen_stays_up_until_the_satellites_origenerator_took_are_drawing(
             self, tmp_path):
         assert self._finish(tmp_path, drawing=True) == [
             "Origenerator took the Satellites",
-            ("showed as they drew", [("landscape_status.txt", 33), ("portrait_status.txt", 22)]),
+            ("waited for", ["landscape_status.txt", "portrait_status.txt"]),
         ], "a Satellite has nothing to draw until Origenerator hands it a list"
 
     @pytest.mark.real_startup_waits
