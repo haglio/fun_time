@@ -106,9 +106,9 @@ class DispatchLoopRunner:
         if not wait_for_the_app(self.the_app_has_every_satellite):
             raise OrigeneratorNeverCameUp
 
-    def satellites_status_files(self) -> list[Path]:
-        return [satellite.status_file
-                for satellite in self.answering.config.satellites.values()]
+    def satellites_status_files(self) -> dict[str, Path]:
+        return {funestra.label: satellite.status_file
+                for funestra, satellite in self.answering.config.satellites.items()}
 
     def the_app_has_every_satellite(self) -> bool:
         if self.hand_overs.taken(self.answering.config):

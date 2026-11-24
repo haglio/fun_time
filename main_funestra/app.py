@@ -101,7 +101,8 @@ def _open_window(args):
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
     replace_pygames_logo_with(pygame, args.icon)
-    screen = pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
+    screen = pygame.display.set_mode((args.width, args.height),
+                                     pygame.NOFRAME | (pygame.HIDDEN if args.hidden else 0))
     take_outside_resizes(pygame)
     pygame.display.set_caption("Main Funestra")
     wear_the_sessions_taskbar_button(pygame.display.get_wm_info()['window'], args.taskbar_identity)

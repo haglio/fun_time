@@ -9,7 +9,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import Future
 from dataclasses import dataclass
 from functools import partial
@@ -155,7 +155,7 @@ from .windows_bridge_sequencer import (
     apply_topmost_bands,
     release_the_funestras,
     run_startup_sequence,
-    wait_for_the_satellites_drawing,
+    show_the_satellites_as_they_draw,
 )
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -805,19 +805,24 @@ def finish_under_the_loading_screen(
     voice_controller: VoiceController | None,
     *,
     progress: ProgressReporter,
+    windows_by_satellite: Mapping[str, int],
 ) -> RfbMode:
     rfb_mode = activate_origenerator_under_the_loading_screen(runner, progress=progress)
-    wait_for_the_satellites_origenerator_took(runner, progress=progress)
+    wait_for_the_satellites_origenerator_took(runner, progress=progress,
+                                              windows_by_satellite=windows_by_satellite)
     wait_for_voice_under_the_loading_screen(voice_controller, progress=progress)
     return rfb_mode
 
 
 def wait_for_the_satellites_origenerator_took(
     runner: DispatchLoopRunner, *, progress: ProgressReporter,
+    windows_by_satellite: Mapping[str, int],
 ) -> None:
     with progress.loading_screen_kept_up():
-        if not wait_for_the_satellites_drawing(
-                runner.satellites_status_files(), SATELLITE_PLAY_TIMEOUT_S):
+        if not show_the_satellites_as_they_draw(
+                {status_file: windows_by_satellite.get(label, 0)
+                 for label, status_file in runner.satellites_status_files().items()},
+                SATELLITE_PLAY_TIMEOUT_S):
             logger.warning("A Satellite drew nothing within %.0fs of Origenerator taking it; "
                            "opening Fun Time anyway", SATELLITE_PLAY_TIMEOUT_S)
 
@@ -999,7 +1004,7 @@ def _open_the_session(
         preparing_voice.result(), dispatch_runner=dispatch_runner)
 
     finish = partial(finish_under_the_loading_screen, dispatch_runner, voice_controller,
-                     progress=loading_screen.progress)
+                     progress=loading_screen.progress, windows_by_satellite=result.hwnds_by_window)
 
     if env.show_overlays:
         _reveal_the_app(result, manifest=manifest, loading_screen=loading_screen,
