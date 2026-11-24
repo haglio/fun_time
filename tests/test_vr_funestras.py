@@ -23,7 +23,6 @@ from funestra.channel_manifest import channel_flag
 from funestra.flick_overlay import (
     BACKDROP_OVERLAY_ID,
     FIRST_TILE_OVERLAY_ID,
-    LOADING_OVERLAY_ID,
     FlickFrame,
 )
 from funestra.funestra import Funestra
@@ -952,9 +951,9 @@ def test_a_panel_already_uploaded_still_rehangs_where_a_drag_put_it():
 
 def test_the_messages_overlay_id_is_none_the_funestra_draws_with():
     the_funestras = {
-        BACKDROP_OVERLAY_ID, LOADING_OVERLAY_ID, HUD_OVERLAY_ID, CORNER_PLUS_OVERLAY_ID,
+        BACKDROP_OVERLAY_ID, HUD_OVERLAY_ID, CORNER_PLUS_OVERLAY_ID,
         Funestra.IN_FRAME_OVERLAY_ID, Funestra.OUT_FRAME_OVERLAY_ID,
-        *range(FIRST_TILE_OVERLAY_ID, LOADING_OVERLAY_ID),
+        *range(FIRST_TILE_OVERLAY_ID, FIRST_TILE_OVERLAY_ID + 4),
     }
 
     assert MESSAGE_OVERLAY_ID not in the_funestras
