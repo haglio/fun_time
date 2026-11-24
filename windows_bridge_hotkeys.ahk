@@ -148,6 +148,12 @@ e::QueueCommand("landscape_loop")
 +Right::QueueCommand("portrait_cycle_version")
 +a::QueueCommand("landscape_cycle_version_back")
 +d::QueueCommand("landscape_cycle_version")
+; Alt with the step keys steps the image on screen through its fixes, the whole
+; image counting as one of them, as Alt does in Standalone Origenerator.
+!Left::QueueCommand("portrait_prev_fix")
+!Right::QueueCommand("portrait_next_fix")
+!a::QueueCommand("landscape_prev_fix")
+!d::QueueCommand("landscape_next_fix")
 ; HUD map keyboard navigation: Shift + up/down moves a selection down the
 ; portrait map's action column and Shift + W/S down the landscape map's, each
 ; switching the satellite to the selected clip (like a thumbnail click).  These

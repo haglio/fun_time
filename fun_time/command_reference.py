@@ -478,6 +478,13 @@ _SECTIONS: tuple[_Section, ...] = (
                              ("Shift+M", "Shift+.")),
                 ),
                 _Row(
+                    "cycle fix — the close-up on each fix found in the image, then the "
+                    "whole image",
+                    commands=("portrait_prev_fix", "portrait_next_fix",
+                              "landscape_prev_fix", "landscape_next_fix"),
+                    columns=(("Alt+Left", "Alt+Right"), ("Alt+A", "Alt+D")),
+                ),
+                _Row(
                     "crown the Main Funestra or the Portrait Funestra — the crowned "
                     "Funestra takes up the majority of the (portrait-shaped) secondary "
                     "monitor when it is displaying portrait-shaped content; the other "

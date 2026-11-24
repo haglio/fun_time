@@ -564,7 +564,7 @@ def test_genau_mode_row_lists_genau_phrase_and_no_key():
 
 
 def test_the_keys_nobody_reached_for_are_gone_and_what_only_they_reached_went_with_them():
-    for key in ("g", "x", "v", "t", "p", "!Left", "!Right"):
+    for key in ("g", "x", "v", "t", "p"):
         assert not re.search(rf"^{re.escape(key)}::", script_text(), re.MULTILINE), key
     retired = {"satellites_toggle", "main_funestra_toggle_length",
                "projection_narrower", "projection_wider"}
@@ -954,7 +954,7 @@ def test_the_maps_rows_the_loops_and_the_filters_follow_navigation_and_other_com
     assert [row.description for row in _group("Funestras", "Filter").rows] == [
         "filter to the action on screen", "drop all filters"]
     assert [row.description for row in _group("Funestras", "Other").rows] == [
-        "reset", "cycle enhancement", crown.description]
+        "reset", "cycle enhancement", "cycle fix", crown.description]
     assert crown.description == "crown the Main Funestra or the Portrait Funestra"
     assert crown.detail == (
         "the crowned Funestra takes up the majority of the (portrait-shaped) secondary "
