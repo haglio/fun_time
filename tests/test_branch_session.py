@@ -976,6 +976,17 @@ def test_launch_returns_only_once_the_session_has_quit(repo_with_worktrees, monk
     assert returncode == 7
 
 
+def test_a_branchs_session_runs_under_the_name_fun_times_orchestrator_has(repo_with_worktrees, monkeypatch):
+    (repo_with_worktrees.newer / "state").mkdir()
+    sessions = _sessions_exit_with(monkeypatch, 0)
+    monkeypatch.setattr(branch_session.NAMER, "named_exe",
+                        lambda exe, role: f"named {role} copy of {Path(exe).name}")
+
+    branch_session.launch(repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert sessions[0][0] == f"named Orchestrator copy of {Path(sys.executable).name}"
+
+
 def _sibling_repo(tmp_path: Path, repo: str = "funestra", *,
                   named_before_the_tag: str | None = None) -> SimpleNamespace:
     named = repo.replace("_", "-")
