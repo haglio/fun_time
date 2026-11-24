@@ -45,3 +45,20 @@ def test_a_funestra_closing_mid_session_closes_the_whole_room():
         assert [key for key, child in children.items() if _still_up(child)] == []
     finally:
         session.stop()
+
+
+def test_ending_the_orchestrator_alone_ends_every_part_it_started():
+    config_path = build_integration_config(build_integration_temp_root())
+    session = FunTimeIntegrationSession(config_path)
+    try:
+        session.start()
+        children = session.read_child_processes()
+
+        session.end_the_orchestrator_alone()
+        budget = Budget(APP_CLOSES_WITHIN_S)
+        while not budget.expired() and any(map(_still_up, children.values())):
+            time.sleep(0.5)
+
+        assert [key for key, child in children.items() if _still_up(child)] == []
+    finally:
+        session.stop()

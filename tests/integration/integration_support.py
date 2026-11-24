@@ -366,6 +366,11 @@ class FunTimeIntegrationSession:
                 self.quit_gracefully()
         self.end_as_a_crash_does()
 
+    def end_the_orchestrator_alone(self) -> None:
+        if self._proc and self._proc.poll() is None:
+            self._proc.kill()
+            ended_within(self._proc, 5)
+
     def end_as_a_crash_does(self) -> None:
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
