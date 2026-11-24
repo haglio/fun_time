@@ -17,6 +17,14 @@
  *   { kind: "image"|"video", positive, negative, settings: [[label,val]...],
  *     video_prompt, video_settings: [[label,val]...] }
  *
+ * Origenerator opens the same page, runs the real script on it and adds
+ * submit: true to the payload. The real script then presses the provider's own
+ * generate button once the form is filled and sets
+ *   window.funTimeMade = { image: <address>, seed: <string> } | { refused: <why> }
+ * where "signed out" is the one refusal Origenerator acts on, and it always sets
+ *   window.funTimeSite = { signedOut: () => boolean }
+ * which Origenerator asks while it shows the provider's page for a sign-in.
+ *
  * This example only reads the payload and pins a copy-able note listing the
  * fields, so a fresh/public checkout has a working, harmless script. The real
  * script additionally drives the provider's generate form (fill fields, set the

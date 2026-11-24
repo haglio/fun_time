@@ -12,10 +12,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from app_support import ports
+from app_support.site_pages import FILL_SCRIPT
 from shared_ui.pages import with_family_look
 
 LOOPBACK_PORT = ports.USERSCRIPT_HTTP
-USERSCRIPT_NAME = "regen_autofill.user.js"
+USERSCRIPT_NAME = FILL_SCRIPT.name
 EXAMPLE_USERSCRIPT_NAME = "regen_autofill.example.user.js"
 
 OMNIPAUSE_PATH = "/omnipause"

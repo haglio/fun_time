@@ -5,16 +5,12 @@ import re
 from pathlib import Path
 from urllib.parse import unquote
 
-from app_support.local_time import when_words
+from app_support.site_pages import settings_for_the_page
 
 from fun_time.content import WebProvider
 from fun_time.gallery import Gallery
 from fun_time.media_metadata import metadata_path_for
-from fun_time.regen import (
-    build_payload,
-    build_regen_url,
-    regen_url_for_video,
-)
+from fun_time.regen import regen_url_for_video
 from tests.made_up_gallery import a_row, a_video_from_a_start_image
 
 VIDEO_URL = "https://example.com/video"
@@ -73,62 +69,11 @@ def test_the_example_userscript_names_every_key_of_the_payload():
     keys_it_reads = set(re.findall(r"[a-z_]+(?=\s*[:,}])", the_shape_it_reads)) - {"label", "val"}
 
     for metadata in (IMAGE_META, VIDEO_ONLY_META):
-        assert set(build_payload(metadata)) == keys_it_reads
+        assert set(settings_for_the_page(metadata)) == keys_it_reads
 
 
 def _decode(url: str) -> dict:
     return json.loads(unquote(url.split("#ft=", 1)[1]))
-
-
-def test_payload_for_source_image_targets_image_with_both_prompts():
-    payload = build_payload(IMAGE_META)
-
-    assert payload["kind"] == "image"
-    assert payload["positive"] == "POSITIVE"
-    assert payload["negative"] == "NEGATIVE"
-    assert payload["video_prompt"] == "VIDEO PROMPT"
-    assert ["Quality", "Best"] in payload["settings"]
-    assert ["Style", "Default"] in payload["settings"]
-    assert ["Model", "Realism"] in payload["settings"]
-    assert ["Action", "Oral Insertion"] in payload["video_settings"]
-
-
-def test_payload_for_video_only_targets_video_no_negative():
-    payload = build_payload(VIDEO_ONLY_META)
-
-    assert payload["kind"] == "video"
-    assert payload["positive"] == "JUST A VIDEO"
-    assert payload["negative"] == ""
-    assert payload["video_prompt"] == ""
-    assert ["Action", "Side Epsilon"] in payload["settings"]
-
-
-def test_when_a_video_was_made_reads_in_local_time_with_its_day():
-    meta = {"video": {"prompt": "p", "created": "2026-03-13 20:15:00"}}
-    assert ["Created", when_words("2026-03-13 20:15:00")] in build_payload(meta)["settings"]
-
-
-def test_payload_skips_empty_setting_values():
-    meta = {"video": {"prompt": "p", "model": "", "seed": "123"}}
-    labels = [pair[0] for pair in build_payload(meta)["settings"]]
-    assert "Model" not in labels
-    assert "Seed" in labels
-
-
-def test_regen_url_image_uses_image_base_and_decodable_payload():
-    url = build_regen_url(IMAGE_META, video_url=VIDEO_URL, image_url=IMAGE_URL)
-
-    assert url.startswith(IMAGE_URL + "#ft=")
-    payload = _decode(url)
-    assert payload["kind"] == "image"
-    assert payload["negative"] == "NEGATIVE"
-
-
-def test_regen_url_video_uses_video_base():
-    url = build_regen_url(VIDEO_ONLY_META, video_url=VIDEO_URL, image_url=IMAGE_URL)
-
-    assert url.startswith(VIDEO_URL + "#ft=")
-    assert _decode(url)["kind"] == "video"
 
 
 def _ai_video(tmp_path: Path, name: str, *, source: str = "provider") -> Path:
