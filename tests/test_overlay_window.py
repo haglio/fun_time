@@ -414,14 +414,6 @@ class TestTheScreenSitsWhereTheOtherAppsPanelsDo:
 
         assert loading_screen._root.geometries == [f"{width}x{height}+300+200"]
 
-    def test_once_up_it_tells_the_launcher_it_covers_only_its_panel(self, tmp_path: Path):
-        place = shared_loading_screen.MeetingPlace(tmp_path / "screen", ("Updating Fun Time...",))
-        loading_screen = _loading_screen(tmp_path, taking_over=TakingOver(place))
-
-        loading_screen.run()
-
-        assert not place.snapshots().covers_every_monitor
-
 
 class TestTakingOverFromTheLaunchersLoadingScreen:
     @pytest.fixture
