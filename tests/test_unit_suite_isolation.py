@@ -60,7 +60,7 @@ def test_the_waits_are_stubbed_per_test_and_not_edited_out_of_the_module():
 
 @pytest.mark.parametrize("screen", [loading_screen, transition_screen, closing_screen],
                          ids=lambda screen: screen.__name__)
-def test_a_unit_test_that_starts_a_screen_over_every_monitor_fails_instead(screen):
+def test_a_unit_test_that_starts_a_real_screen_fails_instead(screen):
     names_a_screen_and_runs_nothing = [sys.executable, "-c", "pass", "-m", screen.__name__]
 
     with pytest.raises(pytest.fail.Exception, match=screen.__name__):
