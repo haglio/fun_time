@@ -237,7 +237,7 @@ class OverlayWindow:
         if not (progress := self._read_progress()).malformed and not progress.done:
             self._show(progress)
         self._root.update()
-        self._taking_over.done(self._panel, covers_every_monitor=False)
+        self._taking_over.done(self._panel)
         if on_shown is not None:
             on_shown()
         self._root.mainloop()
