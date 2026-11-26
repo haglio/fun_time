@@ -43,7 +43,7 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.dashboard_osr2_model import Osr2PartReader
 from fun_time.dashboard_runtime import load_dashboard_snapshot
-from fun_time.event_log import SOURCE_MAIN, event_log_path, flash_message
+from fun_time.event_log import event_log_path
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status
 from fun_time.gallery import the_librarys_gallery
@@ -575,8 +575,7 @@ class _MainUnit(_VideoUnit):
         if verdict == STALLED:
             self._reopen()
         else:
-            flash_message(logger, "the video is still not advancing", source=SOURCE_MAIN,
-                   level=logging.ERROR)
+            logger.info("The video is still not advancing after its reopening")
 
     def _reopen(self) -> None:
         # mpv builds a whole new pipeline on a load, its audio output included, which is the way out
