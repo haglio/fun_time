@@ -328,15 +328,15 @@ def test_the_main_funestra_carries_the_whole_rooms_tilt_over_from_the_last_sessi
     assert faked_collaborators["HeadsetVerbs"].call_args.kwargs["tilt_deg"] == -17.5
 
 
-def test_a_video_that_stops_advancing_is_reopened_without_a_word_on_screen(
+def test_a_video_that_stops_advancing_is_reopened_without_a_word_on_screen_even_if_it_stays_stuck(
         tmp_path, faked_collaborators, caplog):
     unit = _a_main_unit(tmp_path)
     playback = unit.funestra.playback
     playback.is_paused, playback.duration_ms, playback.position_ms = False, 60_000.0, 27_433.0
 
     with caplog.at_level(logging.DEBUG, logger="fun_time_vr"):
-        unit._watch_progress(now=0.0)
-        unit._watch_progress(now=STALLED_PAST_A_SLOW_OPEN_S + 1.0)
+        for now in (0.0, STALLED_PAST_A_SLOW_OPEN_S + 1.0, 2 * STALLED_PAST_A_SLOW_OPEN_S + 2.0):
+            unit._watch_progress(now=now)
 
     playback.seek_to.assert_called_once_with(27_433.0)
     assert [r.getMessage() for r in caplog.records if r.levelno >= MESSAGE] == []
