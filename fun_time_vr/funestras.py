@@ -573,8 +573,6 @@ class _MainUnit(_VideoUnit):
         if verdict is None:
             return
         if verdict == STALLED:
-            flash_message(logger, "the video stopped advancing; reopening it", source=SOURCE_MAIN,
-                   level=logging.ERROR)
             self._reopen()
         else:
             flash_message(logger, "the video is still not advancing", source=SOURCE_MAIN,
@@ -585,7 +583,7 @@ class _MainUnit(_VideoUnit):
         # of a wedge.
         playback = self.funestra.playback
         position_ms = playback.position_ms
-        logger.warning("Reopening the Main Funestra at %.0fms", position_ms)
+        logger.info("The video stopped advancing; reopening the Main Funestra at %.0fms", position_ms)
         playback.load(playback.index)
         if position_ms:
             playback.seek_to(position_ms)

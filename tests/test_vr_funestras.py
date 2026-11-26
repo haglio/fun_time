@@ -151,6 +151,7 @@ from fun_time_vr.matrices import yaw_of_orientation
 from fun_time_vr.messages import MessageBoard
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.perf import FramePerf
+from fun_time_vr.playback_watch import STALLED_PAST_A_SLOW_OPEN_S
 from fun_time_vr.pointer import (
     DRAG,
     HANDLE_DEG,
@@ -325,6 +326,20 @@ def test_the_main_funestra_carries_the_whole_rooms_tilt_over_from_the_last_sessi
     _a_main_unit(tmp_path, remembered=Layout(tilt_deg=-17.5))
 
     assert faked_collaborators["HeadsetVerbs"].call_args.kwargs["tilt_deg"] == -17.5
+
+
+def test_a_video_that_stops_advancing_is_reopened_without_a_word_on_screen(
+        tmp_path, faked_collaborators, caplog):
+    unit = _a_main_unit(tmp_path)
+    playback = unit.funestra.playback
+    playback.is_paused, playback.duration_ms, playback.position_ms = False, 60_000.0, 27_433.0
+
+    with caplog.at_level(logging.DEBUG, logger="fun_time_vr"):
+        unit._watch_progress(now=0.0)
+        unit._watch_progress(now=STALLED_PAST_A_SLOW_OPEN_S + 1.0)
+
+    playback.seek_to.assert_called_once_with(27_433.0)
+    assert [r.getMessage() for r in caplog.records if r.levelno >= MESSAGE] == []
 
 
 def test_a_manifest_name_the_main_funestra_misspells_fails_here_not_in_the_headset(
