@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 from funestra.render_engine import MpvRenderEngine
 
 
 class HeadsetEngine(MpvRenderEngine):
     def __init__(self, get_proc_address: Callable[[str], int | None], *,
-                 loop_file: bool, prefetch: bool) -> None:
-        super().__init__(get_proc_address, muted=True, loop_file=loop_file, prefetch=prefetch)
+                 loop_file: bool, prefetch: bool, playable: Callable[[Path], str] = str) -> None:
+        super().__init__(get_proc_address, muted=True, loop_file=loop_file, prefetch=prefetch, playable=playable)
         self._sound_live = False
         self._muted_asked = True
 

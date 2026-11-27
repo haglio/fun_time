@@ -93,3 +93,14 @@ def test_once_worn_a_radio_station_opens_where_the_headsets_sound_goes(mpv_calls
 
         assert engine.radio_station([Path("alpha.mp4")]) == "a station"
         opened.assert_called_once_with([Path("alpha.mp4")])
+
+
+def test_it_plays_each_file_from_the_address_it_is_handed(mpv_calls):
+    built, _set_muted, _routed = mpv_calls
+
+    def playable(path: Path) -> str:
+        return f"http://127.0.0.1:1/{path.name}"
+
+    HeadsetEngine(lambda _name: None, loop_file=False, prefetch=True, playable=playable)
+
+    assert built.call_args.kwargs["playable"] is playable

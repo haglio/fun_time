@@ -19,6 +19,7 @@ from app_support.osr2_slot import Osr2Sender
 from app_support.threading_utils import start_daemon_thread
 from app_support.written_file import ReadWhenChanged
 from funestra.channel_manifest import channel_flag
+from funestra.cloud_playback import LookAhead, the_library
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 from funestra.funestra import Funestra
@@ -384,7 +385,8 @@ def _item_screen(name: str, placement: Placement, aspect: float) -> Screen:
 
 
 def _headsets_engine(contexts) -> Callable[[], HeadsetEngine]:
-    return lambda: HeadsetEngine(contexts.get_proc_address, loop_file=False, prefetch=True)
+    return lambda: HeadsetEngine(contexts.get_proc_address, loop_file=False, prefetch=True,
+                                 playable=the_library().playable)
 
 
 def main_video(contexts, perf=None) -> VideoThread:
@@ -459,6 +461,7 @@ class _MainUnit(_VideoUnit):
             hud_surface=self.hud, users_frames=self.users_frames,
             window_verbs=self._apply_the_headsets_verb, host_controls=self.projection,
             frame_ms=1000.0 / TICK_HZ_FOR_A_SMOOTH_FLICK, off_the_loop=BehindTheLoop(),
+            look_ahead=LookAhead(the_library()),
         ))
         self.verbs = HeadsetVerbs(
             self.funestra.playback, metadata_root=manifest.regen.metadata_folder,
@@ -728,6 +731,7 @@ class _SatelliteUnit(_VideoUnit):
             self.funestra = Funestra(self.engine, FunestraSetup(
                 channels=self._channels, playlist=playlist, tcode=self._tcode,
                 hud_surface=self.hud, frame_ms=1000.0 / PUMP_HZ, off_the_loop=BehindTheLoop(),
+                look_ahead=LookAhead(the_library()),
             ))
         return self.funestra is not None
 
